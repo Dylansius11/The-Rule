@@ -1,0 +1,5 @@
+package the-rule:referee-stub;
+
+world stub {
+    export outlayer:encryption-keys/api@0.1.0;
+}

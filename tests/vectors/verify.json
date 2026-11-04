@@ -1,0 +1,288 @@
+[
+  {
+    "expected": {
+      "matched": 4,
+      "status": "pass",
+      "total": 4
+    },
+    "export": {
+      "round": {
+        "commit": "264fa34de6492d5d810a64793c959aa08ffd32093bb94ecd5db9a5159198df2a",
+        "log_len": 4,
+        "phase": "Settled",
+        "rule": {
+          "form": 1,
+          "lits": [
+            [
+              21,
+              1
+            ],
+            [
+              84,
+              0
+            ]
+          ],
+          "v": "g1"
+        },
+        "salt": "2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"
+      },
+      "rows": [
+        {
+          "log_idx": 0,
+          "play": {
+            "minute_digit": 0,
+            "number": 123,
+            "prev": null,
+            "word_id": 0
+          },
+          "seq": 3,
+          "verdict": false
+        },
+        {
+          "log_idx": 1,
+          "play": {
+            "minute_digit": 1,
+            "number": 124,
+            "prev": null,
+            "word_id": 1
+          },
+          "seq": 1,
+          "verdict": false
+        },
+        {
+          "log_idx": 2,
+          "play": {
+            "minute_digit": 2,
+            "number": 125,
+            "prev": null,
+            "word_id": 2
+          },
+          "seq": 2,
+          "verdict": false
+        },
+        {
+          "log_idx": 3,
+          "play": {
+            "minute_digit": 3,
+            "number": 126,
+            "prev": null,
+            "word_id": 3
+          },
+          "seq": 4,
+          "verdict": false
+        }
+      ]
+    }
+  },
+  {
+    "expected": {
+      "reason": "verdict mismatch at index 1: recorded true, expected false",
+      "status": "fail"
+    },
+    "export": {
+      "round": {
+        "commit": "264fa34de6492d5d810a64793c959aa08ffd32093bb94ecd5db9a5159198df2a",
+        "log_len": 4,
+        "phase": "Settled",
+        "rule": {
+          "form": 1,
+          "lits": [
+            [
+              21,
+              1
+            ],
+            [
+              84,
+              0
+            ]
+          ],
+          "v": "g1"
+        },
+        "salt": "2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"
+      },
+      "rows": [
+        {
+          "log_idx": 0,
+          "play": {
+            "minute_digit": 0,
+            "number": 123,
+            "prev": null,
+            "word_id": 0
+          },
+          "seq": 3,
+          "verdict": false
+        },
+        {
+          "log_idx": 1,
+          "play": {
+            "minute_digit": 1,
+            "number": 124,
+            "prev": null,
+            "word_id": 1
+          },
+          "seq": 1,
+          "verdict": true
+        },
+        {
+          "log_idx": 2,
+          "play": {
+            "minute_digit": 2,
+            "number": 125,
+            "prev": null,
+            "word_id": 2
+          },
+          "seq": 2,
+          "verdict": false
+        },
+        {
+          "log_idx": 3,
+          "play": {
+            "minute_digit": 3,
+            "number": 126,
+            "prev": null,
+            "word_id": 3
+          },
+          "seq": 4,
+          "verdict": false
+        }
+      ]
+    }
+  },
+  {
+    "expected": {
+      "reason": "duplicate sequence at index 2: 1",
+      "status": "fail"
+    },
+    "export": {
+      "round": {
+        "commit": "264fa34de6492d5d810a64793c959aa08ffd32093bb94ecd5db9a5159198df2a",
+        "log_len": 4,
+        "phase": "Settled",
+        "rule": {
+          "form": 1,
+          "lits": [
+            [
+              21,
+              1
+            ],
+            [
+              84,
+              0
+            ]
+          ],
+          "v": "g1"
+        },
+        "salt": "2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"
+      },
+      "rows": [
+        {
+          "log_idx": 0,
+          "play": {
+            "minute_digit": 0,
+            "number": 123,
+            "prev": null,
+            "word_id": 0
+          },
+          "seq": 3,
+          "verdict": false
+        },
+        {
+          "log_idx": 1,
+          "play": {
+            "minute_digit": 1,
+            "number": 124,
+            "prev": null,
+            "word_id": 1
+          },
+          "seq": 1,
+          "verdict": false
+        },
+        {
+          "log_idx": 2,
+          "play": {
+            "minute_digit": 2,
+            "number": 125,
+            "prev": null,
+            "word_id": 2
+          },
+          "seq": 1,
+          "verdict": false
+        },
+        {
+          "log_idx": 3,
+          "play": {
+            "minute_digit": 3,
+            "number": 126,
+            "prev": null,
+            "word_id": 3
+          },
+          "seq": 4,
+          "verdict": false
+        }
+      ]
+    }
+  },
+  {
+    "expected": {
+      "reason": "log length mismatch: expected 4, found 3",
+      "status": "fail"
+    },
+    "export": {
+      "round": {
+        "commit": "264fa34de6492d5d810a64793c959aa08ffd32093bb94ecd5db9a5159198df2a",
+        "log_len": 4,
+        "phase": "Settled",
+        "rule": {
+          "form": 1,
+          "lits": [
+            [
+              21,
+              1
+            ],
+            [
+              84,
+              0
+            ]
+          ],
+          "v": "g1"
+        },
+        "salt": "2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"
+      },
+      "rows": [
+        {
+          "log_idx": 0,
+          "play": {
+            "minute_digit": 0,
+            "number": 123,
+            "prev": null,
+            "word_id": 0
+          },
+          "seq": 3,
+          "verdict": false
+        },
+        {
+          "log_idx": 1,
+          "play": {
+            "minute_digit": 1,
+            "number": 124,
+            "prev": null,
+            "word_id": 1
+          },
+          "seq": 1,
+          "verdict": false
+        },
+        {
+          "log_idx": 2,
+          "play": {
+            "minute_digit": 2,
+            "number": 125,
+            "prev": null,
+            "word_id": 2
+          },
+          "seq": 2,
+          "verdict": false
+        }
+      ]
+    }
+  }
+]

@@ -16,13 +16,13 @@ pub enum CommitStatus {
 
 #[derive(BorshSerialize, BorshDeserialize, Clone)]
 pub struct Commit {
-    seq: u64,
-    entity: Entity,
-    actor: AccountId,
+    pub(crate) seq: u64,
+    pub(crate) entity: Entity,
+    pub(crate) actor: AccountId,
     hash: [u8; 32],
-    stake: u128,
+    pub(crate) stake: u128,
     block: u64,
-    status: CommitStatus,
+    pub(crate) status: CommitStatus,
 }
 
 #[derive(Serialize)]
@@ -46,10 +46,6 @@ pub struct CommitView {
     stake: U128,
     block: u64,
     status: CommitStatus,
-}
-
-fn bps(amount: u128, bps: u16) -> u128 {
-    amount / 10_000 * u128::from(bps) + amount % 10_000 * u128::from(bps) / 10_000
 }
 
 #[near]
@@ -304,6 +300,9 @@ impl Game {
         let result = match verdict.filter(|_| live) {
             Some(true) => {
                 commit.status = CommitStatus::Correct;
+                if let Some(e) = self.entities.get_mut(&(mode, round, commit.entity)) {
+                    e.correct_commits.push(commit_seq);
+                }
                 if let Some(r) = self.rounds.get_mut(&(mode, round)) {
                     if r.best.is_none_or(|(seq, _)| commit.seq < seq) {
                         r.best = Some((commit.seq, commit_seq));
@@ -320,15 +319,7 @@ impl Game {
             }
             Some(false) => {
                 commit.status = CommitStatus::Wrong;
-                let returned = bps(commit.stake, p.wrong_return_bps);
-                let to_pot = commit.stake - returned;
-                self.total_stakes -= commit.stake;
-                self.credit_back(&commit.actor, returned);
-                if let Some(r) = self.rounds.get_mut(&(mode, round)) {
-                    r.pot += to_pot;
-                    self.total_pots += to_pot;
-                }
-                self.close_commit(mode, round, commit.entity);
+                self.apply_wrong_stake(mode, round, &commit, p.wrong_return_bps);
                 "wrong"
             }
             None => {
@@ -347,14 +338,14 @@ impl Game {
         ));
     }
 
-    fn credit_back(&mut self, actor: &AccountId, amount: u128) {
+    pub(crate) fn credit_back(&mut self, actor: &AccountId, amount: u128) {
         if let Some(player) = self.players.get_mut(actor) {
             player.credit += amount;
             self.total_credit += amount;
         }
     }
 
-    fn close_commit(&mut self, mode: u8, round: u32, entity: Entity) {
+    pub(crate) fn close_commit(&mut self, mode: u8, round: u32, entity: Entity) {
         if let Some(e) = self.entities.get_mut(&(mode, round, entity)) {
             e.open_commits = e.open_commits.saturating_sub(1);
         }

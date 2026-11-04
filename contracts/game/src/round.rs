@@ -63,6 +63,12 @@ impl Game {
                     best: None,
                     freeze_ns: None,
                     pending_checks: 0,
+                    base_pot: self.carry[i],
+                    outcome: None,
+                    open_status: settle::OpenStatus::None,
+                    opening_started_ns: None,
+                    sweep_cursor: 0,
+                    payout: None,
                 },
             );
             self.active_rounds
@@ -127,10 +133,7 @@ impl Game {
         if r.phase == Phase::Sealing
             && env::block_timestamp() >= r.start_ns.saturating_add(params.begin_timeout_ns)
         {
-            r.phase = Phase::Cancelled;
-            self.carry[mode as usize] += r.pot;
-            self.total_pots -= r.pot;
-            r.pot = 0;
+            self.refund_round(mode, round, Phase::Cancelled);
         }
     }
 

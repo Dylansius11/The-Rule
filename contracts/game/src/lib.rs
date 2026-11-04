@@ -6,6 +6,7 @@ mod log;
 pub mod params;
 mod play;
 mod round;
+mod settle;
 mod views;
 use borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::U128;
@@ -15,6 +16,10 @@ use near_sdk::store::LookupMap;
 use near_sdk::{AccountId, Gas, NearToken, PanicOnDefault, Promise, env, near};
 use protocol::{Grammar, Hex32, Mode, Params, RefereeRequest, RefereeResponse};
 use rule_core::{Play, Previous};
+/// `floor(amount * bps / 10_000)` without overflowing for any `u128` amount.
+fn bps(amount: u128, bps: u16) -> u128 {
+    amount / 10_000 * u128::from(bps) + amount % 10_000 * u128::from(bps) / 10_000
+}
 
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct Player {
@@ -41,6 +46,10 @@ pub struct EntityRound {
     last_time_ns: u64,
     /// Open (Committed, Checking or Correct) commits of this entity in this round.
     open_commits: u8,
+    /// Paid out by `claim` (payout, refund and returned stakes).
+    claimed: bool,
+    /// Commit ids of this entity that ended Correct; their stakes return on `claim`.
+    correct_commits: Vec<u32>,
 }
 
 #[derive(Serialize)]
@@ -109,6 +118,14 @@ pub struct Round {
     freeze_ns: Option<u64>,
     /// Guess checks in flight; `finalize` requires zero.
     pending_checks: u32,
+    /// Carry and sponsor seed the round started with; returned to `carry` when it is cancelled or void.
+    base_pot: u128,
+    outcome: Option<settle::Outcome>,
+    open_status: settle::OpenStatus,
+    opening_started_ns: Option<u64>,
+    /// Commits before this index are final (`finalize` sweeps Committed ones to Unrevealed in batches).
+    sweep_cursor: u32,
+    payout: Option<settle::Payout>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize)]
@@ -135,6 +152,13 @@ pub enum Request {
         mode: u8,
         round: u32,
         commit_seq: u32,
+    },
+    Open {
+        mode: u8,
+        round: u32,
+    },
+    Platform {
+        amount: u128,
     },
 }
 
@@ -200,6 +224,8 @@ pub struct Game {
     commits: LookupMap<(u8, u32, u32), guess::Commit>,
     /// Stakes locked by open commits.
     total_stakes: u128,
+    /// Settled payouts and refunds not yet claimed.
+    total_claimable: u128,
 }
 
 impl Game {
@@ -271,6 +297,23 @@ impl Game {
             "E11"
         );
         near_sdk::require!(
+            params
+                .solved_split_bps
+                .iter()
+                .map(|x| u32::from(*x))
+                .sum::<u32>()
+                == 10_000
+                && params
+                    .unsolved_split_bps
+                    .iter()
+                    .map(|x| u32::from(*x))
+                    .sum::<u32>()
+                    == 10_000
+                && params.wrong_return_bps <= 10_000
+                && params.stake_bps.iter().all(|v| *v <= 10_000),
+            "E11"
+        );
+        near_sdk::require!(
             params.base_attempts.iter().all(|v| *v > 0) && params.share_cap.iter().all(|v| *v > 0),
             "E11"
         );
@@ -320,6 +363,7 @@ impl Game {
             platform_accrued: 0,
             commits: LookupMap::new(b"c"),
             total_stakes: 0,
+            total_claimable: 0,
         }
     }
 

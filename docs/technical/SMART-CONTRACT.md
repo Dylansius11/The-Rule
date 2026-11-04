@@ -182,15 +182,15 @@ A team is locked from its first play or commit in a round until that round is Se
 | --- | --- | --- |
 | `start_round(mode)` | Slot time reached, previous round of mode out of Investigation/Reveal, no round Sealing | Creates the round, `seed = env::random_seed()`, moves `carry[mode]` into the pot, `allowance_left = round_allowance`, calls referee `begin`. A retry is allowed if a begin request failed and `begin_timeout` has not passed |
 | `advance(mode)` | Investigation and `now >= investigation_end_ns` (`begin_ok_ns + investigation_max_ns`) | Moves to Reveal with `reveal_deadline = now + reveal_window` |
-| `finalize(mode)` | Reveal, `now >= reveal_deadline`, `pending_checks == 0` | Every commit still Committed becomes Unrevealed and is treated as Wrong (50/50, D12). Computes `outcome`, calls referee `open` |
-| `retry_open(mode, round_id)` | Opening, last open failed, before `open_timeout` | Calls `open` again |
-| `cancel(mode, round_id)` | Sealing past `begin_timeout`, or Opening past `open_timeout` | Cancelled refund path (below) |
-| `claim(mode, round_id)` | Settled, Cancelled or Void | Credits the caller's owed amounts to their credit (or the team vault for vault-funded items). Each item is idempotent via a per-entity claimed flag |
-| `claim_platform()` | anyone | Transfers `platform_accrued` to `platform` |
+| `finalize(mode) -> Option<request_id>` | Reveal, `now >= reveal_deadline`, `pending_checks == 0`, compute float covers the `open` deposit (E22) | Sweeps at most 20 commits per call: every commit still Committed becomes Unrevealed and is treated as Wrong (50/50, D12). While commits remain it returns `None` and the keeper calls again; on the last batch it computes `outcome` (`Solved{winner}` if any commit is Correct, by smallest `seq`), moves to Opening and calls referee `open` (returns its request id) |
+| `retry_open(mode, round_id) -> request_id` | Opening, last open failed, before `open_timeout` | Calls `open` again |
+| `cancel(mode, round_id)` | Sealing past `begin_timeout` (no begin pending), or Opening with a failed open past `open_timeout` | Cancelled refund path (below) |
+| `claim(mode, round_id) -> amount` | Settled, Cancelled or Void; caller's entity not yet claimed (E56 otherwise) | Credits the caller's owed amounts to their credit: payout (Settled) or pot contribution (Cancelled, Void), plus the stakes of the entity's Correct commits. One `claimed` flag per entity and round makes it idempotent. Team vault items follow in P4 |
+| `claim_platform() -> request_id` | anyone; `platform_accrued > 0` (E56) | Transfers `platform_accrued` to `platform`; a failed transfer restores it in `on_platform` |
 | `seed_pot(mode)` payable | anyone | Adds to `carry[mode]` (sponsor seed) |
 | `fund_compute()` payable | anyone | Adds to `compute_float` (sponsor top-up; never withdrawable, never pot money) |
 
-`on_open`: strict `{"rule":CanonicalRule,"salt":hex32}`. If `sha256(canonical_bytes(rule) || salt) == round.commit`: store both, phase Settled, compute payouts, update the season board. A mismatch sets Void. A failure keeps Opening, so `retry_open` is possible.
+`on_open`: strict `{"rule":CanonicalRule,"salt":hex32}`. If `sha256(canonical_bytes(rule) || salt) == round.commit`: store both, phase Settled, compute payouts (formulas below), update the season board. A mismatch sets Void and emits `round_void`. A failure sets `open_status = failed` and keeps Opening, so `retry_open` (or, past the timeout, `cancel`) is possible. A stale or duplicate callback is a no-op. `get_claimable(mode, round_id, account)` returns what `claim` would credit now.
 
 ### Views (paged, read at `final`)
 
@@ -216,7 +216,7 @@ A team is locked from its first play or commit in a round until that round is Se
 | E19 | Commit preimage does not match | E51 | Exactly 1 yoctoNEAR required |
 | E20 | Insufficient credit or vault balance | E52 | Token: mint receiver is not registered |
 | E53 | Token: `storage_unregister(force=true)` rejected | E54 | Token: caller is not the minter |
-| E55 | Token: mint would exceed the cap | | |
+| E55 | Token: mint would exceed the cap | E56 | Nothing to claim (already claimed, no entry, or nothing owed) |
 
 ### Payout formulas (exact integer arithmetic)
 
@@ -231,7 +231,7 @@ Let `P` be the round pot at finalize: rolled-in carry + sponsor seed + 80% of se
 
 ### Cancelled and Void (D7)
 
-Stakes are refunded in full. The round pot minus rolled-in carry and sponsor seed is refunded pro rata to the entities whose settled plays paid the pot portion. Each entity gets `pot_share_i = 80% of fees_i` exactly, because the ledger records per-entity pot contributions. Carry and seed go back to `carry[mode]`. Locked RULE is unlockable. Compute and platform shares already earned on delivered verdicts are not refunded, because the service was delivered. Mints already made stand. Void additionally emits `round_void{expected, got}` as public evidence of an enclave fault.
+Stakes are refunded in full: a wrong or unrevealed stake already returned its share at once, and the half that went to the pot is part of the entity's `pot_contribution`; Correct stakes return on `claim`. The round pot minus rolled-in carry and sponsor seed (`base_pot`) is refunded to the entities that paid it: each entity's `pot_contribution` is 80% of its settled fees plus the pot halves of its wrong or unrevealed stakes, exactly, because the ledger records it per entity. Carry and seed go back to `carry[mode]`. Locked RULE is unlockable. Compute and platform shares already earned on delivered verdicts are not refunded, because the service was delivered. Mints already made stand. Void additionally emits `round_void{expected, got}` as public evidence of an enclave fault.
 
 ### Season board
 

@@ -26,7 +26,7 @@ impl Game {
             round_pots: U128(self.total_pots),
             carry: U128(self.carry[0] + self.carry[1]),
             open_stakes: U128(self.total_stakes),
-            claimable: U128(0),
+            claimable: U128(self.total_claimable),
             compute_float: U128(self.compute_float),
             platform_accrued: U128(self.platform_accrued),
             storage_reserve: U128(self.storage_reserve),

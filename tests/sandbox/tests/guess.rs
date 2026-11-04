@@ -7,7 +7,12 @@ use sandbox_tests::{artifact, params};
 use serde_json::{Value, json};
 
 type Res<T> = Result<T, Box<dyn std::error::Error>>;
-const BEGIN: &str = r#"{"commit":"1111111111111111111111111111111111111111111111111111111111111111","header":{"tier":"daily","bucket":"rare","grammar":"2222222222222222222222222222222222222222222222222222222222222222"}}"#;
+const WINDOW_NS: u64 = 60_000_000_000;
+
+fn begin_value(commit: &str) -> Value {
+    json!({"commit":commit,"header":{"tier":"daily","bucket":"rare","grammar":"22".repeat(32)}})
+}
+
 async fn wait_status(game: &Contract, commit_seq: usize, status: &str) -> Res<()> {
     for _ in 0..50 {
         if commits(game).await?[commit_seq]["status"] == status {
@@ -39,15 +44,22 @@ async fn resolve(mock: &Contract, id: u32, value: Value, error: bool) -> Res<()>
     Ok(())
 }
 
-/// Deploy mock and game, run `start_round` and deliver a begin result; the round ends in Investigation.
-async fn started(worker: &Worker<Sandbox>) -> Res<(Contract, Contract)> {
+/// Deploy mock and game, run `start_round` and deliver a begin result sealed with `commit`; the
+/// round ends in Investigation with a `reveal_window_ns` of `window_ns`.
+async fn started(
+    worker: &Worker<Sandbox>,
+    commit: &str,
+    window_ns: u64,
+) -> Res<(Contract, Contract)> {
     let mock = worker
         .dev_deploy(&std::fs::read(artifact("mock_outlayer"))?)
         .await?;
     mock.call("new").transact().await?.into_result()?;
     let game = worker.dev_deploy(&std::fs::read(artifact("game"))?).await?;
+    let mut config = params(mock.id().as_str());
+    config["reveal_window_ns"] = json!(window_ns);
     game.call("new")
-        .args_json(json!({"params":params(mock.id().as_str()),"demo":true}))
+        .args_json(json!({"params":config,"demo":true}))
         .transact()
         .await?
         .into_result()?;
@@ -58,7 +70,7 @@ async fn started(worker: &Worker<Sandbox>) -> Res<(Contract, Contract)> {
         .transact_async()
         .await?;
     wait_requests(&mock, 1).await?;
-    resolve(&mock, 0, serde_json::from_str(BEGIN)?, false).await?;
+    resolve(&mock, 0, begin_value(commit), false).await?;
     begin.await?.into_result()?;
     for _ in 0..30 {
         let round: Value = game
@@ -117,7 +129,7 @@ async fn credit(game: &Contract, who: &Account) -> Res<u128> {
 #[tokio::test]
 async fn commit_reveal_refund_and_freeze_through_the_mock_referee() -> Res<()> {
     let worker = near_workspaces::sandbox().await?;
-    let (mock, game) = started(&worker).await?;
+    let (mock, game) = started(&worker, &"11".repeat(32), WINDOW_NS).await?;
     let alice = worker.dev_create_account().await?;
     alice
         .call(game.id(), "deposit_credit")
@@ -219,5 +231,119 @@ async fn commit_reveal_refund_and_freeze_through_the_mock_referee() -> Res<()> {
             .expect_err("frozen");
         assert!(format!("{error:?}").contains("E10"), "{error:?}");
     }
+    Ok(())
+}
+
+#[tokio::test]
+async fn solved_round_opens_settles_and_pays_through_the_mock_referee() -> Res<()> {
+    let worker = near_workspaces::sandbox().await?;
+    let (rule, _) = rule_core::sample(b"sandbox-settle");
+    let round_salt = [5u8; 32];
+    let commit = serde_json::to_value(protocol::round_commitment(&rule, &round_salt))?;
+    let (mock, game) = started(&worker, commit.as_str().unwrap(), 3_000_000_000).await?;
+    let alice = worker.dev_create_account().await?;
+    alice
+        .call(game.id(), "deposit_credit")
+        .deposit(NearToken::from_near(1))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+    let salt = [9u8; 32];
+    let hash = commit_hash(&game, &alice, &rule, salt);
+    alice
+        .call(game.id(), "commit_guess")
+        .args_json(json!({"mode":0,"hash":hash}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+    worker.fast_forward(5).await?;
+    let reveal = alice
+        .call(game.id(), "reveal_guess")
+        .args_json(json!({"mode":0,"commit_seq":0,"guess":serde_json::to_value(RuleHex(rule.clone()))?,"salt":"09".repeat(32)}))
+        .gas(Gas::from_tgas(300))
+        .transact_async()
+        .await?;
+    wait_requests(&mock, 2).await?;
+    resolve(&mock, 1, json!({"correct":true}), false).await?;
+    reveal.await?.into_result()?;
+    wait_status(&game, 0, "Correct").await?;
+
+    // Nobody can open before the reveal window (3 s) is over.
+    let early = alice
+        .call(game.id(), "finalize")
+        .args_json(json!({"mode":0}))
+        .gas(Gas::from_tgas(300))
+        .transact()
+        .await?
+        .into_result()
+        .expect_err("window still open");
+    assert!(format!("{early:?}").contains("E50"), "{early:?}");
+    let mut request = None;
+    for _ in 0..30 {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        worker.fast_forward(2).await?;
+        let attempt = alice
+            .call(game.id(), "finalize")
+            .args_json(json!({"mode":0}))
+            .gas(Gas::from_tgas(300))
+            .transact_async()
+            .await?
+            .await?;
+        if let Ok(done) = attempt.into_result() {
+            request = done.json::<Option<u64>>()?;
+            break;
+        }
+    }
+    assert_eq!(request.expect("finalize never completed"), 2);
+    // The mock numbers its requests in arrival order: begin 0, guess 1, open 2.
+    wait_requests(&mock, 3).await?;
+    let opened = json!({"rule":serde_json::to_value(&rule)?,"salt":"05".repeat(32)});
+    resolve(&mock, 2, opened, false).await?;
+    let mut round = Value::Null;
+    for _ in 0..30 {
+        round = game
+            .view("get_round")
+            .args_json(json!({"mode":0,"id":null}))
+            .await?
+            .json()?;
+        if round["phase"] == "Settled" {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+    assert_eq!(round["phase"], "Settled", "{round}");
+    assert_eq!(round["open_status"], "ok");
+    assert_eq!(round["rule"], serde_json::to_value(&rule)?);
+    assert_eq!(round["salt"], "05".repeat(32));
+    assert_eq!(round["outcome"]["account"], alice.id().as_str());
+
+    // The solver gets the stake back; the pot was empty, so there is nothing else to pay.
+    let before = credit(&game, &alice).await?;
+    let paid: String = alice
+        .call(game.id(), "claim")
+        .args_json(json!({"mode":0,"round_id":0}))
+        .max_gas()
+        .transact()
+        .await?
+        .json()?;
+    assert_eq!(paid, "100000000000000000000000");
+    assert_eq!(
+        credit(&game, &alice).await? - before,
+        100_000_000_000_000_000_000_000
+    );
+    let ledger: Value = game.view("get_ledger").await?.json()?;
+    assert_eq!(ledger["open_stakes"], "0");
+    assert_eq!(ledger["claimable"], "0");
+    let again = alice
+        .call(game.id(), "claim")
+        .args_json(json!({"mode":0,"round_id":0}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()
+        .expect_err("second claim");
+    assert!(format!("{again:?}").contains("E56"), "{again:?}");
     Ok(())
 }

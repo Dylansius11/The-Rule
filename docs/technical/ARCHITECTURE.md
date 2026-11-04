@@ -62,21 +62,21 @@ sequenceDiagram
   participant R as referee (TDX)
   participant P as Player
   K->>G: start_round(mode) at slot time
-  G->>G: seed = random_seed(); Sealing
+  G->>G: seed = random_seed(), phase Sealing
   G->>O: request_execution(begin, seed)
   O->>R: run pinned wasm
-  R->>R: k = mac(rule, game||mode||round||seed); sample rule; salt
+  R->>R: k = mac(rule, game+mode+round+seed), sample rule and salt
   R-->>O: {commit, header}
   O-->>G: on_begin
-  G->>G: store commit; Investigation
+  G->>G: store commit, phase Investigation
   P->>G: play(mode, 418, "heron")
-  G->>G: key = play_key(); duplicate? -> return old verdict (free)
-  G->>G: debit fee+storage; pending; seq
+  G->>G: key = play_key(), if duplicate return old verdict (free)
+  G->>G: debit fee and storage, mark pending, assign seq
   G->>O: request_execution(verdict, play, commit)
   O->>R: recompute rule, check commit, eval
   R-->>O: {v:1}
   O-->>G: on_verdict
-  G->>G: split fee; log row; share; line; mint
+  G->>G: split fee, log row, share, line, mint
   P->>G: poll get_entity until settled
 ```
 

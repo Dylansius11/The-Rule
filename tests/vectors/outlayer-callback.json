@@ -1,0 +1,29 @@
+{
+  "_comment": "Captured from real OutLayer testnet runs on 2026-11-04; bytes are UTF-8 strings delivered by OutLayer, not simulated results.",
+  "success": {
+    "transaction": "54XZTK6h3SEDjA2Wkxycds1mTXHzTqeP5ahDWeoUqc8E",
+    "bytes_utf8": "{\"d\":\"3abb0e66e7a16efd3695d239833f8ae801d99140cb3f4a087a62680461d70d5f\"}"
+  },
+  "caller_denied_direct": {
+    "transaction": "4jRodUu6h8sAbxGVfMZ3fCzLeJryQW8LWshMaSSXNb24",
+    "bytes_utf8": "null"
+  },
+  "caller_denied_contract": {
+    "transaction": "9C7MtkDVd7N8s4USdn1QPvEQhKkvr4D8EugqRkfun68g",
+    "bytes_utf8": "null"
+  },
+  "bad_input": {
+    "transaction": "Dsem1DzcQaX79vxssGJn7NaZhLhYWdmQhzLj1b58p6mv",
+    "bytes_utf8": "null"
+  },
+  "guest_trap": {
+    "transaction": "BxVPyZHTL9A36hZFb7WNHKC3xe3AhzWvQYEiEL1yqEeT",
+    "bytes_utf8": "null"
+  },
+  "impossible_limit": {
+    "transaction": "fDr5Mh9bDyU7XNSQa18QWFop9L2L6jx8jMCzWk9xsFE",
+    "promise_result": "Failed",
+    "bytes_utf8": null,
+    "note": "No successful promise bytes; OutLayer rejected max_instructions above its hard limit."
+  }
+}

@@ -1,0 +1,23 @@
+[workspace]
+resolver = "3"
+members = [
+  "crates/rule-core",
+  "crates/protocol",
+  "contracts/game",
+  "contracts/token",
+  "enclave/referee",
+  "verifier/cli",
+  "tests/sandbox",
+]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.97"
+license = "MIT"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+float_arithmetic = "deny"

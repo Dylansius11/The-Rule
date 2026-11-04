@@ -1,0 +1,25 @@
+# Working files and handoffs (never committed)
+scratch/
+
+# Project skills are restored from skills-lock.json (see docs/technical/INTEGRATIONS.md)
+.claude/skills/
+
+# Secrets: only the example file is tracked
+.env
+.env.*
+!.env.example
+
+# Build output
+target/
+node_modules/
+dist/
+pkg/
+
+# OS and editor junk
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.idea/
+.vscode/

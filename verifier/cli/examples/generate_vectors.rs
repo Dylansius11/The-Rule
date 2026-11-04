@@ -13,6 +13,7 @@ fn main() {
             Row {
                 log_idx: i as u32,
                 seq: [3, 1, 2, 4][i as usize],
+                play_key: play.play_key().0.to_string(),
                 play,
                 verdict: eval(&rule, &play),
             }
@@ -34,7 +35,9 @@ fn main() {
     duplicate.rows[2].seq = duplicate.rows[1].seq;
     let mut truncated = valid.clone();
     truncated.rows.pop();
-    let cases: Vec<_> = [valid, tampered, duplicate, truncated]
+    let mut key_mismatch = valid.clone();
+    key_mismatch.rows[0].play_key.push('0');
+    let cases: Vec<_> = [valid, tampered, duplicate, truncated, key_mismatch]
         .into_iter()
         .map(|export| json!({"expected":verify_export(&export),"export":export}))
         .collect();

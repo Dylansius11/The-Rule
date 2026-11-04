@@ -2,11 +2,11 @@
 
 `rule verify --network testnet --game GAME --mode solo --round 0` reads the settled round and its log using final JSON-RPC views. Use `--rpc-url URL` to select a provider and `--json` for a machine-readable result. `rule verify --from-file round.json --json` requires no network. Exit status is zero only for PASS. Cancelled and Void rounds do not disclose a verified rule, so replay is unavailable and exits nonzero.
 
-The portable JSON export has `{ "round": ROUND_VIEW, "rows": [LOG_ROW, ...] }`. The round view needs `phase`, `log_len`, `rule`, `salt`, and `commit`; the verifier reads each row's `log_idx`, `seq`, `play`, and `verdict` and ignores other view fields. Salt and commitment are lowercase hex32, the rule and play use the shared protocol grammar. This export shape and the view serialization are provisional: SMART-CONTRACT names the views but does not define their JSON result shape, and the web exporter is not implemented yet.
+The portable JSON export has `{ "round": ROUND_VIEW, "rows": [LOG_ROW, ...] }`. The round view needs `phase`, `log_len`, `rule`, `salt`, and `commit`; the verifier reads each row's `log_idx`, `seq`, `play_key`, `play`, and `verdict` and ignores other view fields. The decimal `play_key` must match the key computed from `play`. Salt and commitment are lowercase hex32, the rule and play use the shared protocol grammar. The web export shape remains provisional until the web exporter is implemented.
 
 Logs are in callback-application order, not sequence issuance order. Indexes must be contiguous, and sequence values unique. The replay checks the commitment and the verdicts using the shared Rust crates; a PASS does not establish secrecy during the round or authenticate an RPC provider's response. Compare independently obtained sources if needed.
 
-For the browser, build `verifier/wasm` for `wasm32-unknown-unknown`, then run `wasm-bindgen --target web` with version 0.2.130. The generated module exports `verify_round(rows_json, rule_json, salt_json, commit_json, log_len)` and `consistent(rule_json, rows_json)`; arguments and results are JSON strings. Invalid JSON throws. `consistent` checks verdicts only; it does not check completeness or a commitment.
+For the browser, build `verifier/wasm` for `wasm32-unknown-unknown`, then run `wasm-bindgen --target web` with version 0.2.130. The generated module exports `verify_round(rows_json, rule_json, salt_json, commit_json, log_len)` and `consistent(rule_json, rows_json)`; arguments and results are JSON strings. Invalid JSON throws. `consistent` checks play keys and verdicts only; it does not check completeness or a commitment.
 
 Example from the repository root in WSL, with `wasm-bindgen-cli` 0.2.130 installed:
 

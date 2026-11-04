@@ -21,10 +21,10 @@ fn round(n: u32) -> Export {
                 None,
             )
             .unwrap();
-            let _key = play.play_key();
             Row {
                 log_idx: i,
                 seq: i as u64,
+                play_key: play.play_key().0.to_string(),
                 play,
                 verdict: eval(&rule, &play),
             }
@@ -68,6 +68,15 @@ fn replay_tampering_and_completeness() {
         )
     );
     let mut x = good.clone();
+    x.rows[1].play_key.push('0');
+    assert_eq!(reason(&x), "PlayKeyMismatch at index 1");
+    assert_eq!(
+        verifier_cli::consistent(x.round.rule.as_ref().unwrap(), &x.rows),
+        Verification::Fail {
+            reason: "PlayKeyMismatch at index 1".into()
+        }
+    );
+    let mut x = good.clone();
     x.round.salt = Some(Hex32([8; 32]));
     assert_eq!(reason(&x), "commitment mismatch");
     let mut x = good.clone();
@@ -108,6 +117,39 @@ fn replay_tampering_and_completeness() {
             reason(&x),
             format!("round is {phase}, not Settled; replay unavailable")
         );
+    }
+}
+
+#[test]
+fn chain_row_accepts_full_and_future_fields_but_validates_inputs() {
+    let valid = round(1);
+    let mut row = serde_json::to_value(&valid.rows[0]).unwrap();
+    row["entity_tag"] = 0.into();
+    row["entity_id"] = 42.into();
+    row["actor"] = 42.into();
+    row["account"] = "alice.testnet".into();
+    row["minted"] = "0".into();
+    row["future_field"] = serde_json::json!({"any": true});
+    let decoded: Row = serde_json::from_value(row.clone()).unwrap();
+    assert_eq!(decoded.play_key, valid.rows[0].play_key);
+    for (field, value) in [
+        ("play_key", serde_json::json!(0)),
+        ("seq", serde_json::json!("0")),
+        ("log_idx", serde_json::json!(-1)),
+        ("verdict", serde_json::json!(1)),
+        (
+            "play",
+            serde_json::json!({"number": 1000, "word_id": 0, "minute_digit": 0, "prev": null}),
+        ),
+    ] {
+        let mut bad = row.clone();
+        bad[field] = value;
+        assert!(serde_json::from_value::<Row>(bad).is_err(), "{field}");
+    }
+    for key in ["00", "+0", "", "18446744073709551616"] {
+        let mut bad = valid.clone();
+        bad.rows[0].play_key = key.into();
+        assert_eq!(reason(&bad), "PlayKeyMismatch at index 0");
     }
 }
 

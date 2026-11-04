@@ -8,6 +8,7 @@ use std::collections::HashSet;
 pub struct Row {
     pub log_idx: u32,
     pub seq: u64,
+    pub play_key: String,
     pub play: Play,
     pub verdict: bool,
 }
@@ -39,15 +40,29 @@ fn fail(reason: String) -> Verification {
     Verification::Fail { reason }
 }
 
+fn row_failure(rule: &CanonicalRule, row: &Row) -> Option<String> {
+    let key = row.play_key.as_bytes();
+    if key.is_empty()
+        || (key.len() > 1 && key[0] == b'0')
+        || !key.iter().all(u8::is_ascii_digit)
+        || row.play_key.parse::<u64>().ok() != Some(row.play.play_key().0)
+    {
+        return Some(format!("PlayKeyMismatch at index {}", row.log_idx));
+    }
+    let expected = eval(rule, &row.play);
+    (expected != row.verdict).then(|| {
+        format!(
+            "verdict mismatch at index {}: recorded {}, expected {}",
+            row.log_idx, row.verdict, expected
+        )
+    })
+}
+
 /// Replay verdicts, reporting the first disagreement in row order.
 pub fn consistent(rule: &CanonicalRule, rows: &[Row]) -> Verification {
     for row in rows {
-        let expected = eval(rule, &row.play);
-        if expected != row.verdict {
-            return fail(format!(
-                "verdict mismatch at index {}: recorded {}, expected {}",
-                row.log_idx, row.verdict, expected
-            ));
+        if let Some(reason) = row_failure(rule, row) {
+            return fail(reason);
         }
     }
     Verification::Pass {
@@ -88,12 +103,8 @@ pub fn verify_round(
                 row.log_idx, row.seq
             ));
         }
-        let expected = eval(rule, &row.play);
-        if expected != row.verdict {
-            return fail(format!(
-                "verdict mismatch at index {}: recorded {}, expected {}",
-                row.log_idx, row.verdict, expected
-            ));
+        if let Some(reason) = row_failure(rule, row) {
+            return fail(reason);
         }
     }
     if rows.len() != log_len as usize {

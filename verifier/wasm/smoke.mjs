@@ -23,7 +23,7 @@ try {
     assert.deepEqual(actual, item.expected);
     assert.deepEqual(wasm, actual);
     const replay = JSON.parse(consistent(JSON.stringify(round.rule), JSON.stringify(rows)));
-    if (index === 1) assert.deepEqual(replay, item.expected);
+    if (index === 1 || index === 4) assert.deepEqual(replay, item.expected);
     else assert.deepEqual(replay, { status: 'pass', matched: rows.length, total: rows.length });
     assert.equal(result.status, actual.status === 'pass' ? 0 : 1);
     console.log(`vector ${index}: native == wasm (${actual.status})`);

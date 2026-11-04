@@ -14,6 +14,7 @@ pub const SALT: [u8; 32] = [7; 32];
 /// Salt the (mock) referee sealed the round with.
 pub const ROUND_SALT: [u8; 32] = [3; 32];
 pub const DEPOSIT: u128 = 1_000_000;
+pub const INVESTIGATION_END: u64 = 3_600_000_000_000;
 
 /// Message of the panic raised by `f`; empty string when it does not panic.
 pub fn panic_text(f: impl FnOnce()) -> String {
@@ -35,7 +36,7 @@ pub fn params() -> Params {
         "genesis_ns":0,"round_period_ns":86400000000000u64,"mode_offset_ns":[0,0],"investigation_max_ns":3600000000000u64,"reveal_window_ns":60000000000u64,"begin_timeout_ns":3600000000000u64,"open_timeout_ns":3600000000000u64,
         "min_reveal_delay_blocks":2,"base_attempts":[25,50],"lock_tiers":[],"attempt_cap":[125,250],"share_cap":[25,50],"round_allowance":"500000","mint_base":"100","max_team_size":5,
         "referee":{"outlayer":"outlayer.testnet","urls":["https://example.com/referee.wasm"],"hash":"0000000000000000000000000000000000000000000000000000000000000000","build_target":"wasm32-wasip2"},
-        "resource_limits":{"begin":limits,"verdict":limits,"guess":limits,"open":limits},"outlayer_deposit":{"begin":"0","verdict":"0","guess":"0","open":"0"},"gas_outlayer":100000000000000u64,"gas_callback":30000000000000u64,"gas_mint":10000000000000u64,"token":"token.testnet","platform":"platform.testnet","chain_id":"testnet"
+        "resource_limits":{"begin":limits,"verdict":limits,"guess":limits,"open":limits},"outlayer_deposit":{"begin":"0","verdict":"0","guess":"0","open":"0"},"gas_outlayer":100000000000000u64,"gas_callback":30000000000000u64,"gas_mint":10000000000000u64,"token_storage_deposit":"1000","token":"token.testnet","platform":"platform.testnet","chain_id":"testnet"
     })).unwrap()
 }
 
@@ -61,8 +62,42 @@ pub fn fixture(p: Params) -> Fx {
     fixture_seeded(p, 0)
 }
 
-/// Demo game whose first round started with `seed` yoctoNEAR of sponsor seed and is in Investigation.
 pub fn fixture_seeded(p: Params, seed: u128) -> Fx {
+    fixture_with(p, seed, "rare", |_, _| {})
+}
+
+/// Function-call receipts created since the last `testing_env!`, as `(receiver, method, args, deposit)`.
+pub fn calls() -> Vec<(String, String, Value, u128)> {
+    near_sdk::test_utils::get_created_receipts()
+        .into_iter()
+        .flat_map(|r| {
+            let receiver = r.receiver_id.to_string();
+            r.actions.into_iter().filter_map(move |a| match a {
+                near_sdk::mock::MockAction::FunctionCallWeight {
+                    method_name,
+                    args,
+                    attached_deposit,
+                    ..
+                } => Some((
+                    receiver.clone(),
+                    String::from_utf8(method_name).unwrap(),
+                    near_sdk::serde_json::from_slice(&args).unwrap_or(Value::Null),
+                    attached_deposit.as_yoctonear(),
+                )),
+                _ => None,
+            })
+        })
+        .collect()
+}
+
+/// Like `fixture_seeded`, with `before_begin` run after the account deposit and before the round
+/// starts (for example to place RULE locks for round 0).
+pub fn fixture_with(
+    p: Params,
+    seed: u128,
+    bucket: &str,
+    before_begin: impl FnOnce(&mut Game, &mut VMContextBuilder),
+) -> Fx {
     // The mocked blockchain keeps its storage across `testing_env!`: start every fixture empty.
     near_sdk::mock::with_mocked_blockchain(|b| drop(b.take_storage()));
     let mut ctx = VMContextBuilder::new();
@@ -78,9 +113,11 @@ pub fn fixture_seeded(p: Params, seed: u128) -> Fx {
         testing_env!(ctx.build());
     }
     game.deposit_credit();
+    before_begin(&mut game, &mut ctx);
+    testing_env!(ctx.build());
     let (rule, _) = rule_core::sample(b"guess-tests");
     let commit = protocol::round_commitment(&rule, &ROUND_SALT);
-    let begin = json!({"commit":commit,"header":{"tier":"daily","bucket":"rare","grammar":"2222222222222222222222222222222222222222222222222222222222222222"}});
+    let begin = json!({"commit":commit,"header":{"tier":"daily","bucket":bucket,"grammar":"2222222222222222222222222222222222222222222222222222222222222222"}});
     let request = game.start_round(Mode::Solo);
     deliver_env(
         &ctx,
@@ -188,6 +225,14 @@ impl Fx {
             }
             assert!(calls < 100, "finalize never completed");
         }
+    }
+
+    /// Let Investigation end by time and wait out the reveal window (no commits needed).
+    pub fn run_to_finalize(&mut self, block: u64) {
+        self.at(block, INVESTIGATION_END);
+        self.game.advance(Mode::Solo);
+        let deadline = self.round()["reveal_deadline_ns"].as_u64().unwrap();
+        self.at(block + 1, deadline);
     }
 
     /// Referee `open` answer for the round: the real rule and salt.

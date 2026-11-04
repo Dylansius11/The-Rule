@@ -92,6 +92,9 @@ pub struct Params {
     pub gas_outlayer: u64,
     pub gas_callback: u64,
     pub gas_mint: u64,
+    /// Storage deposit of one RULE account (the token's `storage_balance_bounds().min`), paid from
+    /// the player's credit by `register_token`.
+    pub token_storage_deposit: Amount,
     pub token: String,
     pub platform: String,
     pub chain_id: String,

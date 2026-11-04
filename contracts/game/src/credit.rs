@@ -19,6 +19,7 @@ impl Game {
                     index,
                     credit: 0,
                     pending: false,
+                    token: TokenState::None,
                 },
             );
             self.storage_reserve = self.storage_reserve.checked_add(charge).expect("E11");

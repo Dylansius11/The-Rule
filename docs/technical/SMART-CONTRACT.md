@@ -62,8 +62,9 @@ The game account name is compiled into the referee manifest (`callers.contract.o
 | `referee` | `{outlayer: outlayer.testnet, urls: [primary, mirror], hash, build_target: "wasm32-wasip2"}` | demo referee | All URLs serve identical bytes |
 | `resource_limits` per op | begin 10 s, verdict 5 s, guess 30 s, open 10 s; instructions/memory set from T4 | same | Always passed; `None` means compile-only [V](https://raw.githubusercontent.com/out-layer/outlayer/main/contract/src/execution.rs) |
 | `outlayer_deposit` per op | `estimate_execution_cost` for those limits plus 20% margin, measured in Phase 0 | same | Paid from the compute float |
-| `gas` | OutLayer call 100 Tgas, callback 30 Tgas, mint 10 Tgas | same | Starting values; measured in P2.6 |
+| `gas` | OutLayer call 100 Tgas, callback 60 Tgas, mint 10 Tgas | same | Starting values; measured in P2.9. The verdict callback must schedule `mint` (10) and `on_mint` (10) with a 5 Tgas margin; when `prepaid - used` is below that it mints nothing and keeps the allowance, because a callback that runs out of gas would strand its request |
 | `token`, `platform`, `chain_id` | accounts above, `"testnet"` | demo accounts | |
+| `token_storage_deposit` | the token's `storage_balance_bounds().min`, read at deploy | same | Charged once per player from credit by `register_token` (D29) |
 
 `new(params, demo: bool)`: `demo` is stored immutably, returned by `get_params` and in every `RoundView`, so the permanent "Demo Mode - preselected rule" label comes from chain data. A production deployment (`demo=false`) requires `genesis_ns >= now + 2 h` (blindness ordering) and production bounds on the schedule (`round_period_ns >= 1 h`, `reveal_window_ns >= 10 min`, begin and open timeouts `>= 10 min`); `demo=true` skips them. Decided 2026-11-04 and tested (1 h 59 m rejected, exactly 2 h accepted, short demo schedule accepted).
 
@@ -137,8 +138,9 @@ stateDiagram-v2
 | `invite(account)` / `join_team(team_id)` / `leave_team()` / `remove_member(account)` | captain / invitee / member / captain | Roster changes only while the team is not locked (E30). Size never exceeds 5 (E31) |
 | `team_deposit(team_id)` payable | member | Vault += deposit; depositor weight += deposit |
 | `team_withdraw(team_id)` `1y` | depositor | Only while unlocked. Pays `vault * w_i / W` (floor), then reduces vault and `W` by the same amounts, so the remaining depositors keep exact pro-rata claims |
-| `ft_on_transfer(sender, amount, msg)` | `token` only (E40) | `msg = {"lock":{"mode":0|1,"round_id":r}}` locks RULE for Scheduled round `r`. For Team mode the sender's team receives the lock. Returns `"0"` (all used) or the full amount on any rejection |
-| `unlock(mode, round_id)` | locker | After Settled, Cancelled or Void: transfers the caller's locked RULE back. Never forfeited (D16) |
+| `register_token()` | any depositor | One-time (E57 if registered or pending): charges `token_storage_deposit` from credit (E20), calls `token.storage_deposit(account, registration_only)`, and marks the player Registered when it succeeds; a failure refunds the credit. Until then an ACCEPT mints nothing and consumes no allowance (D29) |
+| `ft_on_transfer(sender, amount, msg)` | `token` only (E40) | `msg = {"lock":{"mode":0,"round_id":r}}` locks RULE for round `r`, which must be the round being sealed or the next one (locks close when Investigation starts). Locks add up per round and account. Returns `"0"` (all used) or the full amount on any rejection (bad message, wrong round E41, Team mode until P4, zero amount) with event `lock_rejected{reason}`. For Team mode the sender's team receives the lock (P4) |
+| `unlock(mode, round_id)` `1y` | locker | After the round is Settled, Cancelled or Void, or one full `round_period_ns` after the slot of a round that never started: transfers the caller's locked RULE back with `ft_transfer`. A failed transfer restores the lock, so locked RULE is never forfeited (D16) |
 
 A team is locked from its first play or commit in a round until that round is Settled, Cancelled or Void.
 
@@ -159,7 +161,7 @@ A team is locked from its first play or commit in a round until that round is Se
 
 - Parse the promise result strictly as `{"v":0|1}`. Anything else, JSON `null` (OutLayer's failure encoding [V](https://raw.githubusercontent.com/out-layer/outlayer/main/contract/src/execution.rs)), a promise error, a wrong round, or a round that has left Investigation leads to **refund**: credit back fee + storage charge, attempt restored, `seen` entry removed, pending cleared, event `play_refunded{reason}`.
 - On a valid verdict: pot += 80% of fee, compute_float += 15%, platform_accrued += 5%. Append the `LogRow`. Set `seen[play_key] = log_idx`. Shares += 1 if under `share_cap`, and `total_shares` += 1 likewise. If ACCEPT, advance the line and mint (below). Clear pending. Event `play_settled`.
-- Mint on ACCEPT: `m = mint_base * allowance_left / round_allowance * bucket_bps / 10_000`, with bucket 10000 Rare, 5000 Mid, 2500 Common from the round header. If `m > 0`: `allowance_left -= m`, then `token.mint(recipient, m)` with the recipient's first-mint storage deposit charged from their credit (Solo) or the vault (Team). Team mints go to the acting member. A failed mint callback restores `allowance_left`, refunds the storage charge, and records `minted = 0` on the row with event `mint_failed`. The verdict stands.
+- Mint on ACCEPT: `m = mint_base * allowance_left / round_allowance * bucket_bps / 10_000` (exact integer math with a 128-bit mul-div; the mint shrinks as the allowance is spent), with bucket 10000 Rare, 5000 Mid, 2500 Common from the round header. If the player is Registered (see `register_token`) and `m > 0`: `allowance_left -= m`, the row records `minted = m`, then `token.mint(player, m)`. Team mints go to the acting member. A failed mint callback restores `allowance_left` and records `minted = 0` on the row with event `mint_failed`. The verdict stands. [I, D29] The first-mint storage deposit is not taken implicitly: when a registration chain fails after the deposit was spent the game could not tell, so a refund would break the ledger; registration is its own explicit, accounted step.
 
 ### Guesses
 
@@ -217,6 +219,7 @@ A team is locked from its first play or commit in a round until that round is Se
 | E20 | Insufficient credit or vault balance | E52 | Token: mint receiver is not registered |
 | E53 | Token: `storage_unregister(force=true)` rejected | E54 | Token: caller is not the minter |
 | E55 | Token: mint would exceed the cap | E56 | Nothing to claim (already claimed, no entry, or nothing owed) |
+| E57 | Token registration already done or pending | | |
 
 ### Payout formulas (exact integer arithmetic)
 

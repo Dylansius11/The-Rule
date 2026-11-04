@@ -2,7 +2,9 @@
 mod credit;
 mod guess;
 mod ledger;
+mod lock;
 mod log;
+mod mint;
 pub mod params;
 mod play;
 mod round;
@@ -21,11 +23,20 @@ fn bps(amount: u128, bps: u16) -> u128 {
     amount / 10_000 * u128::from(bps) + amount % 10_000 * u128::from(bps) / 10_000
 }
 
+/// Whether the player's account can receive RULE (NEP-145 registration on the token).
+#[derive(BorshSerialize, BorshDeserialize, Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TokenState {
+    None,
+    Pending,
+    Registered,
+}
+
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct Player {
     index: u32,
     credit: u128,
     pending: bool,
+    token: TokenState,
 }
 
 /// Interned player identity; Team is resolved by the team implementation in P4.
@@ -160,6 +171,22 @@ pub enum Request {
     Platform {
         amount: u128,
     },
+    Register {
+        actor: AccountId,
+        amount: u128,
+    },
+    Mint {
+        mode: u8,
+        round: u32,
+        log_idx: u32,
+        amount: u128,
+    },
+    Unlock {
+        mode: u8,
+        round: u32,
+        actor: AccountId,
+        amount: u128,
+    },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -226,6 +253,8 @@ pub struct Game {
     total_stakes: u128,
     /// Settled payouts and refunds not yet claimed.
     total_claimable: u128,
+    /// RULE locked for a future round: `(mode, round, account) -> amount`.
+    locks: LookupMap<(u8, u32, AccountId), u128>,
 }
 
 impl Game {
@@ -318,6 +347,13 @@ impl Game {
             "E11"
         );
         near_sdk::require!(
+            params.round_allowance.0 > 0
+                && params.round_allowance.0 < 1 << 127
+                && params.attempt_cap[0] >= params.base_attempts[0]
+                && params.attempt_cap[1] >= params.base_attempts[1],
+            "E11"
+        );
+        near_sdk::require!(
             params
                 .play_fee
                 .0
@@ -364,6 +400,7 @@ impl Game {
             commits: LookupMap::new(b"c"),
             total_stakes: 0,
             total_claimable: 0,
+            locks: LookupMap::new(b"k"),
         }
     }
 

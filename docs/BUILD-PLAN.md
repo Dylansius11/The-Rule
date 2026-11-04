@@ -82,8 +82,8 @@ Acceptance: a testnet team round with 2 or more members on rehearsal accounts, i
 ## Phase 5: RULE token, founder order 4 (2026-11-09 to 2026-11-10)
 
 - [x] **P5.1 Token** (F17). Owned: `contracts/token/`. near-contract-standards 5.30.0; NEP-141/145/148; `mint` only by `minter`; cap. Tests: T-TOK. Done locally 2026-11-04: 4 unit and 3 sandbox tests (build the wasm first: `cargo near build non-reproducible-wasm` with `XDG_CONFIG_HOME=$HOME/.config-the-rule`, then `cargo test -p token`). T-ABI-1 residual: the export allowlist proves the callable surface, not the absence of reachable promise actions; P8.1 reviews that.
-- [ ] **P5.2 Mint on YES** (F18). Owned: `contracts/game/src/mint.rs`. Tests: T-INV-3, mint failure restores the allowance.
-- [ ] **P5.3 RULE lock** (F19). Owned: `contracts/game/src/lock.rs`. Tests: T-LOCK.
+- [x] **P5.2 Mint on YES** (F18). Owned: `contracts/game/src/mint.rs`. Done 2026-11-05 for Solo: exact mint formula with a 128-bit mul-div (proptest against direct division), rarity scaling, explicit `register_token` (D29), failed mint restores the allowance and zeroes the row once, low-gas callbacks mint nothing instead of failing. 8 unit tests plus a sandbox run with the real token wasm (register, ACCEPT mints 100 RULE, supply equals the sum of minted rows). A first sandbox run exposed that a 30 Tgas verdict callback cannot also schedule the mint (it would fail and strand the request), which is why the callback gas budget is now guarded and the sandbox uses 60 Tgas. Production `gas_callback` is measured in P2.9.
+- [x] **P5.3 RULE lock** (F19). Owned: `contracts/game/src/lock.rs`. Done 2026-11-05 for Solo: `ft_on_transfer` (E40, rejections return the full amount), tier bonus capped by `attempt_cap`, locks only for the sealing or next round, `unlock` after any terminal round or one period after a round that never started, failed transfer restores the lock. 9 unit tests plus the same sandbox run through the real token (`ft_transfer_call` accepted for round 1 and refunded for round 0, unlock returns the tokens). Team locks follow in P4.
 
 ## Phase 6: Demo Mode and schedule, founder order 5 (2026-11-10)
 

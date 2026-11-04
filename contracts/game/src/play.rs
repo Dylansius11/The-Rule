@@ -54,7 +54,10 @@ impl Game {
         let p = self.params();
         if let Some(entity) = entity.and_then(|entity| self.entities.get(&(m, id, entity))) {
             near_sdk::require!(!entity.pending, "E13");
-            near_sdk::require!(entity.attempts < p.base_attempts[m as usize], "E14");
+            near_sdk::require!(
+                entity.attempts < self.attempt_limit(&p, m, id, &env::predecessor_account_id()),
+                "E14"
+            );
         }
         let charge = p
             .play_fee
@@ -190,15 +193,14 @@ impl Game {
             ));
             return;
         };
-        let compute = p.play_fee.0 / 10_000 * u128::from(p.fee_split_bps[1])
-            + p.play_fee.0 % 10_000 * u128::from(p.fee_split_bps[1]) / 10_000;
-        let platform = p.play_fee.0 / 10_000 * u128::from(p.fee_split_bps[2])
-            + p.play_fee.0 % 10_000 * u128::from(p.fee_split_bps[2]) / 10_000;
+        let compute = bps(p.play_fee.0, p.fee_split_bps[1]);
+        let platform = bps(p.play_fee.0, p.fee_split_bps[2]);
         let pot = p.play_fee.0 - compute - platform;
         self.compute_float += compute;
         self.platform_accrued += platform;
         self.storage_reserve += p.storage_charge_per_play.0;
         self.total_pots += pot;
+        let mut mint_request = None;
         if let Some(r) = self.rounds.get_mut(&(mode, round)) {
             r.pot += pot;
             let idx = r.log_len;
@@ -211,6 +213,20 @@ impl Game {
             let Some(play_value) = parsed_play else {
                 return;
             };
+            let registered = self
+                .players
+                .get(&actor)
+                .is_some_and(|player| player.token == TokenState::Registered);
+            let minted = if verdict && registered && mint::mint_gas_available(&p) {
+                let amount = mint::accept_mint(&p, r.header.as_deref(), r.allowance_left);
+                r.allowance_left -= amount;
+                amount
+            } else {
+                0
+            };
+            if minted > 0 {
+                mint_request = Some((idx, minted));
+            }
             let row = protocol::events::LogRow {
                 log_idx: idx,
                 seq,
@@ -221,7 +237,7 @@ impl Game {
                 account: actor.to_string(),
                 play: play_value,
                 verdict,
-                minted: protocol::params::Amount(0),
+                minted: protocol::params::Amount(minted),
             };
             let Ok(row_json) = serde_json::to_string(&row) else {
                 return;
@@ -250,6 +266,9 @@ impl Game {
                     entity.last_time_ns = timestamp;
                 }
             }
+        }
+        if let Some((idx, amount)) = mint_request {
+            self.send_mint(mode, round, idx, &actor, amount);
         }
     }
 }

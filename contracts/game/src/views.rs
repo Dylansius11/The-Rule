@@ -89,7 +89,7 @@ impl Game {
     pub(crate) fn get_entity_inner(&self, mode: Mode, id: u32, account: AccountId) -> EntityView {
         let m = mode as u8;
         near_sdk::require!(m == 0, "E32");
-        let limit = self.params().base_attempts[m as usize];
+        let limit = self.attempt_limit(&self.params(), m, id, &account);
         let entity = self
             .players
             .get(&account)

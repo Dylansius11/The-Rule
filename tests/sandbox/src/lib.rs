@@ -2,24 +2,25 @@
 use serde_json::{Value, json};
 use std::path::PathBuf;
 
+/// Path of a built wasm: `game`, `token` or `mock_outlayer`. Override with `GAME_WASM`,
+/// `TOKEN_WASM` or `MOCK_OUTLAYER_WASM`; otherwise they are read from `$CARGO_TARGET_DIR`.
 pub fn artifact(name: &str) -> PathBuf {
-    let variable = if name == "game" {
-        "GAME_WASM"
-    } else {
-        "MOCK_OUTLAYER_WASM"
+    let (variable, relative) = match name {
+        "game" => ("GAME_WASM", "near/game/game.wasm"),
+        "token" => ("TOKEN_WASM", "near/token/token.wasm"),
+        _ => (
+            "MOCK_OUTLAYER_WASM",
+            "wasm32-unknown-unknown/release/mock_outlayer.wasm",
+        ),
     };
     if let Some(path) = std::env::var_os(variable) {
         return path.into();
     }
-    let target = PathBuf::from(
+    PathBuf::from(
         std::env::var_os("CARGO_TARGET_DIR")
-            .expect("set CARGO_TARGET_DIR or GAME_WASM and MOCK_OUTLAYER_WASM"),
-    );
-    if name == "game" {
-        target.join("near/game/game.wasm")
-    } else {
-        target.join("wasm32-unknown-unknown/release/mock_outlayer.wasm")
-    }
+            .unwrap_or_else(|| panic!("set CARGO_TARGET_DIR or {variable}")),
+    )
+    .join(relative)
 }
 
 pub fn params(outlayer: &str) -> Value {
@@ -36,7 +37,7 @@ pub fn params(outlayer: &str) -> Value {
         "referee":{"outlayer":outlayer,"urls":["https://example.com/referee.wasm"],"hash":"0000000000000000000000000000000000000000000000000000000000000000","build_target":"wasm32-wasip2"},
         "resource_limits":{"begin":limits,"verdict":limits,"guess":limits,"open":limits},
         "outlayer_deposit":{"begin":"0","verdict":"0","guess":"0","open":"0"},
-        "gas_outlayer":100000000000000u64,"gas_callback":30000000000000u64,"gas_mint":10000000000000u64,
+        "gas_outlayer":100000000000000u64,"gas_callback":60000000000000u64,"gas_mint":10000000000000u64,"token_storage_deposit":"1250000000000000000000",
         "token":"token.testnet","platform":"platform.testnet","chain_id":"testnet"
     })
 }

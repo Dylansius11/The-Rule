@@ -8,10 +8,15 @@ use serde::{Deserialize, Serialize};
 #[serde(deny_unknown_fields)]
 pub struct LogRow {
     pub log_idx: u32,
+    /// Issue order of the play; unique per round, not monotone in the log (the log is in apply order).
     pub seq: u64,
+    /// Decimal string of the packed play key (`PlayKey`).
+    pub play_key: String,
     pub entity_tag: u8,
     pub entity_id: u32,
     pub actor: u32,
+    /// Account id of the actor, so a reader needs no interning table.
+    pub account: String,
     pub play: Play,
     pub verdict: bool,
     pub minted: Amount,

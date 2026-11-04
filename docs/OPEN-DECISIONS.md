@@ -103,7 +103,7 @@ Founder instruction of 2026-11-04: GPT 6.1 Terra (`executor` via `@task`) for sy
 | B2 | More faucet funding for `therule.testnet` | Founder | Open (not blocking yet) | P2.9 onward | Faucet service gave 10 NEAR at creation (2026-11-04); the parent has about 5 NEAR left after the probe sub-accounts. Founder tops up at https://docs.near.org/getting-started/faucet.md before rehearsal deploys; `view-account-summary` shows the balance |
 | B3 | Founder "go" for the build | Founder | Resolved 2026-11-04 | - | Founder said go and asked for the best, highest-quality build; the lead started P0.2 |
 | B4 | NEAR Auth SDK compatibility with near-api-js 7.4.0 | Lead | Open (P1 only) | F22 | 3-hour timebox after Phase 8; otherwise guest key + relayer, labeled |
-| B5 | near-api-js signing inside Cloudflare Workers | Lead | Open | P6.2 | Qualify in P6.2; fallback GitHub Actions schedule |
+| B5 | near-api-js signing inside Cloudflare Workers | Lead | Qualified locally 2026-11-04 | P6.2 | In local workerd (`wrangler dev`) near-api-js 7.4.0 signed and serialized a 226-byte transaction against a stub RPC; bundle 420.9 KiB (93.5 KiB gzip). Not proven: deployed Workers network, free-tier CPU, a real testnet send. Decision: Workers Cron entry stays primary; GitHub Actions template in `apps/keeper/ci/` is the fallback. Re-check on the first real testnet send |
 
 ### B1
 

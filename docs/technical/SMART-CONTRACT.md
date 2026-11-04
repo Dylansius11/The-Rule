@@ -65,6 +65,8 @@ The game account name is compiled into the referee manifest (`callers.contract.o
 | `gas` | OutLayer call 100 Tgas, callback 30 Tgas, mint 10 Tgas | same | Starting values; measured in P2.6 |
 | `token`, `platform`, `chain_id` | accounts above, `"testnet"` | demo accounts | |
 
+`new(params, demo: bool)`: `demo` is stored immutably, returned by `get_params` and in every `RoundView`, so the permanent "Demo Mode - preselected rule" label comes from chain data. A production deployment (`demo=false`) requires `genesis_ns >= now + 2 h` (blindness ordering) and production bounds on the schedule (`round_period_ns >= 1 h`, `reveal_window_ns >= 10 min`, begin and open timeouts `>= 10 min`); `demo=true` skips them. Decided 2026-11-04 and tested (1 h 59 m rejected, exactly 2 h accepted, short demo schedule accepted).
+
 ### Contract state (game)
 
 ```text

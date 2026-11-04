@@ -1,0 +1,13 @@
+{
+  "name": "@the-rule/keeper",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.22.2" },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "start": "node --experimental-strip-types src/cli.ts"
+  },
+  "dependencies": { "near-api-js": "7.4.0" },
+  "devDependencies": { "@types/node": "26.6.6", "typescript": "7.0.2", "vitest": "5.1.0", "wrangler": "4.157.0" }
+}

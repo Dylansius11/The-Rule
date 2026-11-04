@@ -179,7 +179,7 @@ A team is locked from its first play or commit in a round until that round is Se
 | Method | Precondition | Effect |
 | --- | --- | --- |
 | `start_round(mode)` | Slot time reached, previous round of mode out of Investigation/Reveal, no round Sealing | Creates the round, `seed = env::random_seed()`, moves `carry[mode]` into the pot, `allowance_left = round_allowance`, calls referee `begin`. A retry is allowed if a begin request failed and `begin_timeout` has not passed |
-| `advance(mode)` | Investigation and `now >= start + investigation_max` | Moves to Reveal with `reveal_deadline = now + reveal_window` |
+| `advance(mode)` | Investigation and `now >= investigation_end_ns` (`begin_ok_ns + investigation_max_ns`) | Moves to Reveal with `reveal_deadline = now + reveal_window` |
 | `finalize(mode)` | Reveal, `now >= reveal_deadline`, `pending_checks == 0` | Every commit still Committed becomes Unrevealed and is treated as Wrong (50/50, D12). Computes `outcome`, calls referee `open` |
 | `retry_open(mode, round_id)` | Opening, last open failed, before `open_timeout` | Calls `open` again |
 | `cancel(mode, round_id)` | Sealing past `begin_timeout`, or Opening past `open_timeout` | Cancelled refund path (below) |
@@ -193,6 +193,10 @@ A team is locked from its first play or commit in a round until that round is Se
 ### Views (paged, read at `final`)
 
 `get_params()`, `get_round(mode, id?)`, `get_log(mode, id, from_idx, limit<=200)`, `get_verdict(mode, id, play)` (duplicate pre-check for the UI), `get_entity(mode, id, account)` (attempts, limit, shares, line, pending), `get_commits(mode, id, from, limit)`, `get_player(account)`, `get_team(id)`, `get_claimable(mode, id, account)`, `get_season(mode, season, from, limit)`, `get_ledger()` (all invariant terms), `get_word_list()`.
+
+**`RoundView` fields (decided 2026-11-04, so the keeper, verifier and web read one shape).** `mode`, `round_id`, `phase`, `slot_ns` (`genesis_ns + round_id * round_period_ns + mode_offset_ns[mode]`), `sealing_started_ns` (when `start_round` was applied; the origin of `begin_timeout_ns`), `begin_status` (`none | pending | failed | ok`), `investigation_end_ns` (`begin_ok_ns + investigation_max_ns`, set when `begin` succeeds), `freeze_ns`, `reveal_deadline_ns`, `pending_checks`, `opening_started_ns` (when `finalize` was applied; the origin of `open_timeout_ns`), `open_status` (`none | pending | failed | ok`), `commit` (hex32), `header`, `pot`, `log_len`, `outcome`, and, only after Settled, `rule` and `salt`. `begin_status`/`open_status` become `failed` when the OutLayer callback reports a failure and a retry is allowed until the timeout.
+
+**Keeper views.** `get_params()` also returns `genesis_ns`, `round_period_ns`, `mode_offset_ns`, `investigation_max_ns`, `reveal_window_ns`, `begin_timeout_ns`, `open_timeout_ns`. `get_active_rounds()` returns every non-terminal round of both modes (at most a few, because a mode starts its next round only after the previous one left Investigation and Reveal, while an Opening round may overlap the next Sealing or Investigation round). `get_next_slot(mode)` returns `{round_id, slot_ns}` of the next round that `start_round` would accept. Missed slots: `start_round` is accepted at any time at or after `slot_ns` while the mode has no round in Scheduled to Reveal; the round's deadlines run from the actual `begin` success, never from the missed slot.
 
 ### Panic codes
 

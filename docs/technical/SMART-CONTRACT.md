@@ -208,7 +208,9 @@ A team is locked from its first play or commit in a round until that round is Se
 | E17 | Caller is not the commit's actor | E41 | Lock target round is not Scheduled |
 | E18 | Reveal in fewer than 2 blocks after commit | E50 | Lifecycle transition not due yet |
 | E19 | Commit preimage does not match | E51 | Exactly 1 yoctoNEAR required |
-| E20 | Insufficient credit or vault balance | | |
+| E20 | Insufficient credit or vault balance | E52 | Token: mint receiver is not registered |
+| E53 | Token: `storage_unregister(force=true)` rejected | E54 | Token: caller is not the minter |
+| E55 | Token: mint would exceed the cap | | |
 
 ### Payout formulas (exact integer arithmetic)
 
@@ -234,22 +236,22 @@ Seven consecutive rounds per mode form a season (`season = round_id / 7`). Per e
 All byte layouts live in `crates/rule-core` (grammar) and `crates/protocol` (wire types). Contract, referee, verifier CLI and browser import them. Golden vectors in `tests/vectors/` are checked by every target (T-ENC).
 
 - **Play key** `u64`: bits `number(10) | word_id(7) | minute_digit(4) | has_prev(1) | prev_number(10) | prev_word(7) | gap_bucket(2)`, zero-padded. `minute_digit` = minute-of-hour mod 10, from the play receipt's block timestamp. `gap_bucket` is time since the entity's last ACCEPT: <1 min, <1 h, <24 h. Grammar `g1` daily tier reads only these fields (D18).
-- **Canonical rule bytes:** `"g1" | form u8 | n u8 | n x (atom_id u8, negated u8)`, with literals sorted by `(atom_id, negated)`. Parsing rejects unsorted, duplicate or out-of-tier input. JSON form for humans: `{"v":"g1","form":..,"lits":[[id,neg],..]}`.
+- **Canonical rule bytes:** `"g1" | form u8 | n u8 | n x (atom_id u8, negated u8)`, with literals sorted by `(atom_id, negated)`. Form codes: `0` single literal, `1` AND, `2` OR. Parsing rejects unsorted, duplicate or out-of-tier input. JSON form for humans: `{"v":"g1","form":..,"lits":[[id,neg],..]}`. Atom ids follow the catalog order in sources/28 section 1.2; the daily tier uses ids 0 to 89 and excludes gap bucket 3 (D18). The authoritative list is `crates/rule-core/src/atoms.rs` (P1.1, 2026-11-04, locally tested).
 - **Round commitment:** `sha256(canonical_rule_bytes || salt32)`.
 - **Guess commit preimage:** `sha256("the-rule/commit/v1" || len-prefixed(chain_id) || len-prefixed(game_account) || mode u8 || round_id u32 LE || len-prefixed(actor) || entity tag+id || canonical_guess_bytes || salt32)`. It is bound to the actor, so a copied reveal fails E17/E19.
 - **Referee input** (stdin JSON, `crates/protocol::RefereeRequest`): `{"op":"begin"|"verdict"|"guess"|"open","g":"g1","chain":"testnet","game":"<account>","mode":0,"round":N,"seed":"hex32","commit":"hex32|null","play":{..}?,"guess":"hex|null"}`.
-- **Referee derivation (inside the TEE):** `k = mac("rule", None, "the-rule/v1" || game || mode || round || seed)` through `outlayer:encryption-keys/api.mac` [V](https://raw.githubusercontent.com/out-layer/outlayer/main/worker/wit/deps/encryption-keys.wit). The rule is `Sample_g1(DRBG(k || "rule"))`, and the salt is `mac("rule", None, "salt" || ...)`. Every op except `begin` recomputes the commitment and aborts with no output if it differs from the input `commit`.
-- **Referee output:** exactly one of `{"commit":"hex32","header":{"tier":"daily","bucket":"rare|mid|common","grammar":"hex32"}}`, `{"v":0|1}`, `{"correct":true|false}`, `{"rule":{..},"salt":"hex32"}`. Unknown fields are rejected. Output is fixed-shape and short; there are no secret-dependent error strings.
+- **Referee derivation (inside the TEE):** `ctx = "the-rule/v1" || u32le(len(chain)) || chain || u32le(len(game)) || game || mode u8 || round u32 LE || seed32` (`protocol::referee_context`). `k = mac("rule", None, ctx)` through `outlayer:encryption-keys/api.mac` [V](https://raw.githubusercontent.com/out-layer/outlayer/main/worker/wit/deps/encryption-keys.wit). The rule is `sample(k || "rule")`, the salt is `mac("rule", None, "salt" || ctx)`, the commitment is `sha256(canonical_rule || salt)`. `header.grammar` is `protocol::grammar_hash()`: sha256 over `"the-rule/grammar/g1/daily\n"`, every word of the word list in id order each followed by `"\n"`, then the 90 atom ids as bytes. Every op except `begin` recomputes the commitment and aborts with no output if it differs from the input `commit`. Sampler contract: SHA-256 counter-mode DRBG documented in `crates/rule-core/src/sample.rs` (decided 2026-11-04).
+- **Referee output:** exactly one of `{"commit":"hex32","header":{"tier":"daily","bucket":"rare|mid|common","grammar":"hex32"}}`, `{"v":0|1}`, `{"correct":true|false}`, `{"rule":{..},"salt":"hex32"}`. Unknown fields are rejected. Output is fixed-shape and short; there are no secret-dependent error strings. Log order: `get_log` returns rows in **apply order** (the order verdict callbacks were applied), each with its issue `seq`; `seq` is unique but not monotone in the log, so the verifier checks contiguous indexes, unique `seq`, and verdict equality, never seq order.
 
 | Id | Invariant | Enforced by | Test |
 | --- | --- | --- | --- |
 | I1 | `balance >= Σcredit + Σvault + Σround pots + Σcarry + Σopen stakes + Σclaimable + compute_float + platform_accrued + storage_reserve + locked storage` | Every money path updates `get_ledger` terms | T-INV-1 property over random op sequences |
 | I2 | Per round `P == W + C_paid + R + L` (or the exact refund sum when Cancelled) | Payout code, dust to R | T-INV-2 |
-| I3 | `token.ft_total_supply == Σ minted on LogRows <= cap`; per round `minted <= round_allowance` | Mint and mint-failure callback | T-INV-3 sandbox |
+| I3 | `token.ft_total_supply == Σ minted on LogRows − Σ burned <= cap`; the only burn is the standard NEP-141 resolver burn when a refund target unregistered; per round `minted <= round_allowance` | Mint and mint-failure callback | T-INV-3 sandbox, T-TOK-3 |
 | I4 | Referee output cannot name an account or an amount | Strict schema parse | T-REF-4 fuzz the parsers |
 | I5 | Winner = min `seq` among Correct commits | `best` update in `on_guess` | T-GUESS-3 out-of-order callbacks |
 | I6 | Each `request_id` is applied at most once; stale results refund | `pending.remove` first | T-CB-2 duplicate/late callback |
-| I7 | No method deploys code, adds or deletes keys, deletes the account, or makes caller-chosen external calls | ABI review + `T-ABI-1` pins the method list | T-ABI-1 |
+| I7 | No method deploys code, adds or deletes keys, deletes the account, or makes caller-chosen external calls. Allowed outgoing calls: OutLayer requests, token calls, `ft_transfer_call` receiver calls and NEP-145 storage refunds to the predecessor | ABI review + `T-ABI-1` pins the method list | T-ABI-1 |
 | I8 | `ft_transfer`/`ft_transfer_call` never read game state or the rule | Token has no hook | T-TOK-2 transfer during an open round |
 | I9 | No play or commit is accepted after freeze; in-flight plays at freeze refund with no mint and no share | Phase checks | T-FREEZE-1 |
 | I10 | A duplicate play changes no state and charges nothing | Step 4 of `play` | T-PLAY-4 |
@@ -327,3 +329,21 @@ No formal verification is claimed. The equivalence checker is tested by differen
 | `keeper.therule.testnet` | `therule.testnet` | 1 NEAR | `G1MLWbYzRoyPf1s4JRGj9bURmELBjW6bt7yCDjHPDSXg` |
 
 Balances read right after creation: parent 4.978655 NEAR, probe-game 3.5, probe-other 0.5, keeper 1. Further entries record network, account, transaction hash, block, wasm sha256, gas burnt, OutLayer charge and refund, each with date. Expected next entries: Phase 0 probe contract and referee probe (BUILD-PLAN P0.4 to P0.8).
+
+### Phase 0 probe evidence (testnet, 2026-11-04, probe contract and probe referee, not the game)
+
+Operator: lead through a worker using `near-rule`. Full raw logs are in the gitignored `scratch/probe/`; the callback bytes are committed in `tests/vectors/outlayer-callback.json`.
+
+| Item | Observed |
+| --- | --- |
+| Probe referee | `wasm32-wasip2`, 117,317 bytes, sha256 `dd7668159609cb23d52e7f5eaeb71f8c1a404c926dfbe0bf6e342ab991733672`; imports `outlayer:encryption-keys/api@0.1.0`, no network import |
+| Probe game | near-sdk 5.30.0, non-reproducible build (spike), 133,390 bytes, sha256 `03fb02ab034202671bb1bea4a6066368d8fff0795d95878f064dff80aeae04d0`, deploy tx `7aUo4po6g2bFqyggjCay7NpwqzkW2M1iDVVgCP6rF2U8` (1.3 Tgas) on `probe-game.therule.testnet`; a measurement variant (148,806 bytes) was deployed later in tx `CrtD9PKa1xc99NYbRQ3CSN2cWpwhdWYq9q24VhmioevM` |
+| Referee hosting | FastFS testnet upload sent but `test.fastfs.io` stayed HTTP 404 (cause unknown); an accountless Cloudflare quick tunnel served the bytes and OutLayer fetched them by hash. Production hosting is decided in P2.2 |
+| **T1 pass** | Same `(round 1, seed t1-a)` twice (txs `54XZTK6h3SEDjA2Wkxycds1mTXHzTqeP5ahDWeoUqc8E`, `Gmch1S8DhjLzhjh6K3xE6sKPmhTEu4Lf6NRrwpd3ohjP`) returned digest `3abb0e66e7a16efd3695d239833f8ae801d99140cb3f4a087a62680461d70d5f`; seed `t1-b` (tx `AFk2yjfJUWKT2ymGJvEMXFMSyCwMUq8KiyChhEvDnNGB`) returned `bb32155712506be12ac7b496ff8f758ae9c5c413576c581054c87535fa091b3a` |
+| **T2 pass** | `probe-other` calling OutLayer directly (tx `4jRodUu6h8sAbxGVfMZ3fCzLeJryQW8LWshMaSSXNb24`) and through a second contract on behalf of `keeper` (tx `9C7MtkDVd7N8s4USdn1QPvEQhKkvr4D8EugqRkfun68g`) both got callback `null`, 0 instructions, "Nothing was executed" |
+| **T3 pass** | One byte changed (offset 110490, manifest trailing newline), mutated sha256 `37328dcf1bec72be1ffc78a2eef74970b2bab223d8e82813272e8be15df153a0`, tx `Bx5i5QuXwHfHhaYs7dvMR5LJutFCzpvqAhuc4zdch8DX` returned `9090866b22760079f81b3e1884cf0cee48333537747599b6f01f226b7bb15445`, a different digest |
+| T4 latency, sequential | 20 requests, request receipt to callback receipt: p50 6.057 s, p95 6.144 s, max 6.159 s |
+| T4 latency, 10 concurrent | tx `CHCrrjtYeFiKcQnhecQ2NrbpatsdobFChurZWpw2q5yi`: completions at 5.7, 5.7, 8.6, 10.1, 13.8, 15.2, 19.4, 23.0, 27.4 s, and one failure at 121.2 s (`Execution promise failed`, callback `null`). After the first two, each extra request adds about 3.5 to 4 s; throughput is roughly 15 to 17 verdicts per minute [I]. **Gate above 60 s triggered**, see D27 |
+| T4 cost | Attached 0.0070001 NEAR per request; OutLayer charge 0.00103 to 0.00116 NEAR; refund about 0.00596 NEAR; denied calls are charged 0.001 NEAR. Excludes NEAR transaction gas |
+| T5 failure shapes | Bad input `{}` and a trapping guest both returned callback `null`; `max_instructions=500000000001` made the OutLayer receipt fail with "exceeds hard limit of 500000000000" and the callback saw a failed promise |
+| T6 attestation | `https://testnet-api.outlayer.ai/attestations/by-tx/<tx>` returned a record whose `wasm_hash` and `executed_wasm_sha256` equal the referee sha256 and that carries a `tdx_quote`. The quote itself was **not** verified |

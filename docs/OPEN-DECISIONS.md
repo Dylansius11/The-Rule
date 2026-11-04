@@ -38,6 +38,8 @@ Founder-owned rows are never silently decided by agents. Status: decided, propos
 | D24 | Worker routing | Founder | Decided 2026-11-04 | All | Terra for systems, contracts, backend and all research; Sonnet only for visual UI; max 4 workers |
 | D25 | Excluded integrations | Lead (from sources) | Decided | All | No NEAR AI Cloud referee, no Intents, no Chain Signatures |
 | D26 | Real-value launch | Founder | Open (future) | After event | Legal review first; testnet only now |
+| D27 | Referee throughput (Phase 0 T4 gate fired) | Lead, founder confirms | Proposed 2026-11-04 | P2.4, P7 | Continue. Sequential verdicts take about 6.1 s (p95 6.14 s); ten concurrent requests complete in 5.7 to 27.4 s with one failure at 121 s, so throughput is about 15 to 17 verdicts per minute [I]. THE RULE is not dropped: the kill gates T1 to T3 passed. Mitigations: honest pending states in the UI, a contract-level cap on in-flight referee requests, refunds on every failure (already specified), and batching several plays into one referee call only if real load needs it. Evidence: SMART-CONTRACT "Phase 0 probe evidence" |
+| D28 | Durable referee hosting | Founder (repo), Lead (publish script) | Open | P2.2, P2.9, P8.3 | FastFS testnet stayed HTTP 404 for the uploaded probe, and a Cloudflare quick tunnel lasts only while the local process runs. OutLayer needs an HTTPS URL on port 443 (at most 3 redirects, 10 MiB, hash checked). Proposal: the founder makes `github.com/Dylansius11/the-rule` public (or authorizes it) before 2026-11-11, and the referee wasm is served from a commit-pinned raw or release URL; the tunnel is used only for rehearsals until then. D22 said no remote until P8.6, so this is a request to move the push earlier |
 
 ### D1: core stack
 

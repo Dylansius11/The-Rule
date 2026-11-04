@@ -1,0 +1,35 @@
+# Project settings for THE RULE only. Arrays replace inherited values.
+# Lead: Opus 5.5. Workers: GPT 6.1 Terra for contracts, enclave, systems, backend and all research
+# (frontend stack research included). Sonnet 5.5 only for visual UI design and page build, later.
+# Founder cap (2026-11-04): at most 4 workers at once, at most 3 of them GPT.
+modelRoles:
+  default: anthropic/claude-opus-5-5:high
+  plan: anthropic/claude-opus-5-5:high
+  task: openai-codex/gpt-6.1-terra:high
+  secondary: anthropic/claude-sonnet-5-5:high
+task:
+  maxConcurrency: 4
+skills:
+  customDirectories:
+    - C:/Users/HP Victus/Documents/personal-projects/hackathon/near-hackathon/the-rule/.claude/skills
+  # Project skills installed by the lead; provenance in docs/technical/INTEGRATIONS.md.
+  includeSkills:
+    - hackathon-winning
+    - brainstorming
+    - writing-plans
+    - executing-plans
+    - subagent-driven-development
+    - test-driven-development
+    - systematic-debugging
+    - verification-before-completion
+    - requesting-code-review
+    - code-review
+    - codebase-design
+    - ponytail
+    - find-docs
+    - orca-cli
+    - near-smart-contracts
+    - near-contract-audit
+    - near-api-js
+    - building-outlayer-apps
+    - property-based-testing

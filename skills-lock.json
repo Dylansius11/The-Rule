@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "skills": {
+    "building-outlayer-apps": {
+      "source": "out-layer/skills",
+      "ref": "d4991459e484e7f00f54ff747bb21126542cd37e",
+      "sourceType": "github",
+      "skillPath": "building-outlayer-apps/SKILL.md",
+      "computedHash": "f138720792db39f3b001301a8b01c0a978ef36a393c19eb9bc448cf8a3b5fa0a",
+      "installMode": "copy"
+    },
+    "near-api-js": {
+      "source": "near/agent-skills",
+      "ref": "cb32b6af195e636c1e9c2efe2ea75a6d85b6b67b",
+      "sourceType": "github",
+      "skillPath": "skills/near-api-js/SKILL.md",
+      "computedHash": "479324685943b82645f325ee81f66ea3a10ba9eb5a9f33d618e9550b4061b1d0",
+      "installMode": "copy"
+    },
+    "near-contract-audit": {
+      "source": "near/agent-skills",
+      "ref": "cb32b6af195e636c1e9c2efe2ea75a6d85b6b67b",
+      "sourceType": "github",
+      "skillPath": "skills/near-contract-audit/SKILL.md",
+      "computedHash": "7947acbb8ade8d99edab6a97d6c0604af980d2093f63668ad3790409d2c3481f",
+      "installMode": "copy"
+    },
+    "near-smart-contracts": {
+      "source": "near/agent-skills",
+      "ref": "cb32b6af195e636c1e9c2efe2ea75a6d85b6b67b",
+      "sourceType": "github",
+      "skillPath": "skills/near-smart-contracts/SKILL.md",
+      "computedHash": "0615674e279d5a509a648ff0e4e03a9cedfb2fb1dda7901ddeaa737903e68eb1",
+      "installMode": "copy"
+    },
+    "property-based-testing": {
+      "source": "trailofbits/skills",
+      "ref": "711af095215ad4ecde5b90cd1d0124b3f1c4ca9e",
+      "sourceType": "github",
+      "skillPath": "plugins/property-based-testing/skills/property-based-testing/SKILL.md",
+      "computedHash": "47a3aa897f836b327698a900d4bc38bed802406b902db1301f64a3e76c6e87d2",
+      "installMode": "copy"
+    }
+  }
+}

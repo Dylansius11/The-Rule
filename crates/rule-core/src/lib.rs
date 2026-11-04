@@ -12,6 +12,7 @@ pub mod equiv;
 pub mod eval;
 pub mod play;
 pub mod rule;
+pub mod sample;
 #[cfg(test)]
 mod tests;
 pub mod words;
@@ -21,3 +22,4 @@ pub use equiv::{Equivalence, equivalence, equivalent};
 pub use eval::eval;
 pub use play::{Play, PlayError, PlayKey, Previous};
 pub use rule::{CanonicalRule, Form, Literal, RuleError};
+pub use sample::{Bucket, Drbg, classify, sample};

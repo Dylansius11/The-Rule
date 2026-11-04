@@ -8,6 +8,7 @@ extern crate alloc;
 extern crate std;
 pub mod atoms;
 pub mod canonical;
+pub mod equiv;
 pub mod eval;
 pub mod play;
 pub mod rule;
@@ -16,6 +17,7 @@ mod tests;
 pub mod words;
 
 pub use atoms::Atom;
+pub use equiv::{Equivalence, equivalence, equivalent};
 pub use eval::eval;
 pub use play::{Play, PlayError, PlayKey, Previous};
 pub use rule::{CanonicalRule, Form, Literal, RuleError};

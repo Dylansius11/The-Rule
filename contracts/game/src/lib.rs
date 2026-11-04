@@ -1,5 +1,6 @@
 //! THE RULE game contract.
 mod credit;
+mod guess;
 mod ledger;
 mod log;
 pub mod params;
@@ -38,6 +39,8 @@ pub struct EntityRound {
     last_number: Option<u16>,
     last_word: u8,
     last_time_ns: u64,
+    /// Open (Committed, Checking or Correct) commits of this entity in this round.
+    open_commits: u8,
 }
 
 #[derive(Serialize)]
@@ -99,6 +102,13 @@ pub struct Round {
     total_shares: u64,
     rule: Option<String>,
     salt: Option<[u8; 32]>,
+    /// Commits made this round; the next commit gets this value as its `commit_seq`.
+    commit_count: u32,
+    /// Smallest-`seq` Correct commit so far, as `(seq, commit_seq)`.
+    best: Option<(u64, u32)>,
+    freeze_ns: Option<u64>,
+    /// Guess checks in flight; `finalize` requires zero.
+    pending_checks: u32,
 }
 
 #[derive(BorshSerialize, BorshDeserialize)]
@@ -120,6 +130,11 @@ pub enum Request {
     Withdraw {
         actor: AccountId,
         amount: u128,
+    },
+    Guess {
+        mode: u8,
+        round: u32,
+        commit_seq: u32,
     },
 }
 
@@ -182,6 +197,9 @@ pub struct Game {
     pending_credit: u128,
     storage_reserve: u128,
     platform_accrued: u128,
+    commits: LookupMap<(u8, u32, u32), guess::Commit>,
+    /// Stakes locked by open commits.
+    total_stakes: u128,
 }
 
 impl Game {
@@ -300,6 +318,8 @@ impl Game {
             pending_credit: 0,
             storage_reserve: 0,
             platform_accrued: 0,
+            commits: LookupMap::new(b"c"),
+            total_stakes: 0,
         }
     }
 

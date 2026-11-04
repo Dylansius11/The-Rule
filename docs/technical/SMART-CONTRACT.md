@@ -163,16 +163,16 @@ A team is locked from its first play or commit in a round until that round is Se
 
 ### Guesses
 
-`commit_guess(mode, hash: Base64[32]) -> CommitAck` `[fck]`
+`commit_guess(mode, hash: hex[32]) -> CommitAck{commit_seq, seq, stake, block}` `[fck]`
 
 - Investigation only (E10). Entity has fewer than 3 open commits this round (E15) [I].
-- Stake = `max(stake_min, pot * stake_bps[mode] / 10_000)` from the current pot, debited now from credit or vault (E20). Stored with `seq` and `block`. The stake is fixed at commit and never recomputed.
+- Stake = `max(stake_min, pot * stake_bps[mode] / 10_000)` from the current pot, debited now from credit or vault (E20). Stored with `seq` and `block`. The stake is fixed at commit and never recomputed. [I] Each commit record also pays `storage_charge_per_play` into `storage_reserve`, never refunded (the record stays on chain even when the stake is refunded). Commit-record lifecycle events: `guess_checked{mode, round_id, commit_seq, result: correct|wrong|refunded}`.
 
-`reveal_guess(mode, commit_seq, guess: CanonicalRule, salt: Base64[32])` `[fck]`
+`reveal_guess(mode, commit_seq, guess: hex, salt: hex[32]) -> request_id` `[fck]`
 
 - Round is in Investigation or Reveal and before `reveal_deadline_ns` (E16). Caller is the commit's `actor` (E17). Commit status is Committed and `block_height >= commit.block + min_reveal_delay_blocks` (E18).
 - `sha256(commit_preimage(...)) == hash` (E19). `guess` parses and fits the round's tier (E11). Otherwise the reveal panics and the commit stays Committed; it can still be revealed correctly before the deadline.
-- Status becomes Checking, `pending_checks += 1`, call referee `guess`, then `.then(on_guess(request_id))`.
+- Status becomes Checking, `pending_checks += 1`, call referee `guess`, then `.then(on_guess(request_id))`. `advance` at `investigation_max` also sets `freeze_ns`, so `freeze_ns` marks the start of Reveal however it began; a later Correct callback never moves it or the deadline.
 
 `on_guess`: `{"correct":true}` sets Correct. If no freeze yet, freeze now. `best` = min(best, seq). `{"correct":false}` sets Wrong: 50% of the stake goes to the payer's claimable balance (Solo credit, Team vault) and 50% to the pot. Any failure sets **Refunded**: the full stake returns and the commit may not be revealed again (D7). `pending_checks -= 1`. There is no counterexample, ever (D11).
 

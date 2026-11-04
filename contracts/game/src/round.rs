@@ -59,6 +59,10 @@ impl Game {
                     total_shares: 0,
                     rule: None,
                     salt: None,
+                    commit_count: 0,
+                    best: None,
+                    freeze_ns: None,
+                    pending_checks: 0,
                 },
             );
             self.active_rounds
@@ -142,6 +146,7 @@ impl Game {
         let now = env::block_timestamp();
         near_sdk::require!(now >= r.investigation_end_ns.unwrap_or(u64::MAX), "E50");
         r.phase = Phase::Reveal;
+        r.freeze_ns = Some(now);
         r.reveal_deadline_ns = now.saturating_add(p.reveal_window_ns);
     }
 }

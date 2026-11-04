@@ -3310,6 +3310,8 @@ name = "sandbox-tests"
 version = "0.0.0"
 dependencies = [
  "near-workspaces",
+ "protocol",
+ "rule-core",
  "serde_json",
  "tokio",
 ]

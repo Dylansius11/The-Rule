@@ -37,8 +37,8 @@ impl Game {
             }
             .into(),
             investigation_end_ns: r.investigation_end_ns,
-            freeze_ns: None,
-            pending_checks: 0,
+            freeze_ns: r.freeze_ns,
+            pending_checks: r.pending_checks,
             opening_started_ns: None,
             open_status: "none".into(),
             outcome: None,

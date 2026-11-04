@@ -159,6 +159,10 @@ pub fn commit_preimage(input: &CommitPreimage<'_>) -> Vec<u8> {
     out.extend_from_slice(input.salt);
     out
 }
+/// SHA-256 of [`commit_preimage`]: the hash a player commits on chain.
+pub fn commit_hash(input: &CommitPreimage<'_>) -> Hex32 {
+    Hex32(Sha256::digest(commit_preimage(input)).into())
+}
 /// SHA-256 of the canonical rule bytes followed by the round salt.
 pub fn round_commitment(rule: &CanonicalRule, salt: &[u8; 32]) -> Hex32 {
     let mut h = Sha256::new();

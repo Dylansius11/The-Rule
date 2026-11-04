@@ -1,0 +1,20 @@
+# Round verifier
+
+`rule verify --network testnet --game GAME --mode solo --round 0` reads the settled round and its log using final JSON-RPC views. Use `--rpc-url URL` to select a provider and `--json` for a machine-readable result. `rule verify --from-file round.json --json` requires no network. Exit status is zero only for PASS. Cancelled and Void rounds do not disclose a verified rule, so replay is unavailable and exits nonzero.
+
+The portable JSON export has `{ "round": ROUND_VIEW, "rows": [LOG_ROW, ...] }`. The round view needs `phase`, `log_len`, `rule`, `salt`, and `commit`; the verifier reads each row's `log_idx`, `seq`, `play`, and `verdict` and ignores other view fields. Salt and commitment are lowercase hex32, the rule and play use the shared protocol grammar. This export shape and the view serialization are provisional: SMART-CONTRACT names the views but does not define their JSON result shape, and the web exporter is not implemented yet.
+
+Logs are in callback-application order, not sequence issuance order. Indexes must be contiguous, and sequence values unique. The replay checks the commitment and the verdicts using the shared Rust crates; a PASS does not establish secrecy during the round or authenticate an RPC provider's response. Compare independently obtained sources if needed.
+
+For the browser, build `verifier/wasm` for `wasm32-unknown-unknown`, then run `wasm-bindgen --target web` with version 0.2.130. The generated module exports `verify_round(rows_json, rule_json, salt_json, commit_json, log_len)` and `consistent(rule_json, rows_json)`; arguments and results are JSON strings. Invalid JSON throws. `consistent` checks verdicts only; it does not check completeness or a commitment.
+
+Example from the repository root in WSL, with `wasm-bindgen-cli` 0.2.130 installed:
+
+```sh
+export CARGO_TARGET_DIR="$HOME/target-the-rule-verifier"
+cargo build --manifest-path verifier/wasm/Cargo.toml --release --target wasm32-unknown-unknown --lib
+wasm-bindgen --target web --out-dir verifier/wasm/pkg "$CARGO_TARGET_DIR/wasm32-unknown-unknown/release/verifier_wasm.wasm"
+cargo build -p verifier-cli
+```
+
+The native/wasm smoke comparison runs on Windows Node: `node verifier/wasm/smoke.mjs /home/<user>/target-the-rule-verifier/debug/rule`. It uses WSL to run the native binary and writes a temporary export under `scratch/verifier/`.

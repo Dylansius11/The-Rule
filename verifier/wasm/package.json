@@ -1,0 +1,7 @@
+{
+  "name": "@the-rule/verifier-wasm",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./pkg/verifier_wasm.js"
+}

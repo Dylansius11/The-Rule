@@ -8,7 +8,7 @@ impl Game {
             .rounds
             .get(&(m, id))
             .unwrap_or_else(|| env::panic_str("E10"));
-        near_sdk::require!(round.phase == 2, "E10");
+        near_sdk::require!(round.phase == Phase::Investigation, "E10");
         near_sdk::require!(m == 0, "E32");
         let word_id = rule_core::words::normalize(&word).unwrap_or_else(|| env::panic_str("E11"));
         near_sdk::require!(number <= 999, "E11");
@@ -151,7 +151,7 @@ impl Game {
             && self
                 .rounds
                 .get(&(mode, round))
-                .is_some_and(|r| r.phase == 2);
+                .is_some_and(|r| r.phase == Phase::Investigation);
         let entity_key = (mode, round, entity);
         if let Some(player) = self.players.get_mut(&actor) {
             player.pending = false;

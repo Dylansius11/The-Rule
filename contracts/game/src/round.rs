@@ -17,7 +17,7 @@ impl Game {
             None => 0,
             Some(id) => {
                 let round = self.rounds.get(&(m, id)).expect("missing current round");
-                if round.phase == 1 {
+                if round.phase == Phase::Sealing {
                     near_sdk::require!(
                         !round.begin_pending
                             && now < round.start_ns.saturating_add(p.begin_timeout_ns),
@@ -25,7 +25,7 @@ impl Game {
                     );
                     id
                 } else {
-                    near_sdk::require!(round.phase >= 4, "E10");
+                    near_sdk::require!(round.phase.is_past_reveal(), "E10");
                     id.checked_add(1).expect("E50")
                 }
             }
@@ -44,7 +44,7 @@ impl Game {
             self.rounds.insert(
                 (m, id),
                 Round {
-                    phase: 1,
+                    phase: Phase::Sealing,
                     start_ns: now,
                     slot_ns: slot,
                     investigation_end_ns: None,
@@ -62,7 +62,7 @@ impl Game {
                 },
             );
             self.active_rounds
-                .retain(|key| self.rounds.get(key).is_some_and(|r| r.phase < 5));
+                .retain(|key| self.rounds.get(key).is_some_and(|r| !r.phase.is_terminal()));
             self.active_rounds.push((m, id));
             self.total_pots += self.carry[i];
             self.carry[i] = 0;
@@ -106,7 +106,7 @@ impl Game {
         let Some(r) = self.rounds.get_mut(&(mode, round)) else {
             return;
         };
-        if r.phase != 1 || !r.begin_pending {
+        if r.phase != Phase::Sealing || !r.begin_pending {
             return;
         }
         r.begin_pending = false;
@@ -118,12 +118,12 @@ impl Game {
             r.header = Some(header);
             r.investigation_end_ns =
                 Some(env::block_timestamp().saturating_add(params.investigation_max_ns));
-            r.phase = 2;
+            r.phase = Phase::Investigation;
         }
-        if r.phase == 1
+        if r.phase == Phase::Sealing
             && env::block_timestamp() >= r.start_ns.saturating_add(params.begin_timeout_ns)
         {
-            r.phase = 6;
+            r.phase = Phase::Cancelled;
             self.carry[mode as usize] += r.pot;
             self.total_pots -= r.pot;
             r.pot = 0;
@@ -138,10 +138,10 @@ impl Game {
             .rounds
             .get_mut(&(m, id))
             .unwrap_or_else(|| env::panic_str("E10"));
-        near_sdk::require!(r.phase == 2, "E10");
+        near_sdk::require!(r.phase == Phase::Investigation, "E10");
         let now = env::block_timestamp();
         near_sdk::require!(now >= r.investigation_end_ns.unwrap_or(u64::MAX), "E50");
-        r.phase = 3;
+        r.phase = Phase::Reveal;
         r.reveal_deadline_ns = now.saturating_add(p.reveal_window_ns);
     }
 }

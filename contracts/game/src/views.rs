@@ -28,7 +28,7 @@ impl Game {
             round_id: id,
             slot_ns: r.slot_ns,
             sealing_started_ns: r.start_ns,
-            begin_status: if r.phase == 1 {
+            begin_status: if r.phase == Phase::Sealing {
                 if r.begin_pending { "pending" } else { "failed" }
             } else if r.commit.is_some() {
                 "ok"
@@ -42,16 +42,7 @@ impl Game {
             opening_started_ns: None,
             open_status: "none".into(),
             outcome: None,
-            phase: match r.phase {
-                1 => "Sealing",
-                2 => "Investigation",
-                3 => "Reveal",
-                4 => "Opening",
-                5 => "Settled",
-                6 => "Cancelled",
-                _ => "Void",
-            }
-            .into(),
+            phase: r.phase.name().into(),
             start_ns: r.start_ns,
             seed: Hex32(r.seed),
             commit: r.commit.map(Hex32),

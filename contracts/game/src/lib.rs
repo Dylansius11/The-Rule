@@ -47,9 +47,44 @@ pub enum PlayAck {
     Pending { request_id: u64, seq: u64 },
 }
 
+/// Round phase, in lifecycle order (SMART-CONTRACT 'Round phases').
+#[derive(BorshSerialize, BorshDeserialize, Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord)]
+pub enum Phase {
+    Sealing,
+    Investigation,
+    Reveal,
+    Opening,
+    Settled,
+    Cancelled,
+    Void,
+}
+
+impl Phase {
+    /// Wire name used by `RoundView.phase`.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Sealing => "Sealing",
+            Self::Investigation => "Investigation",
+            Self::Reveal => "Reveal",
+            Self::Opening => "Opening",
+            Self::Settled => "Settled",
+            Self::Cancelled => "Cancelled",
+            Self::Void => "Void",
+        }
+    }
+    /// Settled, Cancelled or Void: nothing more happens to the round.
+    pub const fn is_terminal(self) -> bool {
+        matches!(self, Self::Settled | Self::Cancelled | Self::Void)
+    }
+    /// The round has left Investigation and Reveal, so the mode may start its next round.
+    pub const fn is_past_reveal(self) -> bool {
+        self as u8 >= Self::Opening as u8
+    }
+}
+
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct Round {
-    phase: u8,
+    phase: Phase,
     start_ns: u64,
     slot_ns: u64,
     investigation_end_ns: Option<u64>,

@@ -30,8 +30,8 @@ Every command below is **planned, not run**, unless it shows an observed result.
 
 1. **Prerequisites:** near CLI `near-cli-rs` 0.30.1 ([GitHub release v0.30.1](https://api.github.com/repos/near/near-cli-rs/releases/latest), npm `near-cli-rs` 0.30.1, checked 2026-11-04). Docs: [create account](https://docs.near.org/getting-started/create-account.md), [faucet](https://docs.near.org/getting-started/faucet.md).
 2. **Agent steps (lead, after go):**
-   - `near account create-account sponsor-by-faucet-service therule.testnet autogenerate-new-keypair save-to-keychain network-config testnet create` creates the parent with faucet funds; the key goes into the local keychain only. Syntax per [NEAR CLI docs](https://docs.near.org/tools/near-cli.md) (read 2026-11-04).
-   - For each of `probe-game`, `probe-other`, `keeper`, then later `game-r1`, `token-r1`, `demo-game`, `demo-token`, `platform`, `game`, `token`: `near account create-account fund-myself <name>.therule.testnet '<amount> NEAR' autogenerate-new-keypair save-to-keychain sign-as therule.testnet network-config testnet sign-with-keychain send`. The `fund-myself ... sign-as` form is assembled from the documented subcommands and must be confirmed with `near account create-account fund-myself --help` before first use.
+   - Use only the `near-rule` wrapper (`XDG_CONFIG_HOME=~/.config-the-rule near ...`, credentials in `~/.near-credentials-the-rule`) so keys never land in another project's folder (LESSONS 2026-11-04). Install: the near-cli-rs v0.30.1 release tarball for `x86_64-unknown-linux-gnu`, sha256 checked against the release `.sha256` file.
+   - Parent: `near-rule account create-account sponsor-by-faucet-service therule.testnet autogenerate-new-keypair save-to-legacy-keychain network-config testnet create`. Observed 2026-11-04: account created with 10 NEAR, tx `3YMHT4Sv91uA4MPTHkrPum67a4Kwo6STBLpYfVtcSfES`. Sub-accounts: `near-rule account create-account fund-myself <name>.therule.testnet '<amount> NEAR' autogenerate-new-keypair save-to-legacy-keychain sign-as therule.testnet network-config testnet sign-with-legacy-keychain send` (observed working for `probe-other`, `probe-game`, `keeper`). Later: `game-r1`, `token-r1`, `demo-game`, `demo-token`, `platform`, `game`, `token`.
 3. **Human steps (founder):** after the lead sends `therule.testnet`, open the [NEAR faucet](https://docs.near.org/getting-started/faucet.md), enter that account, request testnet NEAR. Repeat if more is needed. Never paste a private key into chat.
 4. **Environment variables** (`.env`, gitignored; names only in `.env.example`):
 
@@ -44,7 +44,7 @@ Every command below is **planned, not run**, unless it shows an observed result.
    | `KEEPER_PRIVATE_KEY` | keeper secret store only | **secret** |
    | `HEALTHCHECK_PING_URL` | keeper | **secret** (unguessable URL) |
 
-   Operator keys for the parent and rehearsal accounts stay in the near CLI keychain, not in `.env`.
+   Operator keys for the parent and rehearsal accounts stay in the credentials home outside the repo (mode 600), not in `.env`. The keeper key is the only private key in `.env`.
 5. **Verification:** `curl -s $NEAR_RPC_URL -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"query","params":{"request_type":"view_account","finality":"final","account_id":"therule.testnet"}}'`. Expected: a result with `amount` greater than 0. Before P0.2 the observed result was `UNKNOWN_ACCOUNT` (block 276191846, 2026-11-04).
 6. **Evidence:** account creation tx hashes in SMART-CONTRACT "Deployment".
 

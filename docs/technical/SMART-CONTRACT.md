@@ -317,4 +317,13 @@ No formal verification is claimed. The equivalence checker is tested by differen
 
 ## Deployment and measured costs
 
-**Not deployed.** No account, transaction or execution exists yet (2026-11-04). This section records only observed facts from Phase 0 onward: network, account, transaction hash, block, wasm sha256, gas burnt, OutLayer charge and refund, each with date. Expected first entries: Phase 0 probe contract and referee probe (BUILD-PLAN P0.3 to P0.8).
+**Contracts: none deployed yet.** Observed on NEAR testnet, 2026-11-04 (operator: lead, via near-cli-rs 0.30.1, wasm hash and gas fields get added when contracts exist):
+
+| Account | Created by | Funding | Transaction |
+| --- | --- | --- | --- |
+| `therule.testnet` | faucet service, `sponsor-by-faucet-service` | 10 NEAR from the faucet service | `3YMHT4Sv91uA4MPTHkrPum67a4Kwo6STBLpYfVtcSfES` |
+| `probe-other.therule.testnet` | `therule.testnet` | 0.5 NEAR | `Ep8isCeSBtjbCpPLTcjutBonbUkVjhQNVbYzjM1CfZFp` |
+| `probe-game.therule.testnet` | `therule.testnet` | 3.5 NEAR | `D4w27n5XK7F17YPtZa6S8FYw27LyFXRdQaAGu2uTTky5` |
+| `keeper.therule.testnet` | `therule.testnet` | 1 NEAR | `G1MLWbYzRoyPf1s4JRGj9bURmELBjW6bt7yCDjHPDSXg` |
+
+Balances read right after creation: parent 4.978655 NEAR, probe-game 3.5, probe-other 0.5, keeper 1. Further entries record network, account, transaction hash, block, wasm sha256, gas burnt, OutLayer charge and refund, each with date. Expected next entries: Phase 0 probe contract and referee probe (BUILD-PLAN P0.4 to P0.8).

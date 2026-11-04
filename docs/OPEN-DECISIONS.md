@@ -98,8 +98,8 @@ Founder instruction of 2026-11-04: GPT 6.1 Terra (`executor` via `@task`) for sy
 | Id | Missing prerequisite | Owner | Status | Blocks plan ids | Next action / proof |
 | --- | --- | --- | --- | --- | --- |
 | B1 | Visual design references | Founder | Open | Phase 7, D2 confirmation | Founder shares references; lead writes `docs/DESIGN.md` then |
-| B2 | Faucet funding of `therule.testnet` | Founder | Open (after P0.2) | P0.4 onward | Lead creates the parent and sends its id; founder funds; `view_account` shows the balance |
-| B3 | Founder "go" for the build | Founder | Open | Everything after P0.1 | Founder says go; lead starts P0.2 |
+| B2 | More faucet funding for `therule.testnet` | Founder | Open (not blocking yet) | P2.9 onward | Faucet service gave 10 NEAR at creation (2026-11-04); the parent has about 5 NEAR left after the probe sub-accounts. Founder tops up at https://docs.near.org/getting-started/faucet.md before rehearsal deploys; `view-account-summary` shows the balance |
+| B3 | Founder "go" for the build | Founder | Resolved 2026-11-04 | - | Founder said go and asked for the best, highest-quality build; the lead started P0.2 |
 | B4 | NEAR Auth SDK compatibility with near-api-js 7.4.0 | Lead | Open (P1 only) | F22 | 3-hour timebox after Phase 8; otherwise guest key + relayer, labeled |
 | B5 | near-api-js signing inside Cloudflare Workers | Lead | Open | P6.2 | Qualify in P6.2; fallback GitHub Actions schedule |
 

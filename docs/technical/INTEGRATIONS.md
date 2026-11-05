@@ -93,6 +93,8 @@ Run `make token-failure` in WSL. The real local token/game and MOCK OutLayer exe
 
 After `scripts/build/sandbox-artifacts.sh`, run `cargo test -p sandbox-tests --profile fast --test capacity -- --nocapture` in WSL. The exercised runtime holds eight distinct verdicts, proves E23 rejects play/reveal without any stored-state mutation or new mock request, admits a lifecycle begin, and reconciles callback release, reveal/replacement and owner refunds. It uses MOCK OutLayer and independently waits for detached callback state. Native `cargo test -p game --test capacity --test recovery --profile fast` covers total limit 10, atomic finalize/open retry and duplicate/expiry fences. These checks do not prove provider throughput or whole-system reserves.
 
+The complementary `cargo test -p sandbox-tests --profile fast --test play -- --nocapture` passed four Solo runtime tests: settled duplicate statelessness; five failure shapes and retry; delayed YES after freeze; E22 and private callback denial. It uses actual local game/token wasm with MOCK OutLayer and waits for the detached verdict callback before asserting effects. It is not P2.9 evidence.
+
 
 ### Local cross-target vector recipe
 

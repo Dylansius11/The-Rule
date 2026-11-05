@@ -333,6 +333,14 @@ The actual game wasm with MOCK OutLayer held eight distinct players' verdicts. A
 Initiating calls detach their callback chains. The harness therefore observes the expected callback-state transition before asserting its effects; awaiting the initiating transaction alone is not callback completion. The first run exposed that harness race, and the corrected executable passed. No callback was impersonated or state patched.
 
 
+### Local Solo play rejection and callback report (2026-11-05)
+
+Four additional sandbox tests passed on the actual game/token wasm with MOCK OutLayer. A settled NO duplicate returned Known without changing credit, entity attempts/shares, round, log, token supply, ledger obligations or request count. Duplicate identity includes the minute/context, not just number/word; the runtime handles a clock-boundary E14 by using a fresh row, with a bounded failure condition.
+
+Null output, a genuine failed promise, invalid verdict value, unknown output field and wrong response variant each restored the full fee/storage debit and attempt, removed pending seen/log effects, and minted nothing to a registered player. The same input could subsequently settle. A genuine delayed YES arriving after a correct guess froze the round also refunded in full, with no log, share, line or mint; the frozen round and other accounting terms stayed unchanged. Separate checks exercised E22 without debit/state effects and denied an external callback while real work remained pending.
+
+These tests complement existing T-PLAY/T-CB native and sandbox coverage; they do not accept P2.8's entire lifecycle/Team matrix or real OutLayer/P2.9.
+
 ### Local sandbox gas report (2026-11-05)
 
 `make gas` builds local artifacts and runs `cargo run -p sandbox-tests --profile fast --example gas`. The executable was exercised with MOCK OutLayer through registration, null/failed-promise play refunds, ACCEPT + mint, lock/unlock, wrong/correct guesses, open, settlement and claim. It re-queries the sandbox RPC after resumption, matching receipt ids, executors and function-call actions; missing or failed expected callbacks make the run fail. It also observed E21 and unchanged credit for withdrawal while Checking, then successful withdrawals after resolution. These are local sandbox measurements, not OutLayer charges or testnet evidence.

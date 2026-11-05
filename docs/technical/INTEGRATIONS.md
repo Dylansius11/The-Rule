@@ -90,6 +90,12 @@ The complementary native principal model runs with `PROPTEST_CASES=10000 cargo t
 Run `make token-failure` in WSL. The real local token/game and MOCK OutLayer exercise a null registration check, registration retry without a game-credit debit, failed mint after external unregistration, restored allowance with unchanged YES, failed unlock and successful retry after re-registration. Receipt identity/status/gas checks accompany log/supply and custody/lock reconciliation. The executable was exercised locally; it does not establish worst-case callback gas, safe recovery from unknown external outcomes or testnet behavior.
 
 
+### Local cross-target vector recipe
+
+Run `make vectors` in WSL with cargo, Node, wasmtime and wasm-bindgen CLI 0.2.130 on `PATH` (or explicit `WASMTIME` / `WASM_BINDGEN` paths). Rust targets `wasm32-wasip2` and `wasm32-unknown-unknown` and the existing sandbox runtime are required. The script installs nothing, uses locked dependency graphs, compares 81 golden cases across native/WASI/sandbox-contract/web-target Node execution, and removes temporary files under `scratch/`. Missing tools or any mismatch fail the command. The contract adapter is test-only, not a game ABI change.
+
+Observed 2026-11-05: all script targets passed with wasmtime 50.0.1, wasm-bindgen 0.2.130 and native WSL Node 24.22.1. A separate throwaway Chrome module Web Worker passed all 81 cases plus five verifier-export replays; Node alone is not browser evidence. The restored local wasmtime 50.0.1 archive matched GitHub's release asset SHA-256 `685466455dd42a14774a86c36c8f2e45cbb9bd6d92a850139315df60a75498a5` ([release](https://github.com/bytecodealliance/wasmtime/releases/tag/v50.0.1)); its extracted tool lives in gitignored `scratch/tools/`, and the download archive was removed. No runtime installation changed the project's Node pin. See `verifier/cli/README.md`.
+
 ### 3. Referee hosting (P0.4, P2.2)
 
 1. **Docs [V]:** WasmUrl must be HTTPS on port 443 and a public address; the worker hashes the bytes and refuses a mismatch ([near-integration](https://app.outlayer.ai/docs/near-integration)). OutLayer source at commit `aaf60a26` follows at most 3 redirects, re-validates HTTPS, and caps wasm at 10 MiB ([compiler/mod.rs](https://raw.githubusercontent.com/out-layer/outlayer/aaf60a26855e30bc3318126382903df92dea7d3d/worker/src/compiler/mod.rs)). The [dev guide](https://app.outlayer.ai/docs/dev-guide) shows `outlayer upload <file>` returning `https://test.fastfs.io/<account>/outlayer.testnet/<sha256>.wasm`.

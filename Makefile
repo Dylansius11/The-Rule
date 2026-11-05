@@ -7,7 +7,7 @@ define NOT_IMPLEMENTED
 	@echo "make $@: not implemented (see docs/BUILD-PLAN.md)"; exit 1
 endef
 vectors:
-	$(NOT_IMPLEMENTED)
+	bash scripts/build/vectors.sh
 # Sandbox tests use MOCK OutLayer contracts and are never testnet evidence.
 sandbox:
 	scripts/build/sandbox-artifacts.sh

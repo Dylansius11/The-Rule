@@ -29,3 +29,12 @@ cargo build -p verifier-cli
 ```
 
 The native/wasm smoke comparison runs on Windows Node: `node verifier/wasm/smoke.mjs /home/<user>/target-the-rule-verifier/debug/rule`. It uses WSL to run the native binary and writes a temporary export under `scratch/verifier/`.
+
+## Cross-target golden vectors
+
+Run `make vectors` from the repository root in WSL. Prerequisites: Rust targets `wasm32-wasip2` and `wasm32-unknown-unknown`, wasmtime, Node, wasm-bindgen CLI **0.2.130**, and the existing NEAR sandbox runtime. Put the tools on `PATH`; `WASMTIME` and `WASM_BINDGEN` may name explicit binaries. `CARGO_TARGET_DIR` selects the build cache. The script never signs, deploys to testnet, loads `.env` or installs missing tools.
+
+The entrypoint checks 81 cases from `rule.json`, `commit.json`, `sample.json`, `referee-io.json` and `verify.json` through native Rust, WASI/wasmtime, a sandbox-only contract adapter and web-target wasm-bindgen bindings in Node. Canonical/preimage bytes, sampled rule/bucket, protocol JSON and replay results must match the fixtures. The adapter calls the production shared crates; it does not implement another evaluator. The production game's ABI is unchanged. Five replay cases additionally exercise the actual verifier web exports, including tampered verdict, duplicate sequence, missing row and play-key failures.
+
+Observed locally on 2026-11-05: all 81 cases matched on the four script targets with wasmtime 50.0.1, wasm-bindgen 0.2.130 and Node 24.22.1. A separate throwaway smoke also passed all 81 adapter cases and all five verifier replays in a Chrome module Web Worker. That browser smoke is not part of `make vectors`; Node execution alone must not be reported as browser evidence. Neither run establishes real OutLayer execution or live RPC data authenticity.
+

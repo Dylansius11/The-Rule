@@ -124,6 +124,7 @@ impl Game {
             id,
             Request::Register {
                 actor: actor.clone(),
+                expires_at_ns: recovery::deadline(),
             },
         );
         Promise::new(token)
@@ -144,13 +145,23 @@ impl Game {
     }
 
     fn on_register_inner(&mut self, request_id: u64) {
-        let Some(Request::Register { actor }) = self.pending.remove(&request_id) else {
-            return;
-        };
         let registered = env::promise_result_checked(0, 4096)
             .ok()
             .and_then(|bytes| serde_json::from_slice::<TokenStorageBalance>(&bytes).ok())
             .is_some_and(|balance| balance.available.0 <= balance.total.0);
+        self.finish_register(request_id, registered);
+    }
+
+    pub(crate) fn finish_register(&mut self, request_id: u64, registered: bool) {
+        if !matches!(
+            self.pending.get(&request_id),
+            Some(Request::Register { .. })
+        ) {
+            return;
+        }
+        let Some(Request::Register { actor, .. }) = self.pending.remove(&request_id) else {
+            return;
+        };
         if let Some(player) = self.players.get_mut(&actor) {
             player.token = if registered {
                 TokenState::Registered
@@ -201,6 +212,9 @@ impl Game {
 
     /// A failed mint restores the round allowance and zeroes the row; the verdict stands.
     fn on_mint_inner(&mut self, request_id: u64) {
+        if !matches!(self.pending.get(&request_id), Some(Request::Mint { .. })) {
+            return;
+        }
         let Some(Request::Mint {
             mode,
             round,

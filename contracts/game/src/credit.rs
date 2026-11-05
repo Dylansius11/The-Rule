@@ -63,6 +63,12 @@ impl Game {
     }
 
     pub(crate) fn on_withdraw_inner(&mut self, request_id: u64) {
+        if !matches!(
+            self.pending.get(&request_id),
+            Some(Request::Withdraw { .. })
+        ) {
+            return;
+        }
         let Some(Request::Withdraw { actor, amount }) = self.pending.remove(&request_id) else {
             return;
         };

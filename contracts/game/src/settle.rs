@@ -477,6 +477,12 @@ impl Game {
     }
 
     fn on_platform_inner(&mut self, request_id: u64) {
+        if !matches!(
+            self.pending.get(&request_id),
+            Some(Request::Platform { .. })
+        ) {
+            return;
+        }
         let Some(Request::Platform { amount }) = self.pending.remove(&request_id) else {
             return;
         };

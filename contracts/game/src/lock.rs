@@ -195,6 +195,9 @@ impl Game {
 
     /// A failed transfer puts the lock back: locked RULE is never forfeited.
     fn on_unlock_inner(&mut self, request_id: u64) {
+        if !matches!(self.pending.get(&request_id), Some(Request::Unlock { .. })) {
+            return;
+        }
         let Some(Request::Unlock {
             mode,
             round,

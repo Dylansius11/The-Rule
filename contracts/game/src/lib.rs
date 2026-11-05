@@ -185,6 +185,7 @@ pub enum Request {
     },
     Register {
         actor: AccountId,
+        expires_at_ns: u64,
     },
     Mint {
         mode: u8,

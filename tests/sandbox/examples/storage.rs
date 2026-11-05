@@ -237,6 +237,16 @@ async fn main() -> Res<()> {
         "BOUND analytical log entry: JSON <= {bound_json_bytes} bytes; Borsh string + map key + 40-byte record overhead <= {} bytes; independent type maxima, not a reachable observation",
         bound_json_bytes + 4 + 10 + RECORD_OVERHEAD
     );
+    // Verdict request: prefix + u64 key, enum tag, mode, round, entity,
+    // 64-byte AccountId, JSON string, key/seq/timestamp/deadline and trie overhead.
+    let play_json_bound = serde_json::to_vec(&bound_row.play)?.len();
+    let verdict_record_bound =
+        9 + 1 + 1 + 4 + 5 + 4 + 64 + 4 + play_json_bound + 8 + 8 + 8 + 8 + RECORD_OVERHEAD;
+    // Guess request has only mode, round, commit_seq and expiry.
+    let guess_record_bound = 9 + 1 + 1 + 4 + 4 + 8 + RECORD_OVERHEAD;
+    println!(
+        "BOUND request records: verdict <= {verdict_record_bound} B (play JSON <= {play_json_bound} B), guess = {guess_record_bound} B; excludes seen/entity and other request variants"
+    );
 
     let config: Value = game.view("get_params").await?.json()?;
     let account_charge: u128 = config["storage_charge_account"]
@@ -525,7 +535,7 @@ async fn main() -> Res<()> {
     );
     worker.fast_forward(5).await?;
     let check = bob.call(game.id(), "reveal_guess")
-        .args_json(json!({"mode":0,"commit_seq":0,"guess":serde_json::to_value(RuleHex(rule))?,"salt":"09".repeat(32)}))
+        .args_json(json!({"mode":0,"commit_seq":0,"guess":serde_json::to_value(RuleHex(rule.clone()))?,"salt":"09".repeat(32)}))
         .gas(Gas::from_tgas(300)).transact_async().await?;
     wait_requests(&mock, 6).await?;
     wait_status(&game, 0, "Checking").await?;
@@ -545,8 +555,320 @@ async fn main() -> Res<()> {
     {
         return Err("refunded guess left transient storage behind".into());
     }
+    // Two fresh 64-byte accounts acquire maximum-width previous plays before
+    // simultaneously holding a verdict and three guess checks apiece.
+    let mut players = Vec::new();
+    let mut request = 6u32;
+    for (index, letter) in [(2u32, "a"), (3, "b")] {
+        let player = root
+            .create_subaccount(&letter.repeat(name.len()))
+            .initial_balance(NearToken::from_near(10))
+            .transact()
+            .await?
+            .into_result()?;
+        assert_eq!(player.id().as_str().len(), 64);
+        let before = snapshot(&game, "overlap account before").await?;
+        player
+            .call(game.id(), "deposit_credit")
+            .deposit(NearToken::from_near(2))
+            .max_gas()
+            .transact()
+            .await?
+            .into_result()?;
+        let deposited = snapshot(&game, "overlap account deposited").await?;
+        check_charge(
+            "overlap account",
+            &before,
+            &deposited,
+            account_charge,
+            byte_cost,
+            &mut failures,
+        );
+        let play = player
+            .call(game.id(), "play")
+            .args_json(json!({"mode":0,"number":997-index,"word":"nonce"}))
+            .gas(Gas::from_tgas(300))
+            .transact_async()
+            .await?;
+        wait_requests(&mock, request + 1).await?;
+        resolve(&mock, request, json!({"v":1}), false).await?;
+        request += 1;
+        play.await?.into_result()?;
+        wait_log(&game, index as usize + 2).await?;
+        let settled = wait_no_pending(&game, "overlap previous YES settled").await?;
+        check_charge(
+            "overlap initial YES",
+            &deposited,
+            &settled,
+            record_charge,
+            byte_cost,
+            &mut failures,
+        );
+        players.push(player);
+    }
+    for (i, player) in players.iter().enumerate() {
+        for j in 0..3u32 {
+            let salt = [20 + i as u8 * 3 + j as u8; 32];
+            let hash = protocol::commit_hash(&CommitPreimage {
+                chain: "testnet",
+                game: game.id().as_str(),
+                mode: Mode::Solo,
+                round: 0,
+                actor: player.id().as_str(),
+                entity: Entity::Solo(2 + i as u32),
+                guess: &rule,
+                salt: &salt,
+            });
+            let before = snapshot(&game, "overlap commit before").await?;
+            let owner_credit = credit(&game, player).await?;
+            player
+                .call(game.id(), "commit_guess")
+                .args_json(json!({"mode":0,"hash":serde_json::to_value(hash)?}))
+                .max_gas()
+                .transact()
+                .await?
+                .into_result()?;
+            let after = snapshot(&game, "overlap commit retained").await?;
+            check_charge(
+                "overlap individual commit",
+                &before,
+                &after,
+                record_charge,
+                byte_cost,
+                &mut failures,
+            );
+            if owner_credit - credit(&game, player).await?
+                != 100_000_000_000_000_000_000_000 + record_charge
+            {
+                return Err("commit owner debit differs from stake plus record charge".into());
+            }
+        }
+    }
+    worker.fast_forward(5).await?;
+    let before_overlap = snapshot(&game, "before simultaneous plays and checks").await?;
+    let owner_credits = [
+        credit(&game, &players[0]).await?,
+        credit(&game, &players[1]).await?,
+    ];
+    let reserve_before: Value = game.view("get_ledger").await?.json()?;
+    let mut plays = Vec::new();
+    for (i, player) in players.iter().enumerate() {
+        plays.push(
+            player
+                .call(game.id(), "play")
+                .args_json(json!({"mode":0,"number":998-i,"word":"nonce"}))
+                .gas(Gas::from_tgas(300))
+                .transact_async()
+                .await?,
+        );
+        wait_requests(&mock, request + 1).await?;
+        request += 1;
+    }
+    let mut checks = Vec::new();
+    for (i, player) in players.iter().enumerate() {
+        for j in 0..3u32 {
+            let seq = 2 + i as u32 * 3 + j;
+            let salt = format!("{:02x}", 20 + i * 3 + j as usize).repeat(32);
+            checks.push(player.call(game.id(), "reveal_guess")
+                .args_json(json!({"mode":0,"commit_seq":seq,"guess":serde_json::to_value(RuleHex(rule.clone()))?,"salt":salt}))
+                .gas(Gas::from_tgas(300)).transact_async().await?);
+            wait_requests(&mock, request + 1).await?;
+            wait_status(&game, seq as usize, "Checking").await?;
+            request += 1;
+        }
+    }
+    let overlap = snapshot(&game, "two verdicts and six Checking guesses").await?;
+    assert_eq!(count(&overlap, b'p') - count(&before_overlap, b'p'), 8);
+    let mut verdict_sizes = Vec::new();
+    let mut guess_sizes = Vec::new();
+    for (key, value) in game.view_state().await? {
+        if key.first() == Some(&b'p') {
+            let bytes = key.len() + value.len() + RECORD_OVERHEAD;
+            match value.first() {
+                Some(1) => verdict_sizes.push(bytes),
+                Some(3) => guess_sizes.push(bytes),
+                _ => return Err("unexpected overlap request variant".into()),
+            }
+        }
+    }
+    if verdict_sizes.len() != 2
+        || guess_sizes.len() != 6
+        || verdict_sizes
+            .iter()
+            .any(|size| *size > verdict_record_bound)
+        || guess_sizes.iter().any(|size| *size != guess_record_bound)
+    {
+        return Err("overlap request records violate the analytical sizes".into());
+    }
+    println!("OVERLAP actual trie-record bytes: verdict={verdict_sizes:?}, guess={guess_sizes:?}");
+    let growth = delta(&overlap, &before_overlap);
     println!(
-        "LIMIT type-bound: u64 seq/timestamps use fixed Borsh widths, but decimal JSON log lengths grow with values; this sample does not reach u64 maximum, maximum block/time, or all reachable states. Team, overlapping requests and all callback peaks are not bounded here."
+        "OVERLAP two verdicts and six checks: {growth} B; gross collateral={} yocto",
+        growth.max(0) as u128 * byte_cost
+    );
+    println!(
+        "RESERVE: byte_cost * max(0, base and round bytes + retained bytes + pending bytes - retained-charge bytes); pending includes V verdict records <= V*{verdict_record_bound} B and G guess records = G*{guess_record_bound} B, plus seen/entity and other request/callback growth. No global request cap exists: this sample supplies no fixed concurrency ceiling. Each Solo entity has at most one pending play and three open guesses per round, but many entities and overlapping rounds can exist."
+    );
+    resolve(&mock, 8, json!({"v":0}), false).await?;
+    plays.remove(0).await?.into_result()?;
+    wait_log(&game, 6).await?;
+    for (i, check) in checks.into_iter().enumerate() {
+        let correct = i == 5;
+        resolve(
+            &mock,
+            10 + i as u32,
+            if correct {
+                json!({"correct":true})
+            } else {
+                Value::Null
+            },
+            !correct,
+        )
+        .await?;
+        check.await?.into_result()?;
+        wait_status(&game, 2 + i, if correct { "Correct" } else { "Refunded" }).await?;
+    }
+    resolve(&mock, 9, json!({"v":0}), false).await?;
+    plays.remove(0).await?.into_result()?;
+    let cleared = wait_no_pending(&game, "overlap refunded and settled").await?;
+    if count(&cleared, b'p') != count(&before_overlap, b'p') {
+        return Err("overlap requests did not clear".into());
+    }
+    let stake = 100_000_000_000_000_000_000_000u128;
+    let fee = 10_000_000_000_000_000_000_000u128;
+    if credit(&game, &players[0]).await? != owner_credits[0] - fee - record_charge + 3 * stake
+        || credit(&game, &players[1]).await? != owner_credits[1] + 2 * stake
+    {
+        return Err(
+            "overlap owner credits did not reconcile paid/refunded play and guess stakes".into(),
+        );
+    }
+    let reserve_after: Value = game.view("get_ledger").await?.json()?;
+    let reserve = |value: &Value| -> Res<u128> {
+        Ok(value["storage_reserve"]
+            .as_str()
+            .ok_or("missing storage reserve")?
+            .parse()?)
+    };
+    if reserve(&reserve_after)? != reserve(&reserve_before)? + record_charge {
+        return Err("overlap retained storage charge did not reconcile".into());
+    }
+    let player_growth: i128 = b"sle"
+        .iter()
+        .map(|prefix| {
+            cleared.prefixes.get(prefix).map_or(0, |v| v.1) as i128
+                - before_overlap.prefixes.get(prefix).map_or(0, |v| v.1) as i128
+        })
+        .sum();
+    println!(
+        "OVERLAP retained={} B, including round freeze; player prefixes={player_growth} B against one paid play charge={record_charge}",
+        delta(&cleared, &before_overlap)
+    );
+    if player_growth.max(0) as u128 * byte_cost > record_charge {
+        failures += 1;
+    }
+
+    let before_open = snapshot(&game, "round before finalize").await?;
+    // A successful finalize may wait for the mock's yielded open to resume.
+    // Race that completion against the bounded request poll; never send a
+    // second successful finalize while the first one is in flight.
+    let mut open_pending = None;
+    for _ in 0..90 {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        worker.fast_forward(2).await?;
+        let attempt = alice
+            .call(game.id(), "finalize")
+            .args_json(json!({"mode":0}))
+            .gas(Gas::from_tgas(300))
+            .transact_async()
+            .await?;
+        let attempt = std::future::IntoFuture::into_future(attempt);
+        tokio::pin!(attempt);
+        let completed = tokio::select! {
+            result = &mut attempt => Some(result?),
+            ready = wait_requests(&mock, request + 1) => {
+                ready?;
+                None
+            }
+        };
+        let completed = match completed {
+            Some(result) if !result.is_success() => {
+                let error = result.into_result().expect_err("failed finalize");
+                if !format!("{error:?}").contains("E50") {
+                    return Err(format!("unexpected finalize failure: {error:?}").into());
+                }
+                continue;
+            }
+            other => other,
+        };
+        wait_requests(&mock, request + 1).await?;
+        let pending = snapshot(&game, "round open pending").await?;
+        resolve(
+            &mock,
+            request,
+            json!({"rule":serde_json::to_value(&rule)?,"salt":"05".repeat(32)}),
+            false,
+        )
+        .await?;
+        match completed {
+            Some(result) => {
+                result.into_result()?;
+            }
+            None => {
+                attempt.await?.into_result()?;
+            }
+        }
+        open_pending = Some(pending);
+        break;
+    }
+    let open_pending = open_pending.ok_or("finalize deadline not reached")?;
+    let settled_round = wait_no_pending(&game, "round settled").await?;
+    let round_view: Value = game
+        .view("get_round")
+        .args_json(json!({"mode":0,"id":0}))
+        .await?
+        .json()?;
+    if round_view["phase"] != "Settled" {
+        return Err("round did not settle".into());
+    }
+    println!(
+        "ROUND operator growth from finalize: pending={} B, settled={} B; no round charge assumed",
+        delta(&open_pending, &before_open),
+        delta(&settled_round, &before_open)
+    );
+    request += 1;
+    let begin = alice
+        .call(game.id(), "start_round")
+        .args_json(json!({"mode":0}))
+        .gas(Gas::from_tgas(300))
+        .transact_async()
+        .await?;
+    wait_requests(&mock, request + 1).await?;
+    let next_pending = snapshot(&game, "next round begin pending").await?;
+    resolve(
+        &mock,
+        request,
+        begin_value(commitment.as_str().ok_or("bad commitment")?),
+        false,
+    )
+    .await?;
+    begin.await?.into_result()?;
+    let next_round = wait_no_pending(&game, "next round investigation").await?;
+    let next_view: Value = game
+        .view("get_round")
+        .args_json(json!({"mode":0,"id":1}))
+        .await?
+        .json()?;
+    if next_view["phase"] != "Investigation" {
+        return Err("next round did not begin".into());
+    }
+    println!(
+        "ROUND next begin: pending={} B, retained={} B; earlier round retained and operator funds accumulated overhead",
+        delta(&next_pending, &settled_round),
+        delta(&next_round, &settled_round)
+    );
+    println!(
+        "LIMIT samples are not worst-case proofs; Team, other request variants, full callback peaks and lifetime round cardinality remain unmeasured."
     );
     if failures != 0 {
         return Err(format!(

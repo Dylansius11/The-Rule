@@ -365,6 +365,12 @@ All sampled retained charges covered their growth on the corrected run. Observed
 
 The harness serializes the actual typed `LogRow` at independent type maxima and reports a conservative 442-byte bound for that map entry (including string length, key and record overhead). It does not claim those maxima coexist in a reachable round. Maximum-state sequences, all callback peaks, round/operator reserves and Team storage remain B6/P4 work.
 
+The extended executable passed two 64-character players holding one pending verdict and three Checking guesses each. The eight request records occupied 922 bytes (two verdict records at 260 bytes, six guess records at 67 bytes); including two pending `seen` entries, account growth was 1,038 bytes. The serialized maximum-width play was 96 bytes, giving a 260-byte bound for the verdict request record alone; a guess request record is fixed at 67 bytes. These bounds exclude entity/seen growth, other request variants and callback peaks.
+
+After one paid play, one frozen-play refund and five system-failed plus one correct guess, requests cleared and each owner's credit and retained storage charges reconciled. Retained growth was 433 bytes including freeze metadata; player prefixes used 413 bytes against one 768-byte paid-play charge. Opening/settling added 193 retained operator bytes in that sample; the next round retained another 340 bytes while the earlier round remained. No per-round user charge was assumed.
+
+Operator collateral must cover `byte_cost * max(0, total stored bytes - funded storage byte-equivalents)`, with retained rounds and all concurrent request/callback variants included. There is no global pending-request cap yet, so this sample cannot establish a fixed maximum concurrency reserve. D27's request-limit confirmation, complete sizing and Team remain open; neither 1,038 bytes nor a multiple of the two measured request sizes is a whole-system reserve quote.
+
 Local no-ABI artifact sizes below are non-reproducible sandbox observations, not freeze hashes or evidence of a deployment.
 
 | Artifact | Bytes |

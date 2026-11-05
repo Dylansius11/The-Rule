@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-05: resolve yielded dependencies before awaiting transaction completion
+
+- **What happened:** the first extended storage run reached finalize and was cancelled while waiting before the mock open was resolved. The corrected executable completed settlement and the next round.
+- **Root cause [I]:** awaiting transaction completion before supplying a yielded descendant's result can block the harness. `TransactionStatus` implements `IntoFuture`, not `Future`, so it must be converted before use with `tokio::select!`.
+- **Rule:** race the completion future with the expected mock request, resolve the observed request once, then await completion. Only the expected pre-deadline E50 rejection permits another finalize attempt; do not call a cancelled run passing evidence.
+
 ### 2026-11-05: balance observations need one block and receipt-defined principal
 
 - **What happened:** the first balance harness mixed optimistic contract views with final account queries, then failed its mock-deposit check against a stale account balance. After block pinning, its withdrawal net-bound check failed because refunds from earlier signer transactions arrived during the observation window.

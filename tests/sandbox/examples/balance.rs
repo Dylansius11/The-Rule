@@ -89,19 +89,21 @@ async fn payment_receipts(
     tx: &str,
     sender: &str,
     game: &Contract,
-    payment: (&str, u128),
+    payment: (&str, u128, &Value),
     callback: &str,
     transfer_succeeds: bool,
 ) -> Res<()> {
-    let (recipient, principal) = payment;
+    let (recipient, principal, before) = payment;
     for _ in 0..100 {
         let result = rpc(
             worker,
             "EXPERIMENTAL_tx_status",
             json!({"tx_hash":tx,"sender_account_id":sender,"wait_until":"INCLUDED"}),
         )?;
-        let mut transfer = false;
-        let mut callback_done = false;
+        let mut initiated = None;
+        let mut transfer = None;
+        let mut callback_done = None;
+        let mut refunds = Vec::new();
         if let Some(outcomes) = result["receipts_outcome"].as_array() {
             for outcome in outcomes {
                 let Some(id) = outcome["id"].as_str() else {
@@ -119,6 +121,32 @@ async fn payment_receipts(
                 let status = &outcome["outcome"]["status"];
                 let success = status.get("SuccessValue").is_some()
                     || status.get("SuccessReceiptId").is_some();
+                let initiating_method = match callback {
+                    "on_withdraw" => "withdraw_credit",
+                    "on_platform" => "claim_platform",
+                    _ => return Err(format!("unsupported payment callback {callback}").into()),
+                };
+                if receipt["receiver_id"] == game.id().as_str()
+                    && actions
+                        .iter()
+                        .any(|a| a["FunctionCall"]["method_name"] == initiating_method)
+                {
+                    if !success {
+                        return Err("payment initiation failed".into());
+                    }
+                    initiated = Some(outcome.clone());
+                }
+                if receipt["predecessor_id"] == "system"
+                    && receipt["receiver_id"] == game.id().as_str()
+                    && actions
+                        .iter()
+                        .any(|a| a["Transfer"]["deposit"] == principal.to_string())
+                {
+                    if !success {
+                        return Err("principal refund failed".into());
+                    }
+                    refunds.push(outcome.clone());
+                }
                 if receipt["predecessor_id"] == game.id().as_str()
                     && receipt["receiver_id"] == recipient
                 {
@@ -137,7 +165,7 @@ async fn payment_receipts(
                                 )
                                 .into());
                             }
-                            transfer = true;
+                            transfer = Some(outcome.clone());
                             println!(
                                 "TRANSFER receipt={id} receiver={recipient} principal={principal} status={status}"
                             );
@@ -152,25 +180,112 @@ async fn payment_receipts(
                     if !success {
                         return Err(format!("{callback} receipt {id} failed: {status}").into());
                     }
-                    callback_done = true;
+                    callback_done = Some(outcome.clone());
                     println!("CALLBACK {callback} receipt={id} status={status}");
                 }
             }
         }
-        if transfer && callback_done {
-            return Ok(());
+        if let (Some(start), Some(paid), Some(done)) = (initiated, transfer, callback_done) {
+            // A failed Transfer creates its own principal-refund receipt. Match the
+            // parent receipt id, not an unrelated gas refund of a similar amount.
+            let refund = refunds.iter().find(|r| {
+                paid["outcome"]["receipt_ids"]
+                    .as_array()
+                    .is_some_and(|ids| ids.contains(&r["id"]))
+            });
+            if transfer_succeeds || refund.is_some() {
+                payment_history(
+                    worker,
+                    game,
+                    before,
+                    (callback, principal, transfer_succeeds),
+                    (&start, &paid, &done, refund),
+                )?;
+                return Ok(());
+            }
         }
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
-    Err(
-        format!("tx {tx}: missing transfer to {recipient} for {principal} or {callback} callback")
-            .into(),
+    Err(format!(
+        "tx {tx}: missing transfer to {recipient} for {principal}, {callback}, or principal refund"
     )
+    .into())
 }
 
-// Payment snapshots are taken only after the transfer and callback have completed.
-// Pending play debits remain obligations; an unknown outgoing transfer would need
-// receipt-aware reconciliation and is deliberately not sampled here.
+// Re-read every actual block between initiation and completion. This observes
+// in-flight state without racing a live poll or modifying sandbox contract state.
+fn payment_history(
+    worker: &Worker<Sandbox>,
+    game: &Contract,
+    before: &Value,
+    payment: (&str, u128, bool),
+    outcomes: (&Value, &Value, &Value, Option<&Value>),
+) -> Res<()> {
+    let (callback, principal, succeeds) = payment;
+    let (start, paid, done, refund) = outcomes;
+    let height = |outcome: &Value| -> Res<u64> {
+        let block = rpc(worker, "block", json!({"block_id":outcome["block_hash"]}))?;
+        block["header"]["height"]
+            .as_u64()
+            .ok_or_else(|| "missing block height".into())
+    };
+    let (started, transferred, completed) = (height(start)?, height(paid)?, height(done)?);
+    let refunded = refund.map(height).transpose()?;
+    if started >= transferred
+        || transferred >= completed
+        || refunded.is_some_and(|h| h <= transferred)
+    {
+        return Err(format!(
+            "unexpected receipt order: {started}/{transferred}/{completed}/{refunded:?}"
+        )
+        .into());
+    }
+    let field = if callback == "on_withdraw" {
+        "credit"
+    } else {
+        "platform_accrued"
+    };
+    for h in started..=completed.max(refunded.unwrap_or(completed)) {
+        let view = rpc(
+            worker,
+            "query",
+            json!({
+                "request_type":"call_function","block_id":h,
+                "account_id":game.id(),"method_name":"get_ledger","args_base64":"e30="
+            }),
+        )?;
+        let ledger = ledger_from_view(worker, game, &view)?;
+        let restored = !succeeds && h >= completed;
+        delta(
+            "historical payment",
+            before,
+            &ledger,
+            &[(field, if restored { 0 } else { -(principal as i128) })],
+        )?;
+        // Outgoing principal is escrow before execution. After a failed transfer,
+        // its linked system refund is a receivable until that receipt executes.
+        // A successful transfer is paid, never an asset or refund obligation.
+        let escrow_or_receivable =
+            h < transferred || (!succeeds && h < refunded.ok_or("missing refund")?);
+        let refund_exposure = h < transferred || (!succeeds && h < completed);
+        let assets = amount(&ledger, "balance")? + if escrow_or_receivable { principal } else { 0 };
+        let liabilities = obligations(&ledger)? + if refund_exposure { principal } else { 0 };
+        if assets < liabilities {
+            return Err(
+                format!("block {h}: payment assets {assets} < liabilities {liabilities}").into(),
+            );
+        }
+        println!(
+            "PAYMENT BLOCK {h} {callback}: balance={} principal={principal} escrow_or_receivable={escrow_or_receivable} refund_exposure={refund_exposure} restored={restored} assets={assets} liabilities={liabilities}",
+            amount(&ledger, "balance")?
+        );
+    }
+    println!(
+        "PAYMENT ORDER {callback}: initiated={started} transfer={transferred} callback={completed} principal_refund={refunded:?}; historical same-block ledger/account snapshots"
+    );
+    Ok(())
+}
+
 async fn snapshot(worker: &Worker<Sandbox>, game: &Contract, label: &str) -> Res<Value> {
     // The default workspaces view and a final RPC account query can observe different
     // blocks. Pin both sides to the same optimistic sandbox block instead.
@@ -182,6 +297,19 @@ async fn snapshot(worker: &Worker<Sandbox>, game: &Contract, label: &str) -> Res
             "account_id":game.id(),"method_name":"get_ledger","args_base64":"e30="
         }),
     )?;
+    let ledger = ledger_from_view(worker, game, &view)?;
+    let real = amount(&ledger, "balance")?;
+    let obligations = obligations(&ledger)?;
+    println!("BALANCE {label}: rpc={real} obligations={obligations} ledger={ledger}");
+    if real < obligations {
+        return Err(
+            format!("{label}: insolvency: balance {real} < obligations {obligations}").into(),
+        );
+    }
+    Ok(ledger)
+}
+
+fn ledger_from_view(worker: &Worker<Sandbox>, game: &Contract, view: &Value) -> Res<Value> {
     let bytes: Vec<u8> = serde_json::from_value(view["result"].clone())?;
     let ledger: Value = serde_json::from_slice(&bytes)?;
     let account = rpc(
@@ -193,8 +321,12 @@ async fn snapshot(worker: &Worker<Sandbox>, game: &Contract, label: &str) -> Res
     )?;
     let real = amount(&account, "amount")?;
     if real != amount(&ledger, "balance")? {
-        return Err(format!("{label}: same-block balance disagrees with contract view").into());
+        return Err("same-block balance disagrees with contract view".into());
     }
+    Ok(ledger)
+}
+
+fn obligations(ledger: &Value) -> Res<u128> {
     let mut obligations = 0u128;
     for key in [
         "credit",
@@ -208,23 +340,13 @@ async fn snapshot(worker: &Worker<Sandbox>, game: &Contract, label: &str) -> Res
         "pending_credit",
     ] {
         obligations = obligations
-            .checked_add(amount(&ledger, key)?)
+            .checked_add(amount(ledger, key)?)
             .ok_or("obligations overflow")?;
     }
     obligations = obligations
-        .checked_add(amount(&ledger, "storage_reserve")?.max(amount(&ledger, "locked_storage")?))
+        .checked_add(amount(ledger, "storage_reserve")?.max(amount(ledger, "locked_storage")?))
         .ok_or("obligations overflow")?;
-    println!(
-        "BALANCE {label}: rpc={real} ledger_balance={} obligations={obligations} ledger={ledger}",
-        amount(&ledger, "balance")?
-    );
-    if real < obligations {
-        return Err(format!(
-            "{label}: insolvency: balance {real} < obligations {obligations}; ledger {ledger}"
-        )
-        .into());
-    }
-    Ok(ledger)
+    Ok(obligations)
 }
 
 // Compare every obligation, not just their sum. Collateral changes with actual storage.
@@ -674,7 +796,7 @@ async fn main() -> Res<()> {
         &tx,
         alice.id().as_str(),
         &game,
-        (alice.id().as_str(), principal),
+        (alice.id().as_str(), principal, &last),
         "on_withdraw",
         true,
     )
@@ -707,7 +829,7 @@ async fn main() -> Res<()> {
         &tx,
         alice.id().as_str(),
         &game,
-        (&platform_id, platform_principal),
+        (&platform_id, platform_principal, &last),
         "on_platform",
         false,
     )
@@ -737,7 +859,7 @@ async fn main() -> Res<()> {
         &tx,
         alice.id().as_str(),
         &game,
-        (&platform_id, platform_principal),
+        (&platform_id, platform_principal, &last),
         "on_platform",
         true,
     )
@@ -764,7 +886,7 @@ async fn main() -> Res<()> {
         "PLATFORM recipient exact increase={platform_principal}; recipient neither signs nor executes a function call"
     );
     println!(
-        "LIMITS: sampled Solo sequence only; no Team, 10k sequences, real referee, or testnet. No in-flight payment snapshot is claimed. While transfer outcome is unknown, reconcile refund exposure with actual receipt effects; do not double-count an already-paid transfer. pending_credit is only unsettled play fee/storage. Contract execution rewards and gas rebates can change RPC balances independently of principal; signer net is not gross principal."
+        "LIMITS: sampled Solo sequence only; no Team, 10k sequences, real referee, or testnet. Historical payment blocks cover initiation, transfer, callback and linked principal refund without state patching. They do not prove recovery if a payment callback never executes. pending_credit is only unsettled play fee/storage. Contract execution rewards and gas rebates can change RPC balances independently of principal; signer net is not gross principal."
     );
     Ok(())
 }

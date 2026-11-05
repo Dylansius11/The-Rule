@@ -377,9 +377,13 @@ This is a principal-only model, not a receipt-executing VM balance or storage pr
 
 The observed sequence covered begin, a first-play failure overlapping three commits, preserved E15, a paid NO, wrong/system-failed/correct guesses, open, settlement and claim including the overlapping correct stake. Actual receipt identities established a successful 0.5-NEAR withdrawal, a failed 0.0063-NEAR platform transfer to a nonexistent named account with restored accrual, then a successful retry whose recipient increased by exactly 0.0063 NEAR.
 
+The extended runtime re-queries every historical block from payment initiation through transfer, callback and any principal refund. Ledger and account reads use the same block hash; each field must match the expected debit/restoration independently of the large sandbox balance. The failed transfer's exact-principal system refund must be a child of that failed receipt, not an unrelated gas refund. Observed heights were withdrawal 173/174/175 (initiation/transfer/callback), failed platform 180/181/182 (refund and callback both in block 182), and successful platform retry 190/191/192. Block snapshots do not establish intra-block ordering between refund and callback.
+
+Before transfer execution, outgoing principal is an escrow asset with a matching pending payment obligation. After a successful transfer it is paid, not a refundable asset. After failure, principal is a receivable until the linked system refund executes; the pending refund obligation becomes ordinary credit/platform accrual when the callback restores it. The runtime reconciles those terms without counting principal twice. This is an observer's receipt-aware accounting model, not a new on-chain ledger field or permission to retry an unknown payment.
+
 Signer balance changes are not gross transfer principal: the initial net-bound check failed because outstanding refunds from earlier transactions arrived too. Principal is checked on the successful transfer receipt, separately from signer net and gas. The earlier attempt also mixed optimistic contract views with final account queries; same-block pinning fixes that observation error.
 
-This is a sampled Solo sequence, not 10k on-chain sequences, a worst-case reserve proof, real OutLayer or testnet evidence. Payment snapshots occur after the transfer and callback complete; actual unknown-outcome/in-flight payment snapshots and stalled token/payment callback recovery remain B6.
+This is a sampled Solo sequence, not 10k on-chain sequences, a worst-case reserve proof, real OutLayer or testnet evidence. Historical snapshots now cover in-flight payments, but permanently stalled token/payment callback recovery remains B6.
 
 ## Test matrix
 

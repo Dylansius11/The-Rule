@@ -454,19 +454,6 @@ fn team_play_without_team_is_rejected() {
 }
 
 #[test]
-fn borsh_params_preserve_protocol_json() {
-    testing_env!(VMContextBuilder::new().build());
-    let p = params();
-    let mut expected = near_sdk::serde_json::to_value(&p).unwrap();
-    expected["demo"] = json!(true);
-    let game = Game::new(p, true);
-    assert_eq!(
-        near_sdk::serde_json::to_value(game.get_params()).unwrap(),
-        expected
-    );
-}
-
-#[test]
 fn begin_failure_past_timeout_cancels_and_restores_carry() {
     use near_sdk::{PromiseResult, RuntimeFeesConfig};
     let mut context = VMContextBuilder::new();

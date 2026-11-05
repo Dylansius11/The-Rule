@@ -14,6 +14,7 @@ gas:
 	scripts/build/sandbox-artifacts.sh
 	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p sandbox-tests --profile fast --example gas
 storage:
+	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p game --profile fast --example storage-bounds
 	scripts/build/sandbox-artifacts.sh
 	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p sandbox-tests --profile fast --example storage
 balance:

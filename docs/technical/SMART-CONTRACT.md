@@ -406,6 +406,22 @@ After one paid play, one frozen-play refund and five system-failed plus one corr
 
 Operator collateral must cover `byte_cost * max(0, total stored bytes - funded storage byte-equivalents)`, with retained rounds and all concurrent request/callback variants included. D27 now caps tracked referee requests at 10, with user admission below 8; token/payment requests and retained rounds are not globally capped by it. Complete sizing and Team remain open; neither 1,038 bytes nor a multiple of the two measured request sizes is a whole-system reserve quote.
 
+`make storage` now first runs the native `game` example `storage-bounds`. The actual `Request` Borsh serializer produced these conservative pending-map record sizes; each includes the 9-byte key and 40-byte trie-record overhead. Account strings use 64 valid characters; the widest validated play JSON is 96 bytes. Fixed-width numeric maxima do not enlarge Borsh fields. Independent field maxima need not be co-reachable; these are request-only bounds, not observed runtime peaks.
+
+| Request | Record upper bound (bytes) |
+| --- | --- |
+| Begin | 63 |
+| Verdict | 260 |
+| Withdraw | 134 |
+| Guess | 67 |
+| Open | 63 |
+| Platform | 66 |
+| Register | 126 |
+| Mint | 75 |
+| Unlock | 139 |
+
+The exercised sandbox read the admission limits from `get_params`: total tracked referee cap 10 and user admission below 8. Multiplying the largest referee record by the total cap bounds only those pending-map records at 2,600 bytes; it excludes `seen`, entity and callback growth, code/base state, token/payment concurrency and retained rounds. All sampled retained-storage checks passed again, including concurrent verdict/guess records and the next retained round. Evidence: `scratch/b6-storage-bounds-runtime.log`. No full operator reserve quote or Team bound is accepted.
+
 Local no-ABI artifact sizes below are non-reproducible sandbox observations, not freeze hashes or evidence of a deployment.
 
 | Artifact | Bytes |

@@ -38,6 +38,7 @@ fn t_abi_1_export_allowlist() {
         "deposit_credit",
         "withdraw_credit",
         "on_withdraw",
+        "expire_request",
         "play",
         "on_verdict",
         "get_log",

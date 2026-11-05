@@ -103,6 +103,7 @@ impl Game {
                 key,
                 seq,
                 timestamp: now,
+                expires_at_ns: recovery::deadline(),
             },
         );
         let req = RefereeRequest::Verdict {
@@ -127,6 +128,17 @@ impl Game {
     }
 
     pub(crate) fn on_verdict_inner(&mut self, request_id: u64) {
+        let parsed = env::promise_result_checked(0, 1024)
+            .ok()
+            .and_then(|b| serde_json::from_slice::<RefereeResponse>(&b).ok())
+            .and_then(|r| match r {
+                RefereeResponse::Verdict { v } => Some(v == protocol::Verdict::Yes),
+                _ => None,
+            });
+        self.finish_verdict(request_id, parsed);
+    }
+
+    pub(crate) fn finish_verdict(&mut self, request_id: u64, parsed: Option<bool>) {
         let Some(Request::Verdict {
             mode,
             round,
@@ -136,19 +148,13 @@ impl Game {
             key,
             seq,
             timestamp,
+            ..
         }) = self.pending.remove(&request_id)
         else {
             return;
         };
         let p = self.params();
         let amount = p.play_fee.0 + p.storage_charge_per_play.0;
-        let parsed: Option<bool> = env::promise_result_checked(0, 1024)
-            .ok()
-            .and_then(|b| serde_json::from_slice::<RefereeResponse>(&b).ok())
-            .and_then(|r| match r {
-                RefereeResponse::Verdict { v } => Some(v == protocol::Verdict::Yes),
-                _ => None,
-            });
         let parsed_play = serde_json::from_str::<Play>(&play).ok();
         let valid = parsed_play.is_some()
             && self

@@ -7,6 +7,7 @@ mod log;
 mod mint;
 pub mod params;
 mod play;
+mod recovery;
 mod round;
 mod settle;
 mod views;
@@ -36,6 +37,8 @@ pub struct Player {
     index: u32,
     credit: u128,
     pending: bool,
+    /// Guess checks in flight for this player; separate from a play or withdrawal.
+    checking_guesses: u32,
     token: TokenState,
 }
 
@@ -144,6 +147,7 @@ pub enum Request {
     Begin {
         mode: u8,
         round: u32,
+        expires_at_ns: u64,
     },
     Verdict {
         mode: u8,
@@ -154,6 +158,7 @@ pub enum Request {
         key: u64,
         seq: u64,
         timestamp: u64,
+        expires_at_ns: u64,
     },
     Withdraw {
         actor: AccountId,
@@ -163,10 +168,12 @@ pub enum Request {
         mode: u8,
         round: u32,
         commit_seq: u32,
+        expires_at_ns: u64,
     },
     Open {
         mode: u8,
         round: u32,
+        expires_at_ns: u64,
     },
     Platform {
         amount: u128,

@@ -2,6 +2,18 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-05: a pending play flag does not cover Checking guesses
+
+- **What happened:** the new withdrawal regression failed because `withdraw_credit` succeeded while two guesses were Checking; the specification requires E21. The three credit tests passed after the fix, and the sandbox gas flow observed E21 with unchanged credit during a check and successful withdrawal afterward.
+- **Root cause:** guesses incremented the round's `pending_checks`, but withdrawal read only `Player.pending`, shared by plays and transfers. That flag did not represent live guesses.
+- **Rule:** track player-level Checking count independently. Release one count per consumed request for every result, including expiry; duplicates cannot release another check. A mocked oversized balance is not live-balance proof: retain the meaningful money-conservation property, not an assertion against a static VM balance.
+
+### 2026-11-05: zero gas and fast-forward height are not callback-timeout evidence
+
+- **What happened:** zero callback gas made the sandbox reject the initiating receipt with `FunctionCallZeroAttachedGas`. With a 1-Tgas callback, the play remained pending, but forwarding 1,200 heights did not cross its ten-minute wall-clock deadline and recovery still rejected E50.
+- **Root cause:** an invalid receipt never creates the intended stalled operation; height advancement was not sufficient evidence of elapsed timestamp time in this sandbox run.
+- **Rule:** distinguish each fault. The successful local smoke used positive starved callback gas and an explicitly patched request deadline, then verified full one-time refund and withdrawal. Native tests cover the exact ten-minute boundary; never describe the patched smoke as ten elapsed minutes or testnet evidence.
+
 ### 2026-11-05: token registration refunds cannot identify a new registration
 
 - **What happened:** the pre-freeze regression showed an already-registered token user losing 1,000 yocto of game credit (`998900` instead of `999900`) when game-funded `storage_deposit` succeeded.

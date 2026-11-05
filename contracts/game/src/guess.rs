@@ -227,6 +227,11 @@ impl Game {
         self.next_request_id = request_id
             .checked_add(1)
             .unwrap_or_else(|| env::panic_str("E50"));
+        let player = self
+            .players
+            .get_mut(&commit.actor)
+            .expect("player vanished");
+        player.checking_guesses = player.checking_guesses.checked_add(1).expect("E50");
         self.compute_float -= p.outlayer_deposit.guess.0;
         self.commits
             .get_mut(&(m, id, commit_seq))
@@ -242,6 +247,7 @@ impl Game {
                 mode: m,
                 round: id,
                 commit_seq,
+                expires_at_ns: recovery::deadline(),
             },
         );
         let request = RefereeRequest::Guess {
@@ -266,10 +272,22 @@ impl Game {
     }
 
     pub(crate) fn on_guess_inner(&mut self, request_id: u64) {
+        let verdict = env::promise_result_checked(0, 1024)
+            .ok()
+            .and_then(|b| serde_json::from_slice::<RefereeResponse>(&b).ok())
+            .and_then(|r| match r {
+                RefereeResponse::Guess { correct } => Some(correct),
+                _ => None,
+            });
+        self.finish_guess(request_id, verdict);
+    }
+
+    pub(crate) fn finish_guess(&mut self, request_id: u64, verdict: Option<bool>) {
         let Some(Request::Guess {
             mode,
             round,
             commit_seq,
+            ..
         }) = self.pending.remove(&request_id)
         else {
             return;
@@ -283,19 +301,15 @@ impl Game {
         }
         let p = self.params();
         let now = env::block_timestamp();
-        let verdict: Option<bool> = env::promise_result_checked(0, 1024)
-            .ok()
-            .and_then(|b| serde_json::from_slice::<RefereeResponse>(&b).ok())
-            .and_then(|r| match r {
-                RefereeResponse::Guess { correct } => Some(correct),
-                _ => None,
-            });
         let live = self
             .rounds
             .get(&(mode, round))
             .is_some_and(|r| matches!(r.phase, Phase::Investigation | Phase::Reveal));
         if let Some(r) = self.rounds.get_mut(&(mode, round)) {
             r.pending_checks = r.pending_checks.saturating_sub(1);
+        }
+        if let Some(player) = self.players.get_mut(&commit.actor) {
+            player.checking_guesses = player.checking_guesses.saturating_sub(1);
         }
         let result = match verdict.filter(|_| live) {
             Some(true) => {

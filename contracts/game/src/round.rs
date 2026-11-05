@@ -86,8 +86,14 @@ impl Game {
             .get_mut(&(m, id))
             .expect("missing round")
             .begin_pending = true;
-        self.pending
-            .insert(request_id, Request::Begin { mode: m, round: id });
+        self.pending.insert(
+            request_id,
+            Request::Begin {
+                mode: m,
+                round: id,
+                expires_at_ns: recovery::deadline(),
+            },
+        );
         let req = RefereeRequest::Begin {
             g: Grammar::G1,
             chain: p.chain_id.clone(),
@@ -109,7 +115,14 @@ impl Game {
     }
 
     pub(crate) fn on_begin_inner(&mut self, request_id: u64) {
-        let Some(Request::Begin { mode, round }) = self.pending.remove(&request_id) else {
+        let response = env::promise_result_checked(0, 1024)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok());
+        self.finish_begin(request_id, response);
+    }
+
+    pub(crate) fn finish_begin(&mut self, request_id: u64, response: Option<RefereeResponse>) {
+        let Some(Request::Begin { mode, round, .. }) = self.pending.remove(&request_id) else {
             return;
         };
         let params = self.params();
@@ -120,8 +133,7 @@ impl Game {
             return;
         }
         r.begin_pending = false;
-        if let Ok(bytes) = env::promise_result_checked(0, 1024)
-            && let Ok(RefereeResponse::Begin { commit, header }) = serde_json::from_slice(&bytes)
+        if let Some(RefereeResponse::Begin { commit, header }) = response
             && let Ok(header) = serde_json::to_string(&header)
         {
             r.commit = Some(commit.0);

@@ -143,6 +143,8 @@ stateDiagram-v2
 | `ft_on_transfer(sender, amount, msg)` | `token` only (E40) | `msg = {"lock":{"mode":0,"round_id":r}}` locks RULE for the sealing or next round. Each new `(mode, round, account)` lock requires a game player and debits `storage_charge_per_play` from credit into non-refundable storage funding; top-ups reuse their entry and do not pay twice. Insufficient credit rejects E20 and returns all tokens without state changes. Other rejections (bad message, wrong round E41, Team until P4, zero amount) also return the full amount with `lock_rejected{reason}`. Team locks follow in P4 |
 | `unlock(mode, round_id)` `1y` | locker | After the round is Settled, Cancelled or Void, or one full `round_period_ns` after the slot of a round that never started: transfers the caller's locked RULE back with `ft_transfer`. A failed transfer restores the lock, so locked RULE is never forfeited (D16) |
 
+The withdrawal guard counts every Checking guess belonging to the player, independently of the pending play/withdrawal flag. One completed or duplicate callback cannot release another live check. Correct, wrong and system-failure outcomes each release only their own check. The player record stores this count as a `u32`; storage measurements must include it.
+
 A team is locked from its first play or commit in a round until that round is Settled, Cancelled or Void.
 
 ### Plays
@@ -188,12 +190,19 @@ A team is locked from its first play or commit in a round until that round is Se
 | `finalize(mode) -> Option<request_id>` | Reveal, `now >= reveal_deadline`, `pending_checks == 0`, compute float covers the `open` deposit (E22) | Sweeps at most 20 commits per call: every commit still Committed becomes Unrevealed and is treated as Wrong (50/50, D12). While commits remain it returns `None` and the keeper calls again; on the last batch it computes `outcome` (`Solved{winner}` if any commit is Correct, by smallest `seq`), moves to Opening and calls referee `open` (returns its request id) |
 | `retry_open(mode, round_id) -> request_id` | Opening, last open failed, before `open_timeout` | Calls `open` again |
 | `cancel(mode, round_id)` | Sealing past `begin_timeout` (no begin pending), or Opening with a failed open past `open_timeout` | Cancelled refund path (below) |
+| `expire_request(request_id) -> bool` | Pending referee request at least 10 minutes old (E50 before that deadline) | Applies the normal failure cleanup exactly once: begin clears pending and may cancel, verdict refunds fee/storage and restores attempt, guess refunds the full stake and clears both Checking counters, open becomes failed. Returns false for absent/completed or non-referee requests. No external call |
 | `claim(mode, round_id) -> amount` | Settled, Cancelled or Void; caller's entity not yet claimed (E56 otherwise) | Credits the caller's owed amounts to their credit: payout (Settled) or pot contribution (Cancelled, Void), plus the stakes of the entity's Correct commits. One `claimed` flag per entity and round makes it idempotent. Team vault items follow in P4 |
 | `claim_platform() -> request_id` | anyone; `platform_accrued > 0` (E56) | Transfers `platform_accrued` to `platform`; a failed transfer restores it in `on_platform` |
 | `seed_pot(mode)` payable | anyone | Adds to `carry[mode]` (sponsor seed) |
 | `fund_compute()` payable | anyone | Adds to `compute_float` (sponsor top-up; never withdrawable, never pot money) |
 
 `on_open`: strict `{"rule":CanonicalRule,"salt":hex32}`. If `sha256(canonical_bytes(rule) || salt) == round.commit`: store both, phase Settled, compute payouts (formulas below), update the season board. A mismatch sets Void and emits `round_void`. A failure sets `open_status = failed` and keeps Opening, so `retry_open` (or, past the timeout, `cancel`) is possible. A stale or duplicate callback is a no-op. `get_claimable(mode, round_id, account)` returns what `claim` would credit now.
+
+Every begin/verdict/guess/open request stores `expires_at_ns = initiation_timestamp + 600_000_000_000` (saturating `u64`). If its callback never finishes, anyone with the request id from the initiating receipt can call `expire_request`; no key or owner privilege is required. Recovery consumes that exact id before the shared failure handler completes. A later callback is a no-op and cannot affect a replacement request. If a valid callback executes first, expiry returns false, including at or after the deadline. The ten-minute policy is independent of round timeouts: after recovering begin/open, the existing retry/cancel time checks still apply.
+
+Expiry never restores compute already spent at OutLayer. Withdraw, platform payment, mint, unlock and token-registration requests are not covered. In particular, blindly refunding a transfer or restoring mint allowance after an unknown external outcome could pay twice. Their callback liveness/reconciliation remains B6; this API does not claim whole-system recovery.
+
+**Local recovery evidence (2026-11-05):** five native recovery tests passed for the exact ten-minute boundary, permissionless refund, duplicate/late callback fencing, callback-versus-expiry ordering, begin retry/cancel, guess refund/finalization and open retry/cancel; transfer requests remain ineligible. A throwaway sandbox smoke deliberately bypassed init validation to allocate only 1 Tgas to a verdict callback, observed a stranded pending play and E50 before expiry, then patched only that request's deadline to exercise recovery. Full credit/attempts returned once and withdrawal succeeded. The smoke did not wait ten real minutes; the exact clock boundary was covered natively. Its fault-injection source was removed after the run. Zero gas was unsuitable fault injection: the sandbox rejected the initiating receipt with `FunctionCallZeroAttachedGas`, rather than stranding a callback.
 
 ### Views (paged, read at `final`)
 
@@ -255,12 +264,12 @@ All byte layouts live in `crates/rule-core` (grammar) and `crates/protocol` (wir
 
 | Id | Invariant | Enforced by | Test |
 | --- | --- | --- | --- |
-| I1 | At quiescence, `balance >= Σcredit + Σvault + Σround pots + Σcarry + Σopen stakes + Σclaimable + compute_float + platform_accrued + max(storage_reserve, locked_storage)` | `storage_reserve` is cumulative, non-withdrawable storage funding, including funds already backing collateral; `locked_storage` is measured collateral, not an additional liability. `pending_credit` reports transfers awaiting callbacks separately | T-INV-1 property over random op sequences; live-balance reconciliation remains open |
+| I1 | At quiescence, `balance >= Σcredit + Σvault + Σround pots + Σcarry + Σopen stakes + Σclaimable + compute_float + platform_accrued + max(storage_reserve, locked_storage)` | `storage_reserve` is cumulative, non-withdrawable storage funding, including funds already backing collateral; `locked_storage` is measured collateral, not an additional liability. `pending_credit` holds unsettled play fee/storage debits, not a complete ledger of outgoing transfers | T-INV-1 property over random op sequences; live-balance and in-flight-transfer reconciliation remains open |
 | I2 | Per round `P == W + C_paid + R + L` (or the exact refund sum when Cancelled) | Payout code, dust to R | T-INV-2 |
 | I3 | `token.ft_total_supply == Σ minted on LogRows − Σ burned <= cap`; the only burn is the standard NEP-141 resolver burn when a refund target unregistered; per round `minted <= round_allowance` | Mint and mint-failure callback | T-INV-3 sandbox, T-TOK-3 |
 | I4 | Referee output cannot name an account or an amount | Strict schema parse | T-REF-4 fuzz the parsers |
 | I5 | Winner = min `seq` among Correct commits | `best` update in `on_guess` | T-GUESS-3 out-of-order callbacks |
-| I6 | Each `request_id` is applied at most once; stale results refund | `pending.remove` first | T-CB-2 duplicate/late callback |
+| I6 | Each `request_id` is applied at most once; pending stale-round results refund, consumed ids are no-ops | `pending.remove` first in shared callback/expiry handlers | T-CB-2 duplicate/late callback and expiry races |
 | I7 | No method deploys code, adds or deletes keys, deletes the account, or makes caller-chosen external calls. Allowed outgoing calls: OutLayer requests, token calls, `ft_transfer_call` receiver calls and NEP-145 storage refunds to the predecessor | ABI review + `T-ABI-1` pins the method list | T-ABI-1 |
 | I8 | `ft_transfer`/`ft_transfer_call` never read game state or the rule | Token has no hook | T-TOK-2 transfer during an open round |
 | I9 | No play or commit is accepted after freeze; in-flight plays at freeze refund with no mint and no share | Phase checks | T-FREEZE-1 |

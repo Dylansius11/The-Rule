@@ -19,6 +19,7 @@ impl Game {
                     index,
                     credit: 0,
                     pending: false,
+                    checking_guesses: 0,
                     token: TokenState::None,
                 },
             );
@@ -36,7 +37,7 @@ impl Game {
             .players
             .get_mut(&actor)
             .unwrap_or_else(|| env::panic_str("E20"));
-        near_sdk::require!(!player.pending, "E21");
+        near_sdk::require!(!player.pending && player.checking_guesses == 0, "E21");
         near_sdk::require!(player.credit >= amount.0, "E20");
         player.credit -= amount.0;
         player.pending = true;

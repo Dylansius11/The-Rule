@@ -197,8 +197,14 @@ impl Game {
             .checked_add(1)
             .unwrap_or_else(|| env::panic_str("E50"));
         self.compute_float -= p.outlayer_deposit.open.0;
-        self.pending
-            .insert(request_id, Request::Open { mode: m, round: id });
+        self.pending.insert(
+            request_id,
+            Request::Open {
+                mode: m,
+                round: id,
+                expires_at_ns: recovery::deadline(),
+            },
+        );
         self.rounds
             .get_mut(&(m, id))
             .expect("round vanished")
@@ -245,7 +251,14 @@ impl Game {
     }
 
     fn on_open_inner(&mut self, request_id: u64) {
-        let Some(Request::Open { mode, round }) = self.pending.remove(&request_id) else {
+        let response = env::promise_result_checked(0, 4096)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok());
+        self.finish_open(request_id, response);
+    }
+
+    pub(crate) fn finish_open(&mut self, request_id: u64, response: Option<RefereeResponse>) {
+        let Some(Request::Open { mode, round, .. }) = self.pending.remove(&request_id) else {
             return;
         };
         let Some(r) = self.rounds.get_mut(&(mode, round)) else {
@@ -255,13 +268,10 @@ impl Game {
             return;
         }
         let commitment = r.commit.expect("opening round has a commitment");
-        let opened = env::promise_result_checked(0, 4096)
-            .ok()
-            .and_then(|b| serde_json::from_slice::<RefereeResponse>(&b).ok())
-            .and_then(|response| match response {
-                RefereeResponse::Open { rule, salt } => Some((rule, salt)),
-                _ => None,
-            });
+        let opened = response.and_then(|response| match response {
+            RefereeResponse::Open { rule, salt } => Some((rule, salt)),
+            _ => None,
+        });
         let Some((rule, salt)) = opened else {
             r.open_status = OpenStatus::Failed;
             event("open_failed", &json!({"mode":mode,"round_id":round}));

@@ -94,6 +94,8 @@ sequenceDiagram
 - `begin` failure: retry until `begin_timeout`, then Cancelled (no plays happened). `open` failure: `retry_open` until `open_timeout`, then Cancelled with exact refunds. Hash mismatch: Void.
 - A keeper outage delays transitions only. Anyone can call them.
 
+For a begin/verdict/guess/open callback that never completes, permissionless `expire_request(request_id)` applies its failure handler after ten minutes from initiation. The original id is consumed, so late callbacks cannot settle twice or mutate a replacement request. Begin/open still use their existing round retry/cancel deadlines. This is a local recovery policy, not an OutLayer SLA. Token/payment callbacks are deliberately excluded because an unknown external side effect cannot safely be refunded blindly; their reconciliation remains B6.
+
 ## Approved tech stack
 
 | Layer | Choice | Exact stable version | Verified 2026-11-04, source | Why / compatibility |

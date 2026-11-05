@@ -1,6 +1,6 @@
 # Reproducible builds
 
-Status 2026-11-05: the earlier referee was built twice in fresh containers **on this one machine**, from two copies of the same working-tree snapshot. This is not evidence of reproducibility across machines or of equivalence to a committed revision. The game/token entrypoint now produces artifacts whose actual NEP-330 views match the requested committed source and pinned build recipe. Independent hash comparison and durable hosting remain open. Repeat checks on the frozen, committed sources before P6.4 and preserve the final artifacts and source revision.
+Status 2026-11-05: game, token and the caller-bound referee were each built twice in fresh containers on this machine from committed source `ba3d23f0a50784e66a1a62476a35db8aee71502b`. Each independent pair matched byte-for-byte. Actual game/token NEP-330 views matched that revision and pinned recipe; the exact referee passed component/import/manifest checks. This is local reproducibility evidence, not cross-machine evidence, hosted-byte verification, a testnet deployment or a freeze. Repeat on the final frozen revision before P6.4.
 
 ## Referee
 
@@ -26,6 +26,14 @@ The snapshot must contain a current `Cargo.lock`; the build fails rather than up
 `scripts/referee/audit-imports.sh` rebuilds its own production and demo binaries; it does **not** accept a prebuilt artifact. Run it on an isolated copy of the same snapshot with `RULE_GAME_ACCOUNT`, a WSL-local `CARGO_TARGET_DIR`, and `wasm-tools` 1.240.0 on `PATH`. Compare `wasm-tools component wit scratch/repro/referee-1.wasm` with that audit's `enclave/referee/IMPORTS.txt`, and check the container artifact for `RULE_DEMO` separately. This distinction matters: an audit of a different local build alone would not audit the published bytes.
 
 Observed on the isolated snapshot: the existing script reported `PASS: OutLayer MAC present; no network or filesystem imports; hashes differ`. Its local production hash was `41cfc738d16d76ffd6643632507929c18c8a377c0b40eaaf9536f12b49b39d08`, not the container hash; its demo hash was `2702439a243ca14e6adf5d6210e505d85f3c31483149901c9e7e0bd4d09ba258`. The container artifact's extracted WIT matched the audited imports byte-for-byte and contained no `RULE_DEMO` string. The string check is not a proof of no environment access.
+
+### Current committed-source referee evidence
+
+On 2026-11-05, `git archive` of source `ba3d23f0a50784e66a1a62476a35db8aee71502b` supplied the workspace snapshot; its `Cargo.lock` SHA-256 was `0ef89e150fadbe8d55f03ee95248dd9ee8182889cc9dcc0894263af8a94317d3`. Two fresh pinned containers built non-demo `game-r1.therule.testnet` referee bytes identically. The resulting 228,161-byte component hash is recorded in the table below. Do not reuse the earlier uncommitted-snapshot artifact/hash above.
+
+Pinned `wasm-tools` 1.240.0 validated the exact component. Its extracted WIT matched committed `enclave/referee/IMPORTS.txt`; the MAC import was present and no socket/HTTP/filesystem import appeared. The actual `outlayer.manifest` custom section matched the caller-bound template, and no `RULE_DEMO` string appeared. These checks do not prove secret retention or absence of all environment access, and the artifact has not run on real OutLayer.
+
+The restored Linux audit-tool release archive matched SHA-256 `b6ad301b8ac65e283703d1a5cf79280058a5f5699f8ff1fcaf66dbcf80a9efae` from [the official 1.240.0 release](https://github.com/bytecodealliance/wasm-tools/releases/tag/v1.240.0). It was extracted only into gitignored `scratch/tools/`; the archive was removed.
 
 ## Artifact hosting
 
@@ -55,7 +63,7 @@ The first Docker-completed invocation at source `a33034f4a1dbf5abbe9c14a24533479
 
 The artifact provenance executable is `cargo run -p sandbox-tests --profile fast --example provenance`. Set `GAME_WASM`, `TOKEN_WASM` to the reproducible pair and `EXPECTED_SOURCE_REV` to the full committed source id. It deploys only to an isolated local sandbox and calls the actual metadata views without initialization. The stale-artifact run failed as expected; after isolating the target environment, both real metadata views passed at source `a33034f4a1dbf5abbe9c14a24533479d767dc0ac`, including exact image, source, contract paths and locked no-ABI command. This verifies artifact selection, not a two-build comparison, a contract freeze, testnet behavior or public source availability.
 
-Once a usable WSL Docker client/Linux engine exists, run twice from the same clean committed sources:
+For a future clean committed revision, run twice:
 
 ```sh
 export CARGO_TARGET_DIR="$HOME/target-the-rule-repro" CARGO_BUILD_JOBS=2
@@ -66,4 +74,18 @@ sha256sum scratch/repro/contracts-{1,2}/game/game.wasm
 sha256sum scratch/repro/contracts-{1,2}/token/token.wasm
 ```
 
-Compare both pairs and inspect resulting metadata and ABI behavior against separately built local non-reproducible artifacts. Do not deploy dry-run bytes or call the contracts frozen. B7 tracks the local Docker prerequisite; P2.2/P6.4 still require actual clean builds and the account-bound referee.
+Compare both pairs and exercise the actual metadata/ABI and changed runtime paths. Do not deploy dry-run bytes or call the contracts frozen. B7's Docker access is resolved; P2.2/P6.4 still require hosted bytes and final-revision acceptance.
+
+### Observed committed-source artifact pairs (2026-11-05)
+
+All rows use source `ba3d23f0a50784e66a1a62476a35db8aee71502b`. Both contracts were built through the actual make entrypoint with the host target override removed. `cmp` passed for each independent pair; actual sandbox metadata views matched the source, image, contract paths and exact locked no-ABI command.
+
+| Artifact | Bytes | SHA-256 (both builds) |
+| --- | --- | --- |
+| Game | 429,484 | `27d728d53a097d77c52f12991c8fb6e507868db543c05e213495f117fae57e08` |
+| Token | 167,389 | `06c898a8c917fd233aa40d2fc669961f14aa21167a7c5e89601ee2848bcdd1e0` |
+| Referee (`game-r1.therule.testnet`) | 228,161 | `67ca482631d80efc80ef12d230ebf51f813326c9d54984ccbdc4f2de72749c60` |
+
+Both reproducible contract artifacts also passed their existing ABI export allowlists. The five added admission/play sandbox runtimes were then exercised again against this exact reproducible pair: saturation/lifecycle/retry, settled duplicate, five verdict failure shapes, delayed YES after freeze, low compute and private-callback rejection all passed. Those runtimes still use MOCK OutLayer, not a deployed TEE referee.
+
+Artifacts live in gitignored `scratch/repro/admission-{1,2}/` and `scratch/repro/referee-committed-{1,2}.wasm`. No bytes were uploaded, no remote was added, and no testnet transaction was signed. The repository identifier in metadata does not mean this source revision is publicly retrievable. Contract changes or another frozen revision require rebuilding and rechecking.

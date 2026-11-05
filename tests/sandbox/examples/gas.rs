@@ -1,42 +1,269 @@
-//! Request-side gas report using MOCK OutLayer, never testnet evidence.
-//! Run with `cargo run -p sandbox-tests --profile fast --example gas`.
-//! Yield callbacks finish later and are NOT measured by these transaction results.
+//! Local sandbox gas report with a MOCK OutLayer, not testnet evidence.
+//! Run after building sandbox artifacts: `cargo run -p sandbox-tests --profile fast --example gas`.
 #[path = "../tests/common/mod.rs"]
 mod common;
 
 use common::*;
+use near_workspaces::network::Sandbox;
 use near_workspaces::result::ExecutionFinalResult;
 use near_workspaces::types::{Gas, NearToken};
+use near_workspaces::{Account, Contract, Worker};
 use protocol::RuleHex;
 use serde_json::{Value, json};
+use std::time::Duration;
 
 const TGAS: u64 = 1_000_000_000_000;
 
-/// Report successful transaction receipts, without counting asynchronous yield callbacks.
-fn receipts(label: &str, result: ExecutionFinalResult) -> Res<()> {
-    print!("GAS {label}: total ");
-    tgas(result.total_gas_burnt.as_gas());
-    print!(" Tgas; receipts [");
-    for outcome in result.receipt_outcomes() {
-        print!("{}:", outcome.executor_id);
-        tgas(outcome.gas_burnt.as_gas());
-        print!(" ");
+// The workspaces receipt/status helpers require its disabled `experimental` feature.
+// Query this sandbox's own RPC directly without changing workspace dependencies.
+fn rpc(worker: &Worker<Sandbox>, method: &str, params: Value) -> Res<Value> {
+    let body = json!({"jsonrpc":"2.0","id":"gas","method":method,"params":params});
+    let output = std::process::Command::new("curl")
+        .args([
+            "--silent",
+            "--show-error",
+            "--fail",
+            "--max-time",
+            "15",
+            "--noproxy",
+            "*",
+            "-H",
+            "Content-Type: application/json",
+            "--data-binary",
+        ])
+        .arg(body.to_string())
+        .arg(worker.rpc_addr())
+        .output()
+        .map_err(|error| format!("cannot run curl for sandbox {method}: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "sandbox {method} transport failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
     }
-    println!("]");
-    result.into_result()?;
+    let response: Value = serde_json::from_slice(&output.stdout)?;
+    if let Some(error) = response.get("error") {
+        return Err(format!("sandbox {method} RPC failed: {error}").into());
+    }
+    response
+        .get("result")
+        .cloned()
+        .ok_or_else(|| format!("sandbox {method} response missing result").into())
+}
+
+fn request(label: &str, result: &ExecutionFinalResult) -> Res<String> {
+    if !result.is_success() {
+        return Err(format!("{label}: initiating transaction failed: {result:?}").into());
+    }
+    let hash = result.outcome().transaction_hash.to_string();
+    println!(
+        "REQUEST {label}: tx={hash} reported_burnt={} gas (may exclude delayed receipts)",
+        result.total_gas_burnt.as_gas()
+    );
+    Ok(hash)
+}
+
+// Re-query after resumption: the initiating transaction can complete before detached
+// callbacks. Match each execution outcome to its actual receipt action.
+async fn callbacks(
+    worker: &Worker<Sandbox>,
+    tx: &str,
+    sender: &str,
+    game: &Contract,
+    token: &Contract,
+    methods: &[&str],
+) -> Res<()> {
+    for _ in 0..100 {
+        let value = rpc(
+            worker,
+            "EXPERIMENTAL_tx_status",
+            json!({
+                "tx_hash":tx, "sender_account_id":sender, "wait_until":"INCLUDED"
+            }),
+        )?;
+        let Some(outcomes) = value["receipts_outcome"].as_array() else {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            continue;
+        };
+        let mut found = Vec::new();
+        for outcome in outcomes {
+            if outcome["outcome"]["executor_id"] != game.id().as_str()
+                && outcome["outcome"]["executor_id"] != token.id().as_str()
+            {
+                continue;
+            }
+            let Some(id) = outcome["id"].as_str() else {
+                continue;
+            };
+            let receipt = rpc(worker, "EXPERIMENTAL_receipt", json!({"receipt_id":id}))?;
+            if receipt["receiver_id"] != outcome["outcome"]["executor_id"]
+                || receipt["receipt_id"] != id
+            {
+                return Err(format!("receipt identity mismatch for {id}").into());
+            }
+            let Some(actions) = receipt["receipt"]["Action"]["actions"].as_array() else {
+                continue;
+            };
+            for action in actions {
+                let call = &action["FunctionCall"];
+                let Some(method) = call["method_name"].as_str() else {
+                    continue;
+                };
+                let expected_receiver = if method == "mint" {
+                    token.id().as_str()
+                } else {
+                    game.id().as_str()
+                };
+                if receipt["receiver_id"] != expected_receiver {
+                    continue;
+                }
+                if !methods.contains(&method) {
+                    continue;
+                }
+                let status = &outcome["outcome"]["status"];
+                if status.get("SuccessValue").is_none() && status.get("SuccessReceiptId").is_none()
+                {
+                    return Err(format!("callback {method} receipt {id} failed: {status}").into());
+                }
+                found.push((
+                    method.to_owned(),
+                    id.to_owned(),
+                    call["gas"].clone(),
+                    outcome["outcome"].clone(),
+                ));
+            }
+        }
+        if methods
+            .iter()
+            .all(|method| found.iter().any(|(m, _, _, _)| m == method))
+        {
+            for (method, id, allocated, outcome) in found {
+                println!(
+                    "ACTION {method}: receipt={id} tx={tx} prepaid_action_gas={allocated} burnt_gas={} outgoing_receipt_ids={} logs={}",
+                    outcome["gas_burnt"], outcome["receipt_ids"], outcome["logs"]
+                );
+                if method == "on_verdict" && methods.contains(&"on_mint") {
+                    println!(
+                        "MINT BUDGET: callback prepaid above; mint and on_mint actions are separately allocated (configured 10 Tgas each); guard requires 25 Tgas remaining at its check. Exact remaining gas at that point is not exposed by this receipt; burnt gas is not the remaining budget."
+                    );
+                }
+            }
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    Err(format!("receipt tracing unavailable or expected callbacks {methods:?} missing from tx {tx}; no callback gas inferred").into())
+}
+
+async fn trace(
+    worker: &Worker<Sandbox>,
+    label: &str,
+    result: ExecutionFinalResult,
+    sender: &str,
+    game: &Contract,
+    token: &Contract,
+    methods: &[&str],
+) -> Res<()> {
+    let tx = request(label, &result)?;
+    callbacks(worker, &tx, sender, game, token, methods).await
+}
+
+async fn resolve_checked(mock: &Contract, id: u32, value: Value, error: bool) -> Res<()> {
+    let resumed: bool = mock
+        .call("resolve")
+        .args_json(json!({"id":id,"resolution":{"value":value,"error":error}}))
+        .max_gas()
+        .transact()
+        .await?
+        .json()?;
+    if !resumed {
+        return Err(format!("mock yield {id} was not resumed").into());
+    }
     Ok(())
 }
 
-fn tgas(gas: u64) {
-    print!("{}.{:01}", gas / TGAS, gas % TGAS / (TGAS / 10));
+async fn round(game: &Contract) -> Res<Value> {
+    Ok(game
+        .view("get_round")
+        .args_json(json!({"mode":0,"id":null}))
+        .await?
+        .json()?)
+}
+
+async fn withdraw_during_check(alice: &Account, game: &Contract) -> Res<()> {
+    let before = credit(game, alice).await?;
+    let result = alice
+        .call(game.id(), "withdraw_credit")
+        .args_json(json!({"amount":"1"}))
+        .deposit(NearToken::from_yoctonear(1))
+        .max_gas()
+        .transact()
+        .await?;
+    let failure = result
+        .into_result()
+        .expect_err("withdrawal while Checking must fail");
+    assert!(format!("{failure:?}").contains("E21"), "{failure:?}");
+    assert_eq!(
+        credit(game, alice).await?,
+        before,
+        "Checking withdrawal changed credit"
+    );
+    Ok(())
 }
 
 #[tokio::main]
 async fn main() -> Res<()> {
+    println!("LOCAL SANDBOX / MOCK OUTLAYER: genuine yield/resume; not real OutLayer or testnet");
     let worker = near_workspaces::sandbox().await?;
     let (rule, _) = rule_core::sample(b"sandbox-gas");
-    let commit = serde_json::to_value(protocol::round_commitment(&rule, &[5u8; 32]))?;
-    let Env { mock, game, token } = start(&worker, commit.as_str().unwrap(), 3_000_000_000).await?;
+    let commitment = serde_json::to_value(protocol::round_commitment(&rule, &[5u8; 32]))?;
+    // Inline the common setup so the original start transaction remains available for tracing.
+    let mock = worker
+        .dev_deploy(&std::fs::read(sandbox_tests::artifact("mock_outlayer"))?)
+        .await?;
+    mock.call("new").transact().await?.into_result()?;
+    let game = worker
+        .dev_deploy(&std::fs::read(sandbox_tests::artifact("game"))?)
+        .await?;
+    let token = worker
+        .dev_deploy(&std::fs::read(sandbox_tests::artifact("token"))?)
+        .await?;
+    token.call("new").args_json(json!({"minter":game.id(),"cap":"1000000000000000000000000000","metadata":{"spec":"ft-1.0.0","name":"THE RULE","symbol":"RULE","decimals":18}})).transact().await?.into_result()?;
+    let mut config = sandbox_tests::params(mock.id().as_str());
+    config["reveal_window_ns"] = json!(3_000_000_000u64);
+    config["token"] = json!(token.id());
+    game.call("new")
+        .args_json(json!({"params":config,"demo":true}))
+        .transact()
+        .await?
+        .into_result()?;
+    let begin = game
+        .call("start_round")
+        .args_json(json!({"mode":0}))
+        .gas(Gas::from_tgas(300))
+        .transact_async()
+        .await?;
+    wait_requests(&mock, 1).await?;
+    resolve_checked(
+        &mock,
+        0,
+        begin_value(commitment.as_str().ok_or("missing commitment")?),
+        false,
+    )
+    .await?;
+    trace(
+        &worker,
+        "start_round",
+        begin.await?,
+        game.id().as_str(),
+        &game,
+        &token,
+        &["on_begin"],
+    )
+    .await?;
+    assert_eq!(round(&game).await?["phase"], "Investigation");
+
     let alice = worker.dev_create_account().await?;
     alice
         .call(game.id(), "deposit_credit")
@@ -45,11 +272,10 @@ async fn main() -> Res<()> {
         .transact()
         .await?
         .into_result()?;
-    // NEP-145 storage is paid directly; the game only checks registration, never charges it.
     let bounds: Value = token.view("storage_balance_bounds").await?.json()?;
     let deposit = bounds["min"]
         .as_str()
-        .ok_or("missing token storage minimum")?
+        .ok_or("missing storage minimum")?
         .parse()?;
     for account in [alice.id(), game.id()] {
         alice
@@ -61,50 +287,106 @@ async fn main() -> Res<()> {
             .await?
             .into_result()?;
     }
-    let register = alice
+    let registration = alice
         .call(game.id(), "register_token")
         .max_gas()
         .transact()
         .await?;
-    receipts("register_token", register)?;
+    trace(
+        &worker,
+        "register_token",
+        registration,
+        alice.id().as_str(),
+        &game,
+        &token,
+        &["on_register"],
+    )
+    .await?;
+    let token_state: String = game
+        .view("get_token_state")
+        .args_json(json!({"account":alice.id()}))
+        .await?
+        .json()?;
+    assert_eq!(token_state, "registered");
 
-    // Request side of a play whose verdict will mint.
-    let play = alice
-        .call(game.id(), "play")
-        .args_json(json!({"mode":0,"number":2,"word":"otter"}))
-        .gas(Gas::from_tgas(300))
-        .transact_async()
+    // Both invalid output and failed promise must restore the whole debit. The next play
+    // succeeding also demonstrates that the one-attempt sandbox allowance was restored.
+    for (id, value, error, label) in [
+        (1, Value::Null, false, "null"),
+        (2, Value::Null, true, "failed promise"),
+        (3, json!({"v":1}), false, "ACCEPT"),
+    ] {
+        let before = credit(&game, &alice).await?;
+        let play = alice
+            .call(game.id(), "play")
+            .args_json(json!({"mode":0,"number":2,"word":"otter"}))
+            .gas(Gas::from_tgas(300))
+            .transact_async()
+            .await?;
+        wait_requests(&mock, id + 1).await?;
+        assert!(credit(&game, &alice).await? < before, "play debit missing");
+        resolve_checked(&mock, id, value, error).await?;
+        let result = play.await?;
+        let methods: &[&str] = if id == 3 {
+            &["on_verdict", "mint", "on_mint"]
+        } else {
+            &["on_verdict"]
+        };
+        trace(
+            &worker,
+            label,
+            result,
+            alice.id().as_str(),
+            &game,
+            &token,
+            methods,
+        )
         .await?;
-    wait_requests(&mock, 2).await?;
-    resolve(&mock, 1, json!({"v":1}), false).await?;
-    let play = play.await?;
-    receipts("play (request side)", play)?;
-
-    let mut received_mint = false;
-    for _ in 0..50 {
-        let balance: String = token
-            .view("ft_balance_of")
-            .args_json(json!({"account_id":alice.id()}))
-            .await?
-            .json()?;
-        if balance.parse::<u128>()? > 0 {
-            received_mint = true;
-            break;
+        if id != 3 {
+            assert_eq!(
+                credit(&game, &alice).await?,
+                before,
+                "{label} did not refund credit"
+            );
+            let entity: Value = game
+                .view("get_entity")
+                .args_json(json!({"mode":0,"id":0,"account":alice.id()}))
+                .await?
+                .json()?;
+            assert_eq!(entity["attempts"], 0);
+            assert_eq!(entity["pending"], false);
+            let rows: Vec<Value> = game
+                .view("get_log")
+                .args_json(json!({"mode":0,"id":0,"from_idx":0,"limit":200}))
+                .await?
+                .json()?;
+            assert!(rows.is_empty(), "{label} logged a verdict");
         }
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
-    assert!(received_mint, "ACCEPT never credited RULE");
-    let lock = alice.call(token.id(), "ft_transfer_call")
-        .args_json(json!({"receiver_id":game.id(),"amount":"1","msg":json!({"lock":{"mode":0,"round_id":1}}).to_string()}))
+    let balance: String = token
+        .view("ft_balance_of")
+        .args_json(json!({"account_id":alice.id()}))
+        .await?
+        .json()?;
+    let rows: Vec<Value> = game
+        .view("get_log")
+        .args_json(json!({"mode":0,"id":0,"from_idx":0,"limit":200}))
+        .await?
+        .json()?;
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["verdict"], true);
+    assert!(balance.parse::<u128>()? > 0);
+    assert_eq!(rows[0]["minted"].as_str(), Some(balance.as_str()));
+
+    let lock = alice.call(token.id(), "ft_transfer_call").args_json(json!({"receiver_id":game.id(),"amount":"1","msg":json!({"lock":{"mode":0,"round_id":1}}).to_string()}))
         .deposit(NearToken::from_yoctonear(1)).max_gas().transact().await?;
-    receipts("lock (NEP-141)", lock)?;
+    request("lock", &lock)?;
     let locked: String = game
         .view("get_lock")
         .args_json(json!({"mode":0,"round_id":1,"account":alice.id()}))
         .await?
         .json()?;
     assert_eq!(locked, "1");
-    // This demo's genesis is zero: the never-started next round's unlock period has elapsed.
     let unlock = alice
         .call(game.id(), "unlock")
         .args_json(json!({"mode":0,"round_id":1}))
@@ -112,39 +394,90 @@ async fn main() -> Res<()> {
         .max_gas()
         .transact()
         .await?;
-    receipts("unlock", unlock)?;
+    trace(
+        &worker,
+        "unlock",
+        unlock,
+        alice.id().as_str(),
+        &game,
+        &token,
+        &["on_unlock"],
+    )
+    .await?;
     let locked: String = game
         .view("get_lock")
         .args_json(json!({"mode":0,"round_id":1,"account":alice.id()}))
         .await?
         .json()?;
+    let unlocked: String = token
+        .view("ft_balance_of")
+        .args_json(json!({"account_id":alice.id()}))
+        .await?
+        .json()?;
     assert_eq!(locked, "0");
+    assert_eq!(unlocked, balance);
 
-    let salt = [9u8; 32];
-    let hash = commit_hash(&game, &alice, &rule, salt);
-    let commit_tx = alice
-        .call(game.id(), "commit_guess")
-        .args_json(json!({"mode":0,"hash":hash}))
-        .max_gas()
-        .transact()
+    for (seq, correct) in [(0, false), (1, true)] {
+        let salt = [9 + seq as u8; 32];
+        let hash = commit_hash(&game, &alice, &rule, salt);
+        alice
+            .call(game.id(), "commit_guess")
+            .args_json(json!({"mode":0,"hash":hash}))
+            .max_gas()
+            .transact()
+            .await?
+            .into_result()?;
+        worker.fast_forward(5).await?;
+        let reveal = alice.call(game.id(), "reveal_guess").args_json(json!({"mode":0,"commit_seq":seq,"guess":serde_json::to_value(RuleHex(rule.clone()))?,"salt":format!("{:02x}", 9 + seq).repeat(32)}))
+            .gas(Gas::from_tgas(300)).transact_async().await?;
+        wait_requests(&mock, 5 + seq).await?;
+        withdraw_during_check(&alice, &game).await?;
+        let before_verdict = credit(&game, &alice).await?;
+        resolve_checked(&mock, 4 + seq, json!({"correct":correct}), false).await?;
+        trace(
+            &worker,
+            if correct {
+                "correct guess"
+            } else {
+                "wrong guess"
+            },
+            reveal.await?,
+            alice.id().as_str(),
+            &game,
+            &token,
+            &["on_guess"],
+        )
         .await?;
-    receipts("commit_guess", commit_tx)?;
-    worker.fast_forward(5).await?;
-    let reveal = alice
-        .call(game.id(), "reveal_guess")
-        .args_json(json!({"mode":0,"commit_seq":0,"guess":serde_json::to_value(RuleHex(rule.clone()))?,"salt":"09".repeat(32)}))
-        .gas(Gas::from_tgas(300))
-        .transact_async()
+        wait_status(
+            &game,
+            seq as usize,
+            if correct { "Correct" } else { "Wrong" },
+        )
         .await?;
-    wait_requests(&mock, 3).await?;
-    resolve(&mock, 2, json!({"correct":true}), false).await?;
-    let reveal = reveal.await?;
-    receipts("reveal_guess (request side)", reveal)?;
-    wait_status(&game, 0, "Correct").await?;
-
-    let mut finalize: Option<ExecutionFinalResult> = None;
+        let after_verdict = credit(&game, &alice).await?;
+        if correct {
+            assert_eq!(after_verdict, before_verdict);
+        } else {
+            assert_eq!(
+                after_verdict - before_verdict,
+                50_000_000_000_000_000_000_000
+            );
+        }
+        let before = credit(&game, &alice).await?;
+        let withdrawal = alice
+            .call(game.id(), "withdraw_credit")
+            .args_json(json!({"amount":"1"}))
+            .deposit(NearToken::from_yoctonear(1))
+            .max_gas()
+            .transact()
+            .await?;
+        withdrawal.into_result()?;
+        assert_eq!(credit(&game, &alice).await?, before - 1);
+    }
+    assert_eq!(round(&game).await?["phase"], "Reveal");
+    let mut finalize = None;
     for _ in 0..30 {
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
         worker.fast_forward(2).await?;
         let attempt = alice
             .call(game.id(), "finalize")
@@ -158,33 +491,42 @@ async fn main() -> Res<()> {
             break;
         }
     }
-    receipts(
-        "finalize (request side)",
-        finalize.expect("finalize never completed"),
-    )?;
-    wait_requests(&mock, 4).await?;
-    let opened = json!({"rule":serde_json::to_value(&rule)?,"salt":"05".repeat(32)});
-    resolve(&mock, 3, opened, false).await?;
-    let mut settled = false;
-    for _ in 0..30 {
-        let round: Value = game
-            .view("get_round")
-            .args_json(json!({"mode":0,"id":null}))
-            .await?
-            .json()?;
-        if round["phase"] == "Settled" {
-            settled = true;
-            break;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-    }
-    assert!(settled);
+    let finalize = finalize.ok_or("finalize never became available")?;
+    wait_requests(&mock, 7).await?;
+    resolve_checked(
+        &mock,
+        6,
+        json!({"rule":serde_json::to_value(&rule)?,"salt":"05".repeat(32)}),
+        false,
+    )
+    .await?;
+    trace(
+        &worker,
+        "finalize",
+        finalize,
+        alice.id().as_str(),
+        &game,
+        &token,
+        &["on_open"],
+    )
+    .await?;
+    let settled = round(&game).await?;
+    assert_eq!(settled["phase"], "Settled");
+    assert_eq!(settled["rule"], serde_json::to_value(&rule)?);
+    let before = credit(&game, &alice).await?;
     let claim = alice
         .call(game.id(), "claim")
         .args_json(json!({"mode":0,"round_id":0}))
         .max_gas()
         .transact()
         .await?;
-    receipts("claim", claim)?;
+    request("claim", &claim)?;
+    assert!(
+        credit(&game, &alice).await? > before,
+        "settlement claim did not credit player"
+    );
+    println!(
+        "GAS units: 1 Tgas = {TGAS} gas; prepaid_action_gas is allocation, burnt_gas is consumption, outgoing IDs are not gas consumption."
+    );
     Ok(())
 }

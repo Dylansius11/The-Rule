@@ -318,26 +318,29 @@ Local contract builds use the workspace `release` profile (`opt-level="z"`, LTO,
 
 ### Local sandbox gas report (2026-11-05)
 
-`make gas` builds local artifacts and runs `cargo run -p sandbox-tests --profile fast --example gas`. That executable was exercised with MOCK OutLayer through direct token registration, an ACCEPT mint, lock/unlock, a correct guess, open, settlement and claim. The printed transaction totals below are truncated to 0.1 Tgas. They are not OutLayer charges or testnet measurements.
+`make gas` builds local artifacts and runs `cargo run -p sandbox-tests --profile fast --example gas`. The executable was exercised with MOCK OutLayer through registration, null/failed-promise play refunds, ACCEPT + mint, lock/unlock, wrong/correct guesses, open, settlement and claim. It re-queries the sandbox RPC after resumption, matching receipt ids, executors and function-call actions; missing or failed expected callbacks make the run fail. It also observed E21 and unchanged credit for withdrawal while Checking, then successful withdrawals after resolution. These are local sandbox measurements, not OutLayer charges or testnet evidence.
 
-| Operation | Observed transaction total (Tgas) |
-| --- | --- |
-| `register_token` check | 6.8 |
-| `play` request side | 6.1 |
-| Lock through `ft_transfer_call` | 6.9 |
-| `unlock` | 7.3 |
-| `commit_guess` | 2.7 |
-| `reveal_guess` request side | 6.0 |
-| `finalize` request side | 5.8 |
-| `claim` | 2.6 |
+| Action | Prepaid action gas (Tgas) | Observed burnt gas (Tgas, truncated to 0.001) |
+| --- | --- | --- |
+| `on_begin` | 60 | 2.108 |
+| `on_register` | 60 | 2.047 |
+| `on_verdict`, null refund | 60 | 2.578 |
+| `on_verdict`, failed-promise refund | 60 | 2.546 |
+| `on_verdict`, ACCEPT + mint scheduling | 60 | 4.043 |
+| Token `mint` | 10 | 1.622 |
+| `on_mint`, success | 10 | 1.856 |
+| `on_unlock`, success | 60 | 1.987 |
+| `on_guess`, wrong | 60 | 2.747 |
+| `on_guess`, correct | 60 | 2.752 |
+| `on_open`, valid settlement | 60 | 2.370 |
 
-Yield-resume callbacks (`on_verdict`, `on_guess`, `on_open`) finish later and are not included in their request-side totals. Do not use this report as proof of the production callback budget; full callback measurements remain P2.9 and B6.
+The ACCEPT trace includes separate successful token-mint and `on_mint` receipts. Their 10 + 10 Tgas allocations come from the verdict callback's budget; burnt gas alone is not the budget available for scheduling them. The guard requires 25 Tgas remaining at its check, but exact remaining gas there is not exposed by the receipt. This sampled path succeeds at the configured 60 Tgas; it is not a maximum-state or real OutLayer gas proof. Request-side transaction totals printed by the harness may exclude delayed receipts and must not be relabeled callback totals.
 
 Local no-ABI artifact sizes below are non-reproducible sandbox observations, not freeze hashes or evidence of a deployment.
 
 | Artifact | Bytes |
 | --- | --- |
-| Game | 424,431 |
+| Game | 428,184 |
 | Token | 166,989 |
 
 ## Test matrix

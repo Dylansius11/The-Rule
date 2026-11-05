@@ -67,6 +67,12 @@ Every command below is **planned, not run**, unless it shows an observed result.
 6. **Known conflicts:** failure refunds (integration page: metered failure; pricing page: no refund; source: metered failure, base fee on timeout). The game never relies on an OutLayer refund for player refunds; players are refunded from the game's own ledger, and the compute float absorbs OutLayer charges. Encryption key count (3 vs 5) does not matter, since one key is used.
 7. **Evidence:** request tx, callback receipt, digest, latency and charge per run, attestation URL, in SMART-CONTRACT "Deployment".
 
+### Local callback gas proof recipe
+
+Run `make gas` in WSL. It rebuilds local, non-reproducible game/token artifacts and deploys only to an isolated sandbox with MOCK OutLayer; it does not spend testnet NEAR. The executable requires the WSL `curl` binary to query the sandbox's own receipt/status RPC, matches function-call receipt ids and executors, and fails if an expected callback is missing or failed. Prepaid action gas, burnt gas and outgoing receipt ids are distinct quantities.
+
+This recipe does not establish real OutLayer latency/charges, production artifact provenance or maximum-state/whole-system callback liveness. See SMART-CONTRACT for dated observed measurements and B6 for the remaining proof gates.
+
 ### 3. Referee hosting (P0.4, P2.2)
 
 1. **Docs [V]:** WasmUrl must be HTTPS on port 443 and a public address; the worker hashes the bytes and refuses a mismatch ([near-integration](https://app.outlayer.ai/docs/near-integration)). OutLayer source at commit `aaf60a26` follows at most 3 redirects, re-validates HTTPS, and caps wasm at 10 MiB ([compiler/mod.rs](https://raw.githubusercontent.com/out-layer/outlayer/aaf60a26855e30bc3318126382903df92dea7d3d/worker/src/compiler/mod.rs)). The [dev guide](https://app.outlayer.ai/docs/dev-guide) shows `outlayer upload <file>` returning `https://test.fastfs.io/<account>/outlayer.testnet/<sha256>.wasm`.

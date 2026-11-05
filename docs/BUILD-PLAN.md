@@ -71,6 +71,7 @@ Phase 2 acceptance: P2.9 evidence recorded. The sealed loop works on testnet wit
 
 - [ ] **P3.1 Credit and fee split** (F8, F9). Owned: `contracts/game/src/{credit,ledger}.rs`. Tests: `withdraw_credit` without 1 yocto fails; withdraw while pending E21; T-INV-1 terms present in `get_ledger`.
   - **Local credit guard 2026-11-05:** failing-before regression proved withdrawal was allowed during Checking guesses. Three new tests pass for multiple live checks, duplicate callbacks, owner isolation, every guess outcome and failed/successful withdrawal callbacks. Sandbox exercised E21 with unchanged credit while Checking and successful withdrawal afterward. Live-balance/in-flight-transfer reconciliation remains P3.3/B6; `pending_credit` only records unsettled play fee/storage debits.
+  - **Local cash movement 2026-11-05:** `make balance`'s executable passed with nonzero mock request deposits, same-block ledger/account snapshots, exact per-field obligation deltas, overlapping play/guess claim, a receipt-proved 0.5-NEAR withdrawal, and failed/restored/retried 0.0063-NEAR platform payout. No unknown-outcome payment snapshot, whole-system reserve proof or testnet acceptance.
 - [x] **P3.2 Stakes and payouts** (F10 to F12). Owned: `contracts/game/src/{guess,settle}.rs`. Solo path done 2026-11-05 with P2.5 and P2.6 (T-PAY solo rows, `claim` twice pays once). Team vault payouts (T-TEAM) follow in P4.
 - [ ] **P3.3 Invariant properties.** Owned: `contracts/game/tests/invariants.rs`. T-INV-1 and T-INV-2 over 10k random op sequences, including failures and duplicates.
 

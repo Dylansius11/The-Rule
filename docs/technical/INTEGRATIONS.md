@@ -77,6 +77,12 @@ This recipe does not establish real OutLayer latency/charges, production artifac
 
 Run `make storage` in WSL. It rebuilds local artifacts and uses only an isolated sandbox with MOCK OutLayer. The executable fails on sampled retained-storage underfunding and reports transient/operator liquidity separately. Corrected sandbox charges use the existing production allowances; measured samples are not maximum-state or concurrency bounds. See SMART-CONTRACT for the observed byte counts and B6 for the remaining storage gates.
 
+### Local live-balance proof recipe
+
+Run `make balance` in WSL. It rebuilds local artifacts and runs the isolated sandbox with MOCK OutLayer; no testnet funds are used. The WSL `curl` binary queries that sandbox's RPC. Solvency snapshots pin contract views and account balances to the same optimistic block, compare individual obligation deltas, and count storage funding/collateral once.
+
+The executable traces actual withdrawal/platform transfer actions and callbacks, including a failed platform transfer, restored accrual and successful retry. The platform account is created only inside the sandbox. Receipt principal is separate from signer gas and outstanding gas refunds. This recipe samples Solo transitions; it does not establish live unknown-outcome payment reconciliation, worst-case reserves or full callback recovery.
+
 ### 3. Referee hosting (P0.4, P2.2)
 
 1. **Docs [V]:** WasmUrl must be HTTPS on port 443 and a public address; the worker hashes the bytes and refuses a mismatch ([near-integration](https://app.outlayer.ai/docs/near-integration)). OutLayer source at commit `aaf60a26` follows at most 3 redirects, re-validates HTTPS, and caps wasm at 10 MiB ([compiler/mod.rs](https://raw.githubusercontent.com/out-layer/outlayer/aaf60a26855e30bc3318126382903df92dea7d3d/worker/src/compiler/mod.rs)). The [dev guide](https://app.outlayer.ai/docs/dev-guide) shows `outlayer upload <file>` returning `https://test.fastfs.io/<account>/outlayer.testnet/<sha256>.wasm`.

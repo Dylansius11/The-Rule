@@ -363,6 +363,16 @@ Local no-ABI artifact sizes below are non-reproducible sandbox observations, not
 | Game | 428,224 |
 | Token | 166,989 |
 
+### Local live-balance report (2026-11-05)
+
+`make balance` exercises real local game/token wasm with MOCK OutLayer and nonzero 0.001-NEAR request deposits. Each solvency snapshot pins `get_ledger` and `view_account` to the same optimistic sandbox block, requires their balances to agree, and includes unsettled play charges plus `max(storage_reserve, locked_storage)`. Each operation also checks individual ledger deltas; an oversized account balance cannot hide a missing debit or refund in those checks.
+
+The observed sequence covered begin, a first-play failure overlapping three commits, preserved E15, a paid NO, wrong/system-failed/correct guesses, open, settlement and claim including the overlapping correct stake. Actual receipt identities established a successful 0.5-NEAR withdrawal, a failed 0.0063-NEAR platform transfer to a nonexistent named account with restored accrual, then a successful retry whose recipient increased by exactly 0.0063 NEAR.
+
+Signer balance changes are not gross transfer principal: the initial net-bound check failed because outstanding refunds from earlier transactions arrived too. Principal is checked on the successful transfer receipt, separately from signer net and gas. The earlier attempt also mixed optimistic contract views with final account queries; same-block pinning fixes that observation error.
+
+This is a sampled Solo sequence, not 10k on-chain sequences, a worst-case reserve proof, real OutLayer or testnet evidence. Payment snapshots occur after the transfer and callback complete; actual unknown-outcome/in-flight payment snapshots and stalled token/payment callback recovery remain B6.
+
 ## Test matrix
 
 Commands below are acceptance recipes, not blanket claims of completion; BUILD-PLAN records observed results. Unit tests use `near-sdk` unit testing. Sandbox tests use near-workspaces 0.24.0 on WSL Linux, with a **mock OutLayer contract** that replays the captured real callback shape from Phase 0 (`tests/vectors/outlayer-callback.json`, labeled mock). Real-referee evidence comes only from testnet.

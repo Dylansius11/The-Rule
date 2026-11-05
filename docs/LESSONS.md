@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-05: balance observations need one block and receipt-defined principal
+
+- **What happened:** the first balance harness mixed optimistic contract views with final account queries, then failed its mock-deposit check against a stale account balance. After block pinning, its withdrawal net-bound check failed because refunds from earlier signer transactions arrived during the observation window.
+- **Root cause:** observations at different blocks do not describe one accounting state, and a signer's net balance movement includes more than the current transfer principal.
+- **Rule:** pin ledger and account queries to the same block and require agreement. Verify gross principal and success on actual transfer receipts; keep signer gas/refunds separate. The corrected sandbox exercised failed platform payment, restored accrual and an exact-principal retry.
+
 ### 2026-11-05: refund cleanup must preserve state owned by overlapping operations
 
 - **What happened:** three new regressions failed: an overlapping correct stake had claimable 0 instead of 100, a wrong stake's Void refund had 0 instead of 50, and first-play expiry bypassed E15. All three passed after the fix; the local sandbox also preserved the commit cap and claimed the overlapping stake.

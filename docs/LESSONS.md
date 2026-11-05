@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-05: matching artifact hashes do not establish Docker provenance
+
+- **What happened:** a successful cargo-near Docker build reported a new game hash inside the container, but its host output matched the old local artifact. The actual sandbox metadata view returned null `build_info`; the requested-source smoke failed.
+- **Root cause [V, locally exercised]:** an inherited host `CARGO_TARGET_DIR` directed artifact selection to the local cache after the container build. Unsetting it for the reproducible subprocess produced both actual metadata views with the requested commit, pinned image and correct contract paths.
+- **Rule:** compare independent builds and require their actual NEP-330 metadata to match the requested source revision, image and contract path. Never label matching stale cache bytes reproducible evidence.
+
 ### 2026-11-05: resolve yielded dependencies before awaiting transaction completion
 
 - **What happened:** the first extended storage run reached finalize and was cancelled while waiting before the mock open was resolved. The corrected executable completed settlement and the next round.

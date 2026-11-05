@@ -4,7 +4,6 @@ set -euo pipefail
 root=$(git rev-parse --show-toplevel)
 cd "$root"
 : "${XDG_CONFIG_HOME:?set XDG_CONFIG_HOME to the project-specific config directory}"
-: "${CARGO_TARGET_DIR:?set a WSL-local CARGO_TARGET_DIR}"
 export CARGO_BUILD_JOBS=2
 if [ "$#" -ne 1 ]; then
     echo "Usage: $0 OUTPUT_DIRECTORY" >&2
@@ -19,6 +18,7 @@ mkdir -p "$1"
 out=$(cd "$1" && pwd)
 printf 'Committed source: %s\n' "$(git rev-parse HEAD)"
 for contract in game token; do
-    cargo near build reproducible-wasm --manifest-path "contracts/$contract/Cargo.toml" --out-dir "$out/$contract"
+    # Host target overrides can make cargo-near copy an old local artifact after a fresh Docker build.
+    env -u CARGO_TARGET_DIR cargo near build reproducible-wasm --manifest-path "contracts/$contract/Cargo.toml" --out-dir "$out/$contract"
     sha256sum "$out/$contract/$contract.wasm"
 done

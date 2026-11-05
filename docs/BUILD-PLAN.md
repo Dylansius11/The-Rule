@@ -137,6 +137,7 @@ Starts when B1 resolves; the founder's references feed `docs/DESIGN.md`, written
 - [ ] **P8.4 Demo recording.** The 20 s and 2 min scripts from sources/28 section 5, with Demo Mode labeled and real rounds shown separately.
 - [ ] **P8.5 README** naming CONSTITUTION as the other entry; "do X - see Y" steps; trust wording; fake-vs-real table; contract addresses; library and AI-assistance disclosure. Cold clone on another machine or a fresh WSL distro runs `make verify` and `make test`.
 - [ ] **P8.6 Publish** (founder-owned): add remote `github.com/Dylansius11/the-rule`, push, make it public, post the X demo mentioning NEAR HACKATHON.
+  - **Earlier source push authorized 2026-11-05 (D22):** origin is `https://github.com/Dylansius11/The-Rule.git`; the initially empty remote reported PRIVATE. Existing baseline `main` is preserved and ongoing work moves to `dev`; feature branches integrate through `dev`, and promotion to `main` requires a PR. This authorization supersedes only the delayed source remote/push. Public visibility, referee asset publication, public posts and submission remain unaccepted; P8.6 stays unchecked.
 - [ ] **P8.7 Submit** by 2026-11-14T12:00Z: the lead prints the payload, the founder confirms and submits.
 
 ## Stretch, only after Phase 8 is green

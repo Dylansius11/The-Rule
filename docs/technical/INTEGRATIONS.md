@@ -19,7 +19,7 @@
 | Cloudflare Pages | Static web hosting | Founder account, lead deploys | Manual account, scripted deploy | Free tier | Documented [V]; no account |
 | Keeper runtime (Cloudflare Workers Cron, fallback GitHub Actions) | Permissionless transitions | Lead | Automatic | Free tier; signing qualification B5 | Local workerd signing qualified (B5); deployed/runtime rehearsal still P6.2 |
 | Healthchecks.io | Keeper heartbeat alert | Founder account | Manual account | Free Hobbyist | Documented [V] |
-| GitHub | Public repo, CI, raw mirror | Founder | Manual (P8.6) | None | Decided D22 |
+| GitHub | Source repo, CI, candidate public artifact mirror | Founder | Source remote/push authorized 2026-11-05; work on `dev`, PR into `main` | None | `Dylansius11/The-Rule` exists and reports PRIVATE; visibility and artifact publication remain separate D28/P8.6 work |
 | NEAR Auth (P1) | Passkey sign-in | Lead | Automatic | SDK depends on near-api-js 4/5 (B4) | Documented [V]; P1 only |
 
 ## Step-by-step recipes
@@ -192,4 +192,4 @@ Observed: each exited 0; `.claude/skills/` holds the five folders; `skills-lock.
 2. Lead: create `therule.testnet` and send the id. Founder: fund it from the faucet (B2), which unblocks P0.4 to P0.8.
 3. Founder: share design references (B1), which unblocks Phase 7 and the D2 confirmation.
 4. Founder: create Cloudflare and Healthchecks accounts before P6.2 and Phase 7 deploys.
-5. Founder: create `github.com/Dylansius11/the-rule` and publish at P8.6; submit at P8.7.
+5. Founder authorized the initial source push to `github.com/Dylansius11/The-Rule` on 2026-11-05. Work belongs on `dev`; promote through a `dev` -> `main` PR. The repo reported PRIVATE. Public visibility, referee asset hosting, public posts and submission remain separate authorizations at D28/P8.6/P8.7.

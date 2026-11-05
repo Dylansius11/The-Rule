@@ -41,7 +41,7 @@ The restored Linux audit-tool release archive matched SHA-256 `b6ad301b8ac65e283
 
 - FastFS testnet: the earlier uploaded probe returned HTTP 404; cause unknown.
 - Cloudflare quick tunnel: temporary, only while the local tunnel process runs; used for the probe, not durable hosting.
-- Commit-pinned GitHub raw or release asset: candidate only; requires the public repository and appropriate founder authorization. D28 remains open, and D22 currently delays a remote until P8.6.
+- Commit-pinned GitHub raw or release asset: candidate only; the founder authorized the source remote/push on 2026-11-05 (D22), but GitHub reported the repository PRIVATE. A public referee endpoint and asset publication still require authorization and verification (D28); source push alone does not host the wasm.
 
 No upload or URL verification for this referee was performed. P2.2 remains open until the chosen hosting and both matching URLs are exercised. Older INTEGRATIONS and BUILD-PLAN text describes automatic FastFS upload and a GitHub mirror; it conflicts with D28's current blocked status and this no-upload helper.
 
@@ -88,4 +88,4 @@ All rows use source `ba3d23f0a50784e66a1a62476a35db8aee71502b`. Both contracts w
 
 Both reproducible contract artifacts also passed their existing ABI export allowlists. The five added admission/play sandbox runtimes were then exercised again against this exact reproducible pair: saturation/lifecycle/retry, settled duplicate, five verdict failure shapes, delayed YES after freeze, low compute and private-callback rejection all passed. Those runtimes still use MOCK OutLayer, not a deployed TEE referee.
 
-Artifacts live in gitignored `scratch/repro/admission-{1,2}/` and `scratch/repro/referee-committed-{1,2}.wasm`. No bytes were uploaded, no remote was added, and no testnet transaction was signed. The repository identifier in metadata does not mean this source revision is publicly retrievable. Contract changes or another frozen revision require rebuilding and rechecking.
+Artifacts live in gitignored `scratch/repro/admission-{1,2}/` and `scratch/repro/referee-committed-{1,2}.wasm`. During that build run, no bytes were uploaded, no remote was added, and no testnet transaction was signed. The founder subsequently authorized the private source remote/push (D22), not referee asset publication or deployment. The repository identifier in metadata does not mean that revision is publicly retrievable. Contract changes or another frozen revision require rebuilding and rechecking.

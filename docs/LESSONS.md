@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-05: match callback ownership before consuming a shared request
+
+- **What happened:** native dispatch regressions reproduced a wrong private callback deleting another request: referee admission remained stuck at one and an expected platform restoration stayed zero. The corrected matrix passes for referee completion/expiry and all five token/payment request kinds.
+- **Root cause:** destructuring `pending.remove(id)` consumed the entry before discovering that its enum variant belonged to another callback. A callback's private annotation does not establish ownership of the supplied id.
+- **Rule:** check the expected request kind before removal, then consume exactly once. Exercise the correct completion, expiry where safe, duplicates and replacements after wrong dispatch. Read-only registration may expire without money effects; unknown transfer/mint outcomes still must not be blindly refunded.
+
 ### 2026-11-05: caller binding belongs to the manifest section, not a byte-count heuristic
 
 - **What happened:** the rehearsal planner rejected the actual committed referee even though its caller was correct. Its manifest JSON appeared twice: once in program data and once in `outlayer.manifest`.

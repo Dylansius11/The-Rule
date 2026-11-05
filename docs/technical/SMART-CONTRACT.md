@@ -218,6 +218,8 @@ A throwaway sandbox executable deliberately patched callback gas from the valida
 
 All callback finishers check the expected request kind before removal. A misrouted private callback must leave another operation's request and obligations intact; this is dispatch hardening, not a claim that an external caller can invoke private callbacks.
 
+`cargo test -p game --test callback_fences --profile fast` passed two native matrices: every wrong dispatcher against live verdict/guess requests followed by success/failure/expiry, and every wrong dispatcher against withdraw/platform/register/mint/unlock followed by success/failure and a replacement. Exact credit, stake/allowance/lock restoration, token state and referee admission were checked after duplicates and late responses. A failing-before withdrawal dispatcher reproduced a consumed request with stuck admission or missing restoration. These native checks deliberately exclude the mocked VM balance, which resets between simulated receipts; actual balance/escrow proof is the separate sandbox reporter.
+
 ### Views (paged, read at `final`)
 
 `get_params()`, `get_round(mode, id?)`, `get_log(mode, id, from_idx, limit<=200)`, `get_verdict(mode, id, play)` (duplicate pre-check for the UI), `get_entity(mode, id, account)` (attempts, limit, shares, line, pending), `get_commits(mode, id, from, limit)`, `get_player(account)`, `get_team(id)`, `get_claimable(mode, id, account)`, `get_season(mode, season, from, limit)`, `get_ledger()` (all invariant terms), `get_word_list()`.

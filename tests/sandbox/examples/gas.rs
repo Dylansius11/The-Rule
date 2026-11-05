@@ -161,7 +161,9 @@ async fn callbacks(
         {
             for (method, id, allocated, outcome) in found {
                 println!(
-                    "ACTION {method}: receipt={id} tx={tx} status={} prepaid_action_gas={allocated} burnt_gas={} outgoing_receipt_ids={} logs={}",
+                    "ACTION {method}: receipt={id} tx={tx} receiver={} predecessor={} status={} prepaid_action_gas={allocated} burnt_gas={} outgoing_receipt_ids={} logs={}",
+                    outcome["executor_id"],
+                    game.id(),
                     outcome["status"],
                     outcome["gas_burnt"],
                     outcome["receipt_ids"],
@@ -232,6 +234,429 @@ async fn withdraw_during_check(alice: &Account, game: &Contract) -> Res<()> {
         credit(game, alice).await?,
         before,
         "Checking withdrawal changed credit"
+    );
+    Ok(())
+}
+
+// Unlike callbacks, the initiating action is sent by the external signer.
+async fn finalize_action(
+    worker: &Worker<Sandbox>,
+    tx: &str,
+    sender: &str,
+    game: &Contract,
+) -> Res<()> {
+    for _ in 0..100 {
+        let value = rpc(
+            worker,
+            "EXPERIMENTAL_tx_status",
+            json!({
+                "tx_hash":tx, "sender_account_id":sender, "wait_until":"INCLUDED"
+            }),
+        )?;
+        if let Some(outcomes) = value["receipts_outcome"].as_array() {
+            for outcome in outcomes {
+                let Some(id) = outcome["id"].as_str() else {
+                    continue;
+                };
+                if outcome["outcome"]["executor_id"] != game.id().as_str() {
+                    continue;
+                }
+                let receipt = rpc(worker, "EXPERIMENTAL_receipt", json!({"receipt_id":id}))?;
+                if receipt["receipt_id"] != id || receipt["receiver_id"] != game.id().as_str() {
+                    return Err(format!("receipt identity mismatch for {id}").into());
+                }
+                if receipt["predecessor_id"] != sender {
+                    continue;
+                }
+                let Some(actions) = receipt["receipt"]["Action"]["actions"].as_array() else {
+                    continue;
+                };
+                for action in actions {
+                    let call = &action["FunctionCall"];
+                    if call["method_name"] != "finalize" {
+                        continue;
+                    }
+                    let allocated = call["gas"].as_u64().ok_or("missing finalize gas")?;
+                    let burnt = outcome["outcome"]["gas_burnt"]
+                        .as_u64()
+                        .ok_or("missing finalize burnt gas")?;
+                    let status = &outcome["outcome"]["status"];
+                    assert!(
+                        status.get("SuccessValue").is_some()
+                            || status.get("SuccessReceiptId").is_some(),
+                        "finalize {id}: {status}"
+                    );
+                    assert_eq!(allocated, 300 * TGAS);
+                    assert!(burnt <= allocated);
+                    println!(
+                        "ACTION finalize: receipt={id} tx={tx} sender={sender} receiver={} status={status} prepaid_action_gas={allocated} burnt_gas={burnt} outgoing_receipt_ids={} logs={}",
+                        game.id(),
+                        outcome["outcome"]["receipt_ids"],
+                        outcome["outcome"]["logs"]
+                    );
+                    return Ok(());
+                }
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    Err(format!("finalize action missing from tx {tx}").into())
+}
+
+fn amount(value: &Value, field: &str) -> Res<u128> {
+    Ok(value[field]
+        .as_str()
+        .ok_or_else(|| format!("missing {field}"))?
+        .parse()?)
+}
+
+async fn ledger(game: &Contract) -> Res<Value> {
+    Ok(game.view("get_ledger").await?.json()?)
+}
+
+// Separate deployment and round: 21 unrevealed commits and one correct commit.
+// Seven independent 64-character actors each hold three unrevealed commits.
+async fn sweep_fixture(worker: &Worker<Sandbox>, rule: &rule_core::CanonicalRule) -> Res<()> {
+    const STAKE: u128 = 100_000_000_000_000_000_000_000;
+    const RETURNED: u128 = STAKE / 2;
+    let mock = worker
+        .dev_deploy(&std::fs::read(sandbox_tests::artifact("mock_outlayer"))?)
+        .await?;
+    mock.call("new").transact().await?.into_result()?;
+    let game = worker
+        .dev_deploy(&std::fs::read(sandbox_tests::artifact("game"))?)
+        .await?;
+    let token = worker
+        .dev_deploy(&std::fs::read(sandbox_tests::artifact("token"))?)
+        .await?;
+    token.call("new").args_json(json!({"minter":game.id(),"cap":"1000000000000000000000000000","metadata":{"spec":"ft-1.0.0","name":"THE RULE","symbol":"RULE","decimals":18}})).transact().await?.into_result()?;
+    let mut config = sandbox_tests::params(mock.id().as_str());
+    config["reveal_window_ns"] = json!(3_000_000_000u64);
+    config["token"] = json!(token.id());
+    game.call("new")
+        .args_json(json!({"params":config,"demo":true}))
+        .transact()
+        .await?
+        .into_result()?;
+    // One yocto makes split rounding dust observable without changing the stake minimum.
+    game.call("seed_pot")
+        .args_json(json!({"mode":0}))
+        .deposit(NearToken::from_yoctonear(1))
+        .transact()
+        .await?
+        .into_result()?;
+    let commitment = serde_json::to_value(protocol::round_commitment(rule, &[5u8; 32]))?;
+    let begin = game
+        .call("start_round")
+        .args_json(json!({"mode":0}))
+        .gas(Gas::from_tgas(300))
+        .transact_async()
+        .await?;
+    wait_requests(&mock, 1).await?;
+    resolve_checked(
+        &mock,
+        0,
+        begin_value(commitment.as_str().ok_or("missing commitment")?),
+        false,
+    )
+    .await?;
+    tokio::time::timeout(Duration::from_secs(30), begin)
+        .await??
+        .into_result()?;
+    for _ in 0..100 {
+        if round(&game).await?["phase"] == "Investigation" {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    assert_eq!(round(&game).await?["phase"], "Investigation");
+
+    let root = worker.root_account()?;
+    let name_len = 64 - root.id().as_str().len() - 1;
+    let mut actors = Vec::new();
+    for i in 0..8 {
+        let prefix = format!("sweep{i}");
+        let name = format!("{prefix}{}", "x".repeat(name_len - prefix.len()));
+        let actor = root
+            .create_subaccount(&name)
+            .initial_balance(NearToken::from_near(10))
+            .transact()
+            .await?
+            .into_result()?;
+        assert_eq!(actor.id().as_str().len(), 64);
+        actor
+            .call(game.id(), "deposit_credit")
+            .deposit(NearToken::from_near(1))
+            .max_gas()
+            .transact()
+            .await?
+            .into_result()?;
+        actors.push(actor);
+    }
+    let storage = amount(&config, "storage_charge_per_play")?;
+    for actor in &actors[..7] {
+        let before = credit(&game, actor).await?;
+        for _ in 0..3 {
+            let ack: Value = actor
+                .call(game.id(), "commit_guess")
+                .args_json(json!({"mode":0,"hash":"00".repeat(32)}))
+                .max_gas()
+                .transact()
+                .await?
+                .json()?;
+            assert_eq!(amount(&ack, "stake")?, STAKE);
+        }
+        assert_eq!(before - credit(&game, actor).await?, 3 * (STAKE + storage));
+    }
+    let winner = &actors[7];
+    let player: Value = game
+        .view("get_player")
+        .args_json(json!({"account":winner.id()}))
+        .await?
+        .json()?;
+    let index = u32::try_from(player["index"].as_u64().ok_or("missing winner index")?)?;
+    let hash = serde_json::to_value(protocol::commit_hash(&protocol::CommitPreimage {
+        chain: "testnet",
+        game: game.id().as_str(),
+        mode: protocol::Mode::Solo,
+        round: 0,
+        actor: winner.id().as_str(),
+        entity: protocol::Entity::Solo(index),
+        guess: rule,
+        salt: &[9u8; 32],
+    }))?;
+    let ack: Value = winner
+        .call(game.id(), "commit_guess")
+        .args_json(json!({"mode":0,"hash":hash}))
+        .max_gas()
+        .transact()
+        .await?
+        .json()?;
+    assert_eq!(ack["commit_seq"], 21);
+    assert_eq!(amount(&ack, "stake")?, STAKE);
+    worker.fast_forward(5).await?;
+    let reveal = winner.call(game.id(), "reveal_guess").args_json(json!({"mode":0,"commit_seq":21,"guess":serde_json::to_value(RuleHex(rule.clone()))?,"salt":"09".repeat(32)})).gas(Gas::from_tgas(300)).transact_async().await?;
+    wait_requests(&mock, 2).await?;
+    resolve_checked(&mock, 1, json!({"correct":true}), false).await?;
+    tokio::time::timeout(Duration::from_secs(30), reveal)
+        .await??
+        .into_result()?;
+    wait_status(&game, 21, "Correct").await?;
+    let mut before_credits = Vec::new();
+    for actor in &actors {
+        before_credits.push(credit(&game, actor).await?);
+    }
+    let before = ledger(&game).await?;
+    assert_eq!(amount(&before, "open_stakes")?, 22 * STAKE);
+    assert_eq!(amount(&before, "round_pots")?, 1);
+    let deadline = round(&game).await?["reveal_deadline_ns"]
+        .as_u64()
+        .ok_or("missing reveal deadline")?;
+    let mut reached = false;
+    for _ in 0..100 {
+        if rpc(worker, "block", json!({"finality":"final"}))?["header"]["timestamp"]
+            .as_u64()
+            .ok_or("missing block timestamp")?
+            >= deadline
+        {
+            reached = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    if !reached {
+        return Err("sweep fixture reveal deadline not reached".into());
+    }
+
+    let first = winner
+        .call(game.id(), "finalize")
+        .args_json(json!({"mode":0}))
+        .gas(Gas::from_tgas(300))
+        .transact()
+        .await?;
+    let tx = request("sweep first 20", &first)?;
+    finalize_action(worker, &tx, winner.id().as_str(), &game).await?;
+    let result: Option<u64> = first.json()?;
+    assert_eq!(result, None);
+    let rows = commits(&game).await?;
+    assert_eq!(rows.len(), 22);
+    for (i, row) in rows.iter().enumerate() {
+        assert_eq!(amount(row, "stake")?, STAKE);
+        assert_eq!(
+            row["actor"],
+            actors[if i < 21 { i / 3 } else { 7 }].id().as_str()
+        );
+        assert_eq!(
+            row["status"],
+            if i < 20 {
+                "Unrevealed"
+            } else if i == 20 {
+                "Committed"
+            } else {
+                "Correct"
+            }
+        );
+    }
+    assert_eq!(round(&game).await?["phase"], "Reveal");
+    let count: String = mock.view("request_count").await?.json()?;
+    assert_eq!(count, "2", "first batch must not request open");
+    let after_first = ledger(&game).await?;
+    assert_eq!(amount(&after_first, "open_stakes")?, 2 * STAKE);
+    assert_eq!(amount(&after_first, "round_pots")?, 1 + 20 * RETURNED);
+    assert_eq!(
+        amount(&after_first, "credit")? - amount(&before, "credit")?,
+        20 * RETURNED
+    );
+    for (i, actor) in actors.iter().enumerate() {
+        let swept = if i < 6 {
+            3
+        } else if i == 6 {
+            2
+        } else {
+            0
+        };
+        assert_eq!(
+            credit(&game, actor).await? - before_credits[i],
+            swept * RETURNED
+        );
+    }
+    assert_eq!(
+        amount(&before, "credit")?
+            + amount(&before, "open_stakes")?
+            + amount(&before, "round_pots")?,
+        amount(&after_first, "credit")?
+            + amount(&after_first, "open_stakes")?
+            + amount(&after_first, "round_pots")?
+    );
+
+    let second = winner
+        .call(game.id(), "finalize")
+        .args_json(json!({"mode":0}))
+        .gas(Gas::from_tgas(300))
+        .transact_async()
+        .await?;
+    wait_requests(&mock, 3).await?;
+    let opening = round(&game).await?;
+    assert_eq!(opening["phase"], "Opening");
+    let pending = ledger(&game).await?;
+    assert_eq!(amount(&pending, "open_stakes")?, STAKE);
+    assert_eq!(amount(&pending, "round_pots")?, 1 + 21 * RETURNED);
+    assert_eq!(
+        amount(&pending, "credit")? - amount(&after_first, "credit")?,
+        RETURNED
+    );
+    assert_eq!(
+        credit(&game, &actors[6]).await? - before_credits[6],
+        3 * RETURNED
+    );
+    assert_eq!(
+        amount(&after_first, "credit")?
+            + amount(&after_first, "open_stakes")?
+            + amount(&after_first, "round_pots")?,
+        amount(&pending, "credit")?
+            + amount(&pending, "open_stakes")?
+            + amount(&pending, "round_pots")?
+    );
+    for (i, actor) in actors.iter().enumerate() {
+        assert_eq!(
+            credit(&game, actor).await? - before_credits[i],
+            if i < 7 { 3 * RETURNED } else { 0 }
+        );
+    }
+    let rows = commits(&game).await?;
+    assert_eq!(rows[20]["status"], "Unrevealed");
+    assert_eq!(rows[21]["status"], "Correct");
+    let open_request: Value = mock
+        .view("get_request")
+        .args_json(json!({"id":2}))
+        .await?
+        .json()?;
+    assert_eq!(open_request[0], game.id().as_str());
+    let open_input: Value =
+        serde_json::from_str(open_request[1].as_str().ok_or("missing open input")?)?;
+    assert_eq!(open_input["op"], "open");
+    resolve_checked(
+        &mock,
+        2,
+        json!({"rule":serde_json::to_value(rule)?,"salt":"05".repeat(32)}),
+        false,
+    )
+    .await?;
+    let second = tokio::time::timeout(Duration::from_secs(30), second).await??;
+    let tx = request("sweep remainder and open", &second)?;
+    finalize_action(worker, &tx, winner.id().as_str(), &game).await?;
+    let result: Option<u64> = second.json()?;
+    assert_eq!(result, Some(2));
+    callbacks(
+        worker,
+        &tx,
+        winner.id().as_str(),
+        &game,
+        &token,
+        &["on_open"],
+    )
+    .await?;
+    let count: String = mock.view("request_count").await?.json()?;
+    assert_eq!(count, "3", "exactly one open request");
+    let settled = round(&game).await?;
+    assert_eq!(settled["phase"], "Settled");
+    assert_eq!(settled["outcome"]["account"], winner.id().as_str());
+    assert_eq!(settled["rule"], serde_json::to_value(rule)?);
+    let pot = 1 + 21 * RETURNED;
+    let winner_payout = pot * 4000 / 10000;
+    let platform = pot * 1000 / 10000;
+    let base_rollover = pot * 1000 / 10000 + pot * 4000 / 10000;
+    let dust = pot - winner_payout - platform - base_rollover;
+    assert!(dust > 0);
+    let final_ledger = ledger(&game).await?;
+    assert_eq!(amount(&final_ledger, "round_pots")?, 0);
+    assert_eq!(amount(&final_ledger, "open_stakes")?, STAKE);
+    assert_eq!(amount(&final_ledger, "claimable")?, winner_payout);
+    assert_eq!(amount(&final_ledger, "platform_accrued")?, platform);
+    assert_eq!(amount(&final_ledger, "carry")?, base_rollover + dust);
+    assert_eq!(winner_payout + platform + base_rollover + dust, pot);
+    let claimable: String = game
+        .view("get_claimable")
+        .args_json(json!({"mode":0,"round_id":0,"account":winner.id()}))
+        .await?
+        .json()?;
+    assert_eq!(claimable.parse::<u128>()?, winner_payout + STAKE);
+    for actor in &actors[..7] {
+        let value: String = game
+            .view("get_claimable")
+            .args_json(json!({"mode":0,"round_id":0,"account":actor.id()}))
+            .await?
+            .json()?;
+        assert_eq!(value, "0");
+    }
+    let prior = credit(&game, winner).await?;
+    let paid: String = winner
+        .call(game.id(), "claim")
+        .args_json(json!({"mode":0,"round_id":0}))
+        .max_gas()
+        .transact()
+        .await?
+        .json()?;
+    assert_eq!(paid.parse::<u128>()?, winner_payout + STAKE);
+    assert_eq!(credit(&game, winner).await? - prior, winner_payout + STAKE);
+    let claimed = ledger(&game).await?;
+    assert_eq!(amount(&claimed, "open_stakes")?, 0);
+    assert_eq!(amount(&claimed, "claimable")?, 0);
+    assert_eq!(
+        amount(&claimed, "credit")? - amount(&final_ledger, "credit")?,
+        winner_payout + STAKE
+    );
+    let duplicate = winner
+        .call(game.id(), "claim")
+        .args_json(json!({"mode":0,"round_id":0}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()
+        .expect_err("duplicate claim");
+    assert!(format!("{duplicate:?}").contains("E56"));
+    println!(
+        "SWEEP fixture: 21 unrevealed, one correct, eight distinct 64-character accounts, one-yocto seed, dust={dust}; local MOCK OutLayer only"
     );
     Ok(())
 }
@@ -641,6 +1066,7 @@ async fn main() -> Res<()> {
         credit(&game, &alice).await? - before,
         152_800_000_000_000_000_000_000
     );
+    sweep_fixture(&worker, &rule).await?;
     println!(
         "GAS units: 1 Tgas = {TGAS} gas; prepaid_action_gas is allocation, burnt_gas is consumption, outgoing IDs are not gas consumption."
     );

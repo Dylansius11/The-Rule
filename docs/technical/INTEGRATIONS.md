@@ -69,7 +69,7 @@ Every command below is **planned, not run**, unless it shows an observed result.
 
 ### Local callback gas proof recipe
 
-Run `make gas` in WSL. It rebuilds local, non-reproducible game/token artifacts and deploys only to an isolated sandbox with MOCK OutLayer; it does not spend testnet NEAR. The executable requires the WSL `curl` binary to query the sandbox's own receipt/status RPC, matches function-call receipt ids and executors, and fails if an expected callback is missing or failed. Prepaid action gas, burnt gas and outgoing receipt ids are distinct quantities.
+Run `make gas` in WSL. It rebuilds local, non-reproducible game/token artifacts and deploys only to an isolated sandbox with MOCK OutLayer; it does not spend testnet NEAR. The reporter uses a 64-character account and a two-literal rule, traces contextual YES plus mint, and distinguishes a genuine expected E52 mint failure from its successful allowance-restoring callback. It asserts exact debits, allowance, log/supply, pot and claim amounts. The WSL `curl` binary queries actual receipt/status RPC; receipt identity, predecessor, executor, expected status and configured gas allocation are checked. Missing or unexpected callbacks fail. Prepaid action gas, burnt gas and outgoing receipt ids are distinct quantities.
 
 This recipe does not establish real OutLayer latency/charges, production artifact provenance or maximum-state/whole-system callback liveness. See SMART-CONTRACT for dated observed measurements and B6 for the remaining proof gates.
 

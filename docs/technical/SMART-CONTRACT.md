@@ -369,13 +369,20 @@ These tests complement existing T-PLAY/T-CB native and sandbox coverage; they do
 | `on_guess`, wrong | 60 | 2.754 |
 | `on_guess`, correct | 60 | 2.759 |
 | `on_open`, valid settlement | 60 | 2.375 |
-| `finalize`, 20 unrevealed commits, no open yet | 300 | 8.725 |
+| `finalize`, 20 unrevealed commits, no open yet | 300 | 8.729 |
 | `finalize`, one unrevealed remainder + one Correct commit, schedules open | 300 | 3.682 |
-| `on_open`, sweep fixture settlement with rounding dust | 60 | 2.382 |
+| `finalize`, 19 unrevealed + one Correct commit, no open yet | 300 | 8.603 |
+| `finalize`, final 20 unrevealed commits and open scheduling together | 300 | 9.931 |
+| `on_open`, either sweep fixture settlement with rounding dust | 60 | 2.382 |
 
-Mint and `on_mint` each receive 10 Tgas from the verdict callback's budget; burnt gas alone is not the remaining budget available to schedule them. The guard requires 25 Tgas remaining at its check, which the receipt does not expose directly. These heavier reachable Solo samples completed at configured gas, but do not prove maxima over numeric widths, every callback variant, a final full 20-unrevealed batch combined with open scheduling, retained rounds, Team or real OutLayer. Request-side totals may exclude detached receipts and are not callback totals. Earlier evidence: `scratch/callback-gas-peaks.log`; latest gas executable: `scratch/b6-sweep-gas-runtime.log`.
+Mint and `on_mint` each receive 10 Tgas from the verdict callback's budget; burnt gas alone is not the remaining budget available to schedule them. The guard requires 25 Tgas remaining at its check, which the receipt does not expose directly. These heavier reachable Solo samples completed at configured gas, including a full final 20-unrevealed batch with open scheduling, but do not prove maxima over numeric widths, every callback variant, retained rounds, Team or real OutLayer. Request-side totals may exclude detached receipts and are not callback totals. Earlier evidence: `scratch/callback-gas-peaks.log` and `scratch/b6-sweep-gas-runtime.log`; latest gas executable: `scratch/b6-final-batch-gas-runtime.log`.
 
-The added isolated deployment holds 21 unrevealed commits across seven distinct 64-character accounts and a later correct commit from an eighth. The first `finalize` refunds exactly 20 half-stakes, adds their other halves to the pot, leaves the remainder Committed, stays in Reveal and makes no open request. The next call sweeps only that remainder, preserves the Correct stake and requests open exactly once. Actual initiating action receipts are traced separately from `on_open`. Per-owner credit, aggregate credit/stakes/pot conservation, the winner's payout plus returned stake, zero-share rollover, one-yocto split dust and E56 on a duplicate claim all passed. This is a normal-budget local runtime proof with MOCK OutLayer, not a callback gas maximum or a live-balance proof.
+Two isolated deployments exercise the sweep boundary with actual local game/token wasm and MOCK OutLayer:
+
+- **Short remainder:** 21 unrevealed commits across seven distinct 64-character accounts, followed by a Correct commit from an eighth. The first `finalize` refunds exactly 20 half-stakes, leaves the remainder Committed, stays in Reveal and requests no open. The second sweeps only the remainder, preserves the Correct stake and opens exactly once.
+- **Full final batch:** 39 unrevealed commits across thirteen distinct 64-character accounts, with a fourteenth account's Correct commit at sequence 19. The first `finalize` refunds 19 half-stakes and skips the Correct commit without opening. The second processes sequences 20 through 39: exactly 20 half-stake refunds and pot additions plus open scheduling in the same initiating receipt. Its observed burnt gas was 9,931,066,281,855 against 300,000,000,000,000 allocated gas; `on_open` separately burnt 2,382,993,042,373 against 60,000,000,000,000.
+
+Both deployments check every commit's status and owner, exact per-owner credit, aggregate credit/stakes/pot conservation before opening, one open request, the winning account and revealed rule, exact winner/platform/carry partitions, zero-share rollover, exactly one yocto of split dust, returned winning stake and E56 on a duplicate claim. Actual initiating action receipts are traced separately from `on_open`. These are normal-budget local runtime proofs, not a numeric-maximum gas bound, whole-system live-balance proof or testnet evidence. No production contract logic, gas configuration or economic defaults changed.
 
 ### Local token failure report (2026-11-05)
 

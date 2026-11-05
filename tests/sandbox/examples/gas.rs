@@ -314,9 +314,14 @@ async fn ledger(game: &Contract) -> Res<Value> {
     Ok(game.view("get_ledger").await?.json()?)
 }
 
-// Separate deployment and round: 21 unrevealed commits and one correct commit.
-// Seven independent 64-character actors each hold three unrevealed commits.
-async fn sweep_fixture(worker: &Worker<Sandbox>, rule: &rule_core::CanonicalRule) -> Res<()> {
+// Separate deployments preserve the short remainder case and exercise a full final
+// batch. Each losing actor holds at most three commits; all account ids are 64 bytes.
+async fn sweep_fixture(
+    worker: &Worker<Sandbox>,
+    rule: &rule_core::CanonicalRule,
+    unrevealed: usize,
+    winner_seq: usize,
+) -> Res<()> {
     const STAKE: u128 = 100_000_000_000_000_000_000_000;
     const RETURNED: u128 = STAKE / 2;
     let mock = worker
@@ -374,8 +379,9 @@ async fn sweep_fixture(worker: &Worker<Sandbox>, rule: &rule_core::CanonicalRule
     let root = worker.root_account()?;
     let name_len = 64 - root.id().as_str().len() - 1;
     let mut actors = Vec::new();
-    for i in 0..8 {
-        let prefix = format!("sweep{i}");
+    let losing_actors = unrevealed.div_ceil(3);
+    for i in 0..=losing_actors {
+        let prefix = format!("sweep{unrevealed}-{i}");
         let name = format!("{prefix}{}", "x".repeat(name_len - prefix.len()));
         let actor = root
             .create_subaccount(&name)
@@ -394,21 +400,7 @@ async fn sweep_fixture(worker: &Worker<Sandbox>, rule: &rule_core::CanonicalRule
         actors.push(actor);
     }
     let storage = amount(&config, "storage_charge_per_play")?;
-    for actor in &actors[..7] {
-        let before = credit(&game, actor).await?;
-        for _ in 0..3 {
-            let ack: Value = actor
-                .call(game.id(), "commit_guess")
-                .args_json(json!({"mode":0,"hash":"00".repeat(32)}))
-                .max_gas()
-                .transact()
-                .await?
-                .json()?;
-            assert_eq!(amount(&ack, "stake")?, STAKE);
-        }
-        assert_eq!(before - credit(&game, actor).await?, 3 * (STAKE + storage));
-    }
-    let winner = &actors[7];
+    let winner = &actors[losing_actors];
     let player: Value = game
         .view("get_player")
         .args_json(json!({"account":winner.id()}))
@@ -425,29 +417,55 @@ async fn sweep_fixture(worker: &Worker<Sandbox>, rule: &rule_core::CanonicalRule
         guess: rule,
         salt: &[9u8; 32],
     }))?;
-    let ack: Value = winner
-        .call(game.id(), "commit_guess")
-        .args_json(json!({"mode":0,"hash":hash}))
-        .max_gas()
-        .transact()
-        .await?
-        .json()?;
-    assert_eq!(ack["commit_seq"], 21);
-    assert_eq!(amount(&ack, "stake")?, STAKE);
+    let mut initial_credits = Vec::new();
+    for actor in &actors {
+        initial_credits.push(credit(&game, actor).await?);
+    }
+    let mut owners = Vec::new();
+    for seq in 0..=unrevealed {
+        let owner = if seq == winner_seq {
+            losing_actors
+        } else {
+            (seq - usize::from(seq > winner_seq)) / 3
+        };
+        let ack: Value = actors[owner]
+            .call(game.id(), "commit_guess")
+            .args_json(json!({
+                "mode":0,
+                "hash":if seq == winner_seq { hash.clone() } else { json!("00".repeat(32)) }
+            }))
+            .max_gas()
+            .transact()
+            .await?
+            .json()?;
+        assert_eq!(ack["commit_seq"], seq);
+        assert_eq!(amount(&ack, "stake")?, STAKE);
+        owners.push(owner);
+    }
+    for (i, actor) in actors.iter().enumerate() {
+        let count = owners.iter().filter(|&&owner| owner == i).count() as u128;
+        assert_eq!(
+            initial_credits[i] - credit(&game, actor).await?,
+            count * (STAKE + storage)
+        );
+    }
     worker.fast_forward(5).await?;
-    let reveal = winner.call(game.id(), "reveal_guess").args_json(json!({"mode":0,"commit_seq":21,"guess":serde_json::to_value(RuleHex(rule.clone()))?,"salt":"09".repeat(32)})).gas(Gas::from_tgas(300)).transact_async().await?;
+    let reveal = winner.call(game.id(), "reveal_guess").args_json(json!({"mode":0,"commit_seq":winner_seq,"guess":serde_json::to_value(RuleHex(rule.clone()))?,"salt":"09".repeat(32)})).gas(Gas::from_tgas(300)).transact_async().await?;
     wait_requests(&mock, 2).await?;
     resolve_checked(&mock, 1, json!({"correct":true}), false).await?;
     tokio::time::timeout(Duration::from_secs(30), reveal)
         .await??
         .into_result()?;
-    wait_status(&game, 21, "Correct").await?;
+    wait_status(&game, winner_seq, "Correct").await?;
     let mut before_credits = Vec::new();
     for actor in &actors {
         before_credits.push(credit(&game, actor).await?);
     }
     let before = ledger(&game).await?;
-    assert_eq!(amount(&before, "open_stakes")?, 22 * STAKE);
+    assert_eq!(
+        amount(&before, "open_stakes")?,
+        (unrevealed as u128 + 1) * STAKE
+    );
     assert_eq!(amount(&before, "round_pots")?, 1);
     let deadline = round(&game).await?["reveal_deadline_ns"]
         .as_u64()
@@ -474,26 +492,23 @@ async fn sweep_fixture(worker: &Worker<Sandbox>, rule: &rule_core::CanonicalRule
         .gas(Gas::from_tgas(300))
         .transact()
         .await?;
-    let tx = request("sweep first 20", &first)?;
+    let tx = request(&format!("sweep {unrevealed}: first 20 records"), &first)?;
     finalize_action(worker, &tx, winner.id().as_str(), &game).await?;
     let result: Option<u64> = first.json()?;
     assert_eq!(result, None);
     let rows = commits(&game).await?;
-    assert_eq!(rows.len(), 22);
+    assert_eq!(rows.len(), unrevealed + 1);
     for (i, row) in rows.iter().enumerate() {
         assert_eq!(amount(row, "stake")?, STAKE);
-        assert_eq!(
-            row["actor"],
-            actors[if i < 21 { i / 3 } else { 7 }].id().as_str()
-        );
+        assert_eq!(row["actor"], actors[owners[i]].id().as_str());
         assert_eq!(
             row["status"],
-            if i < 20 {
-                "Unrevealed"
-            } else if i == 20 {
-                "Committed"
-            } else {
+            if i == winner_seq {
                 "Correct"
+            } else if i < 20 {
+                "Unrevealed"
+            } else {
+                "Committed"
             }
         );
     }
@@ -501,20 +516,25 @@ async fn sweep_fixture(worker: &Worker<Sandbox>, rule: &rule_core::CanonicalRule
     let count: String = mock.view("request_count").await?.json()?;
     assert_eq!(count, "2", "first batch must not request open");
     let after_first = ledger(&game).await?;
-    assert_eq!(amount(&after_first, "open_stakes")?, 2 * STAKE);
-    assert_eq!(amount(&after_first, "round_pots")?, 1 + 20 * RETURNED);
+    let first_swept = 20 - u128::from(winner_seq < 20);
+    let remaining = unrevealed as u128 - first_swept;
+    assert_eq!(
+        amount(&after_first, "open_stakes")?,
+        (remaining + 1) * STAKE
+    );
+    assert_eq!(
+        amount(&after_first, "round_pots")?,
+        1 + first_swept * RETURNED
+    );
     assert_eq!(
         amount(&after_first, "credit")? - amount(&before, "credit")?,
-        20 * RETURNED
+        first_swept * RETURNED
     );
     for (i, actor) in actors.iter().enumerate() {
-        let swept = if i < 6 {
-            3
-        } else if i == 6 {
-            2
-        } else {
-            0
-        };
+        let swept = owners[..20]
+            .iter()
+            .filter(|&&owner| owner == i && owner != losing_actors)
+            .count() as u128;
         assert_eq!(
             credit(&game, actor).await? - before_credits[i],
             swept * RETURNED
@@ -540,14 +560,13 @@ async fn sweep_fixture(worker: &Worker<Sandbox>, rule: &rule_core::CanonicalRule
     assert_eq!(opening["phase"], "Opening");
     let pending = ledger(&game).await?;
     assert_eq!(amount(&pending, "open_stakes")?, STAKE);
-    assert_eq!(amount(&pending, "round_pots")?, 1 + 21 * RETURNED);
     assert_eq!(
-        amount(&pending, "credit")? - amount(&after_first, "credit")?,
-        RETURNED
+        amount(&pending, "round_pots")?,
+        1 + unrevealed as u128 * RETURNED
     );
     assert_eq!(
-        credit(&game, &actors[6]).await? - before_credits[6],
-        3 * RETURNED
+        amount(&pending, "credit")? - amount(&after_first, "credit")?,
+        remaining * RETURNED
     );
     assert_eq!(
         amount(&after_first, "credit")?
@@ -560,12 +579,25 @@ async fn sweep_fixture(worker: &Worker<Sandbox>, rule: &rule_core::CanonicalRule
     for (i, actor) in actors.iter().enumerate() {
         assert_eq!(
             credit(&game, actor).await? - before_credits[i],
-            if i < 7 { 3 * RETURNED } else { 0 }
+            owners
+                .iter()
+                .filter(|&&owner| owner == i && owner != losing_actors)
+                .count() as u128
+                * RETURNED
         );
     }
     let rows = commits(&game).await?;
-    assert_eq!(rows[20]["status"], "Unrevealed");
-    assert_eq!(rows[21]["status"], "Correct");
+    assert_eq!(rows.len(), unrevealed + 1);
+    for (seq, row) in rows.iter().enumerate() {
+        assert_eq!(
+            row["status"],
+            if seq == winner_seq {
+                "Correct"
+            } else {
+                "Unrevealed"
+            }
+        );
+    }
     let open_request: Value = mock
         .view("get_request")
         .args_json(json!({"id":2}))
@@ -583,7 +615,10 @@ async fn sweep_fixture(worker: &Worker<Sandbox>, rule: &rule_core::CanonicalRule
     )
     .await?;
     let second = tokio::time::timeout(Duration::from_secs(30), second).await??;
-    let tx = request("sweep remainder and open", &second)?;
+    let tx = request(
+        &format!("sweep {unrevealed}: final {remaining} unrevealed and open"),
+        &second,
+    )?;
     finalize_action(worker, &tx, winner.id().as_str(), &game).await?;
     let result: Option<u64> = second.json()?;
     assert_eq!(result, Some(2));
@@ -602,12 +637,12 @@ async fn sweep_fixture(worker: &Worker<Sandbox>, rule: &rule_core::CanonicalRule
     assert_eq!(settled["phase"], "Settled");
     assert_eq!(settled["outcome"]["account"], winner.id().as_str());
     assert_eq!(settled["rule"], serde_json::to_value(rule)?);
-    let pot = 1 + 21 * RETURNED;
+    let pot = 1 + unrevealed as u128 * RETURNED;
     let winner_payout = pot * 4000 / 10000;
     let platform = pot * 1000 / 10000;
     let base_rollover = pot * 1000 / 10000 + pot * 4000 / 10000;
     let dust = pot - winner_payout - platform - base_rollover;
-    assert!(dust > 0);
+    assert_eq!(dust, 1);
     let final_ledger = ledger(&game).await?;
     assert_eq!(amount(&final_ledger, "round_pots")?, 0);
     assert_eq!(amount(&final_ledger, "open_stakes")?, STAKE);
@@ -621,7 +656,7 @@ async fn sweep_fixture(worker: &Worker<Sandbox>, rule: &rule_core::CanonicalRule
         .await?
         .json()?;
     assert_eq!(claimable.parse::<u128>()?, winner_payout + STAKE);
-    for actor in &actors[..7] {
+    for actor in &actors[..losing_actors] {
         let value: String = game
             .view("get_claimable")
             .args_json(json!({"mode":0,"round_id":0,"account":actor.id()}))
@@ -656,7 +691,8 @@ async fn sweep_fixture(worker: &Worker<Sandbox>, rule: &rule_core::CanonicalRule
         .expect_err("duplicate claim");
     assert!(format!("{duplicate:?}").contains("E56"));
     println!(
-        "SWEEP fixture: 21 unrevealed, one correct, eight distinct 64-character accounts, one-yocto seed, dust={dust}; local MOCK OutLayer only"
+        "SWEEP fixture: {unrevealed} unrevealed, one correct at seq={winner_seq}, {} distinct 64-character accounts, final_unrevealed={remaining}, one-yocto seed, dust={dust}; local MOCK OutLayer only",
+        actors.len()
     );
     Ok(())
 }
@@ -1066,7 +1102,8 @@ async fn main() -> Res<()> {
         credit(&game, &alice).await? - before,
         152_800_000_000_000_000_000_000
     );
-    sweep_fixture(&worker, &rule).await?;
+    sweep_fixture(&worker, &rule, 21, 21).await?;
+    sweep_fixture(&worker, &rule, 39, 19).await?;
     println!(
         "GAS units: 1 Tgas = {TGAS} gas; prepaid_action_gas is allocation, burnt_gas is consumption, outgoing IDs are not gas consumption."
     );

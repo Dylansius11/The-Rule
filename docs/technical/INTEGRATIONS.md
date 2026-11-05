@@ -73,6 +73,10 @@ Run `make gas` in WSL. It rebuilds local, non-reproducible game/token artifacts 
 
 This recipe does not establish real OutLayer latency/charges, production artifact provenance or maximum-state/whole-system callback liveness. See SMART-CONTRACT for dated observed measurements and B6 for the remaining proof gates.
 
+### Local storage funding proof recipe
+
+Run `make storage` in WSL. It rebuilds local artifacts and uses only an isolated sandbox with MOCK OutLayer. The executable fails on sampled retained-storage underfunding and reports transient/operator liquidity separately. Corrected sandbox charges use the existing production allowances; measured samples are not maximum-state or concurrency bounds. See SMART-CONTRACT for the observed byte counts and B6 for the remaining storage gates.
+
 ### 3. Referee hosting (P0.4, P2.2)
 
 1. **Docs [V]:** WasmUrl must be HTTPS on port 443 and a public address; the worker hashes the bytes and refuses a mismatch ([near-integration](https://app.outlayer.ai/docs/near-integration)). OutLayer source at commit `aaf60a26` follows at most 3 redirects, re-validates HTTPS, and caps wasm at 10 MiB ([compiler/mod.rs](https://raw.githubusercontent.com/out-layer/outlayer/aaf60a26855e30bc3318126382903df92dea7d3d/worker/src/compiler/mod.rs)). The [dev guide](https://app.outlayer.ai/docs/dev-guide) shows `outlayer upload <file>` returning `https://test.fastfs.io/<account>/outlayer.testnet/<sha256>.wasm`.

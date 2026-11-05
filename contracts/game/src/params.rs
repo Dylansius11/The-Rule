@@ -11,10 +11,11 @@ const MINUTE: u64 = 60_000_000_000;
 const HOUR: u64 = 60 * MINUTE;
 
 /// Fill the published production economics; deployment-specific fields are retained.
-/// [I] Provisional storage allowances: 160 bytes per account and 768 per play
-/// include headroom over one observed 109-byte account, 82-byte entity record,
-/// and 420-byte first solo play. The 500-byte team estimate is from the
-/// specification, not a measured or derived maximum; re-measure in P4.
+/// [I] Provisional allowances: 160 bytes per account and 768 per play/commit/lock.
+/// A 64-character account used 135 bytes; sampled first YES + entity used 472,
+/// repeat YES 426, first commit + entity 276 and lock 130 (local sandbox 2026-11-05).
+/// These are not all-state/concurrency bounds. The 500-byte team estimate is
+/// from the specification, not a measured maximum; re-measure in P4.
 pub fn production_defaults(mut params: Params) -> Params {
     params.play_fee = Amount(NEAR / 100);
     params.fee_split_bps = [8000, 1500, 500];

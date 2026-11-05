@@ -14,6 +14,12 @@ Read the headlines before work. Record actual surprises from this project only, 
 - **Root cause:** an invalid receipt never creates the intended stalled operation; height advancement was not sufficient evidence of elapsed timestamp time in this sandbox run.
 - **Rule:** distinguish each fault. The successful local smoke used positive starved callback gas and an explicitly patched request deadline, then verified full one-time refund and withdrawal. Native tests cover the exact ten-minute boundary; never describe the patched smoke as ten elapsed minutes or testnet evidence.
 
+### 2026-11-05: sandbox storage charges must be checked against retained growth
+
+- **What happened:** the storage executable failed seven checks with the old 100-byte allowances. A 64-character player used 135 bytes and the first settled YES plus entity used 472. Re-running with the existing production allowances of 160/768 bytes covered all sampled retained growth; production defaults were not raised.
+- **Root cause:** the sandbox fixture's small round numbers exercised state transitions without funding the state they retained. Large sandbox account balances masked the shortfall.
+- **Rule:** check actual storage deltas against charges, test maximum legal account length, and separate retained charges from transient/operator liquidity. Samples are not worst-case concurrency bounds or a deploy budget.
+
 ### 2026-11-05: token registration refunds cannot identify a new registration
 
 - **What happened:** the pre-freeze regression showed an already-registered token user losing 1,000 yocto of game credit (`998900` instead of `999900`) when game-funded `storage_deposit` succeeded.

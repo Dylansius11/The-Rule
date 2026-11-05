@@ -141,7 +141,7 @@ Visual design is blocked on founder references (B1). These contracts fix only wh
 
 All numbers are params fixed at deployment (SMART-CONTRACT, Params). They are illustrative testnet settings, not forecasts. Pot conservation holds in every branch: `pot = winner + contributors + rollover + platform`, with dust going to rollover. Compute float, storage charges, stakes and credit are separate ledgers.
 
-- **Per play:** 0.01 NEAR fee (0.008 pot, 0.0015 compute float, 0.0005 platform) plus a storage charge (est. 0.0013 NEAR, measured in P2.4).
+- **Per play:** 0.01 NEAR fee (0.008 pot, 0.0015 compute float, 0.0005 platform), plus the existing provisional 0.00768 NEAR storage allowance (768 bytes), not the earlier 0.0013 estimate. Local P2.4 samples fit this allowance; worst-case/concurrency sizing is still B6. This is not a finalized deploy quote.
 - **Compute check [V, live views 2026-11-04]:** OutLayer base 0.001 NEAR + 0.0000001 NEAR per requested ms, so a 5 s verdict limit attaches about 0.0015 NEAR before refunds. The 15% compute share is tight. If T4 shows actual cost above about 0.0012 NEAR per verdict, the split moves to 80/10/10 or the limit drops (D3).
 - **Who earns:** the solver (40% + its own shares), every unique play (40% shared), the next round (10% or 50%), the platform (5% of fees + 10% of the pot).
 - **Spam does not pay:** each share costs at least 0.01 NEAR, of which 0.008 goes to the pot. A share pays at most `0.4 * pot / shares`. Contributing is profitable only when a large rollover is shared by few plays, which is the intended jackpot incentive and is public.

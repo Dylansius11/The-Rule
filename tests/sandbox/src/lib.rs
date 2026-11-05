@@ -27,7 +27,7 @@ pub fn params(outlayer: &str) -> Value {
     let limits = json!({"instructions":1000000000,"memory_mb":128,"execution_seconds":5});
     json!({
         "play_fee":"10000000000000000000000","fee_split_bps":[8000,1500,500],
-        "storage_charge_per_play":"1000000000000000000000","storage_charge_account":"1000000000000000000000","storage_charge_team":"1000000000000000000000",
+        "storage_charge_per_play":"7680000000000000000000","storage_charge_account":"1600000000000000000000","storage_charge_team":"5000000000000000000000",
         "stake_bps":[100,200],"stake_min":"100000000000000000000000","wrong_return_bps":5000,
         "solved_split_bps":[4000,4000,1000,1000],"unsolved_split_bps":[4000,5000,1000],
         "genesis_ns":0,"round_period_ns":86400000000000u64,"mode_offset_ns":[0,0],

@@ -38,8 +38,8 @@ The game account name is compiled into the referee manifest (`callers.contract.o
 | --- | --- | --- | --- |
 | `play_fee` | 0.01 NEAR | 0.01 NEAR | D3 |
 | `fee_split_bps` pot / compute / platform | 8000 / 1500 / 500 | same | D3; 80/10/10 only after T4 data and a new deployment |
-| `storage_charge_per_play` | measured in P2.4, est. 0.0013 NEAR | same | Separate line item. It is not pot money (see invariant I2) |
-| `storage_charge_account` / `storage_charge_team` | measured in P2.4, est. 0.003 / 0.005 NEAR | same | Charged once from the first deposit or team creation into `storage_reserve` |
+| `storage_charge_per_play` | provisional 0.00768 NEAR (768 bytes) | same | Separate retained charge for play/commit/lock records; covers local samples, not all-state/concurrency proof (B6). Not pot money |
+| `storage_charge_account` / `storage_charge_team` | provisional 0.0016 / 0.005 NEAR (160 / 500 bytes) | same | First deposit / team creation into `storage_reserve`; 135-byte maximum-length account sample observed; Team estimate unmeasured |
 | `stake_bps` solo / team | 100 / 200 | same | D10; of the pot at commit |
 | `stake_min` | 0.1 NEAR | 0.1 NEAR | D10 |
 | `wrong_return_bps` | 5000 | same | D11; the other half goes to the pot |
@@ -336,6 +336,25 @@ Local contract builds use the workspace `release` profile (`opt-level="z"`, LTO,
 
 The ACCEPT trace includes separate successful token-mint and `on_mint` receipts. Their 10 + 10 Tgas allocations come from the verdict callback's budget; burnt gas alone is not the budget available for scheduling them. The guard requires 25 Tgas remaining at its check, but exact remaining gas there is not exposed by the receipt. This sampled path succeeds at the configured 60 Tgas; it is not a maximum-state or real OutLayer gas proof. Request-side transaction totals printed by the harness may exclude delayed receipts and must not be relabeled callback totals.
 
+### Local sandbox storage report (2026-11-05)
+
+`make storage` exercises 64-character player ids with the real game/token wasm and MOCK OutLayer. Account-level `storage_usage` is authoritative; per-prefix key/value plus 40-byte record-overhead totals are diagnostics. Observed storage cost was `10^19` yoctoNEAR/byte. The initial 100-byte sandbox charges failed seven retained-growth checks; the fixture now uses the existing production allowances (160 bytes/account, 768 bytes/play/commit/lock), without changing the production economics.
+
+| Retained state added | Observed bytes | Configured charge in byte-equivalents |
+| --- | --- | --- |
+| Player, 64-character account | 135 | 160 |
+| First YES + entity, mint complete | 472 | 768 |
+| Later NO with previous YES | 408 | 768 |
+| Repeat YES, mint complete | 426 | 768 |
+| New lock | 130 | 768 |
+| Lock top-up | 0 | 0 |
+| First commit + entity | 276 | 768 |
+| Repeat commit | 188 | 768 |
+
+All sampled retained charges covered their growth on the corrected run. Observed pending deltas were 367 bytes for the first verdict request, 318 for later verdict requests and 67 for a checking guess; they require operator liquidity while pending. Failed play/guess paths removed their transient storage. These are individual observations, not a bound on concurrent pending requests, token callback/replacement peaks or round-state growth.
+
+The harness serializes the actual typed `LogRow` at independent type maxima and reports a conservative 442-byte bound for that map entry (including string length, key and record overhead). It does not claim those maxima coexist in a reachable round. Maximum-state sequences, all callback peaks, round/operator reserves and Team storage remain B6/P4 work.
+
 Local no-ABI artifact sizes below are non-reproducible sandbox observations, not freeze hashes or evidence of a deployment.
 
 | Artifact | Bytes |
@@ -367,7 +386,7 @@ No formal verification is claimed. The equivalence checker is tested by differen
 
 ## Deployment and measured costs
 
-**Contracts: none deployed yet.** Observed on NEAR testnet, 2026-11-04 (operator: lead, via near-cli-rs 0.30.1, wasm hash and gas fields get added when contracts exist):
+**Real game/token contracts: none deployed yet.** Phase 0 probe contracts are deployed (evidence below). Initial account creation was observed on NEAR testnet, 2026-11-04 (operator: lead, via near-cli-rs 0.30.1):
 
 | Account | Created by | Funding | Transaction |
 | --- | --- | --- | --- |
@@ -377,6 +396,8 @@ No formal verification is claimed. The equivalence checker is tested by differen
 | `keeper.therule.testnet` | `therule.testnet` | 1 NEAR | `G1MLWbYzRoyPf1s4JRGj9bURmELBjW6bt7yCDjHPDSXg` |
 
 Balances read right after creation: parent 4.978655 NEAR, probe-game 3.5, probe-other 0.5, keeper 1. Further entries record network, account, transaction hash, block, wasm sha256, gas burnt, OutLayer charge and refund, each with date. Expected next entries: Phase 0 probe contract and referee probe (BUILD-PLAN P0.4 to P0.8).
+
+**Funding observation [V], 2026-11-05:** read-only `view_account` at final block `276301560` (`HpVtq3HosG5kZNLZqbUaHUMeb4fCtxYGVRBLHs55dt8V`) returned parent balance `19978655031387500000000000` yoctoNEAR (**19.9786550313875 NEAR**), locked balance `0`, storage usage `182` bytes and no deployed code. This is 15 NEAR above the prior balance at block `276300202`. The incoming transaction was not inspected; this is a balance observation, not a transfer receipt or authorization to spend. Rehearsal budget still needs final artifacts and live compute estimates (B2).
 
 ### Phase 0 probe evidence (testnet, 2026-11-04, probe contract and probe referee, not the game)
 

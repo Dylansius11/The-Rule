@@ -25,6 +25,11 @@ async fn commit_reveal_refund_and_freeze_through_the_mock_referee() -> Res<()> {
     let salt_hex = "09".repeat(32);
     let hash = commit_hash(&game, &alice, &rule, salt);
     let before = credit(&game, &alice).await?;
+    let config: Value = game.view("get_params").await?.json()?;
+    let storage: u128 = config["storage_charge_per_play"]
+        .as_str()
+        .unwrap()
+        .parse()?;
     for _ in 0..2 {
         let ack: Value = alice
             .call(game.id(), "commit_guess")
@@ -35,10 +40,10 @@ async fn commit_reveal_refund_and_freeze_through_the_mock_referee() -> Res<()> {
             .json()?;
         assert_eq!(ack["stake"], "100000000000000000000000");
     }
-    // stake 0.1 NEAR + storage charge 0.001 NEAR per commit
+    // Each commit pays its fixed stake and the configured storage charge.
     assert_eq!(
         before - credit(&game, &alice).await?,
-        2 * (100_000_000_000_000_000_000_000 + 1_000_000_000_000_000_000_000)
+        2 * (100_000_000_000_000_000_000_000 + storage)
     );
     worker.fast_forward(5).await?;
 

@@ -19,6 +19,11 @@ use near_sdk::store::LookupMap;
 use near_sdk::{AccountId, Gas, NearToken, PanicOnDefault, Promise, env, near};
 use protocol::{Grammar, Hex32, Mode, Params, RefereeRequest, RefereeResponse};
 use rule_core::{Play, Previous};
+
+// Fixed pre-freeze admission policy: keep two slots available to begin/open under user load.
+const MAX_PENDING_REFEREE_REQUESTS: u32 = 10;
+const USER_REFEREE_REQUEST_LIMIT: u32 = 8;
+
 /// `floor(amount * bps / 10_000)` without overflowing for any `u128` amount.
 fn bps(amount: u128, bps: u16) -> u128 {
     amount / 10_000 * u128::from(bps) + amount % 10_000 * u128::from(bps) / 10_000
@@ -229,6 +234,8 @@ pub struct ParamsView {
     #[serde(flatten)]
     params: Params,
     demo: bool,
+    max_pending_referee_requests: u32,
+    user_referee_request_limit: u32,
 }
 
 #[near(contract_state)]
@@ -241,6 +248,7 @@ pub struct Game {
     active_rounds: Vec<(u8, u32)>,
     carry: [u128; 2],
     pending: LookupMap<u64, Request>,
+    pending_referee_requests: u32,
     next_request_id: u64,
     compute_float: u128,
     players: LookupMap<AccountId, Player>,
@@ -407,6 +415,7 @@ impl Game {
             active_rounds: Vec::new(),
             carry: [0, 0],
             pending: LookupMap::new(b"p"),
+            pending_referee_requests: 0,
             next_request_id: 0,
             compute_float: 0,
             players: LookupMap::new(b"a"),
@@ -431,6 +440,8 @@ impl Game {
         ParamsView {
             params: self.params(),
             demo: self.demo,
+            max_pending_referee_requests: MAX_PENDING_REFEREE_REQUESTS,
+            user_referee_request_limit: USER_REFEREE_REQUEST_LIMIT,
         }
     }
 

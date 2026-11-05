@@ -47,9 +47,11 @@ fn expired_guess_refunds_stake_and_unblocks_finalization_without_late_winner() {
     fx.commit();
     fx.at(2, 1);
     let request = fx.reveal(0);
+    assert_eq!(fx.ledger()["pending_referee_requests"], 1);
     let checking_credit = fx.credit();
     fx.at(3, TIMEOUT + 1);
     assert!(fx.game.expire_request(request));
+    assert_eq!(fx.ledger()["pending_referee_requests"], 0);
     assert_eq!(status(&fx.commits()[0]), "Refunded");
     assert_eq!(fx.credit(), checking_credit + 100);
     assert_eq!(fx.round()["pending_checks"], 0);
@@ -83,16 +85,32 @@ fn begin_expiry_allows_retry_then_timeout_cancel_and_fences_the_old_response() {
     let mut game = Game::new(params(), true);
     game.seed_pot(Mode::Solo);
     let first = game.start_round(Mode::Solo);
+    assert_eq!(
+        near_sdk::serde_json::to_value(game.get_ledger()).unwrap()["pending_referee_requests"],
+        1
+    );
     ctx.block_timestamp(TIMEOUT);
     testing_env!(ctx.build());
     assert!(game.expire_request(first));
+    assert_eq!(
+        near_sdk::serde_json::to_value(game.get_ledger()).unwrap()["pending_referee_requests"],
+        0
+    );
     let retry = game.start_round(Mode::Solo);
+    assert_eq!(
+        near_sdk::serde_json::to_value(game.get_ledger()).unwrap()["pending_referee_requests"],
+        1
+    );
     let begin = near_sdk::serde_json::json!({"commit":"11".repeat(32),"header":{"tier":"daily","bucket":"rare","grammar":"22".repeat(32)}});
     deliver_env(
         &ctx,
         PromiseResult::Successful(begin.to_string().into_bytes()),
     );
     game.on_begin(first);
+    assert_eq!(
+        near_sdk::serde_json::to_value(game.get_ledger()).unwrap()["pending_referee_requests"],
+        1
+    );
     let round = near_sdk::serde_json::to_value(game.get_round(Mode::Solo, None)).unwrap();
     assert_eq!(round["phase"], "Sealing");
     assert_eq!(round["begin_status"], "pending");
@@ -113,8 +131,10 @@ fn open_expiry_allows_retry_or_cancel_but_not_a_late_settlement() {
         fx.run_to_finalize(10);
         let started = fx.ctx.build().block_timestamp;
         let request = fx.game.finalize(Mode::Solo).unwrap();
+        assert_eq!(fx.ledger()["pending_referee_requests"], 1);
         fx.at(11, started + TIMEOUT);
         assert!(fx.game.expire_request(request));
+        assert_eq!(fx.ledger()["pending_referee_requests"], 0);
         assert_eq!(fx.round()["open_status"], "failed");
         if cancel {
             fx.at(12, started + params().open_timeout_ns);
@@ -124,11 +144,14 @@ fn open_expiry_allows_retry_or_cancel_but_not_a_late_settlement() {
             assert_eq!(fx.round()["phase"], "Cancelled");
         } else {
             let retry = fx.game.retry_open(Mode::Solo, 0);
+            assert_eq!(fx.ledger()["pending_referee_requests"], 1);
             let result = fx.open_ok();
             fx.on_open(request, result);
+            assert_eq!(fx.ledger()["pending_referee_requests"], 1);
             assert_eq!(fx.round()["open_status"], "pending");
             let result = fx.open_ok();
             fx.on_open(retry, result);
+            assert_eq!(fx.ledger()["pending_referee_requests"], 0);
             assert_eq!(fx.round()["phase"], "Settled");
             assert!(!fx.game.expire_request(retry));
         }

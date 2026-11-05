@@ -151,6 +151,10 @@ impl Game {
             (r.commit_count, r.sweep_cursor)
         };
         near_sdk::require!(self.compute_float >= p.outlayer_deposit.open.0, "E22");
+        near_sdk::require!(
+            self.pending_referee_requests < MAX_PENDING_REFEREE_REQUESTS,
+            "E23"
+        );
         let end = count.min(cursor.saturating_add(SWEEP_BATCH));
         for i in cursor..end {
             let key = (m, id, i);
@@ -188,6 +192,10 @@ impl Game {
     /// Reserve the referee deposit, mark the open pending and send the request.
     fn send_open(&mut self, m: u8, id: u32, p: &Params) -> u64 {
         near_sdk::require!(self.compute_float >= p.outlayer_deposit.open.0, "E22");
+        near_sdk::require!(
+            self.pending_referee_requests < MAX_PENDING_REFEREE_REQUESTS,
+            "E23"
+        );
         let (seed, commit) = {
             let r = self.rounds.get(&(m, id)).expect("round vanished");
             (r.seed, r.commit.expect("opening round has a commitment"))
@@ -205,6 +213,7 @@ impl Game {
                 expires_at_ns: recovery::deadline(),
             },
         );
+        self.pending_referee_requests += 1;
         self.rounds
             .get_mut(&(m, id))
             .expect("round vanished")
@@ -258,9 +267,13 @@ impl Game {
     }
 
     pub(crate) fn finish_open(&mut self, request_id: u64, response: Option<RefereeResponse>) {
+        if !matches!(self.pending.get(&request_id), Some(Request::Open { .. })) {
+            return;
+        }
         let Some(Request::Open { mode, round, .. }) = self.pending.remove(&request_id) else {
             return;
         };
+        self.pending_referee_requests = self.pending_referee_requests.saturating_sub(1);
         let Some(r) = self.rounds.get_mut(&(mode, round)) else {
             return;
         };

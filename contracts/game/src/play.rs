@@ -73,6 +73,10 @@ impl Game {
         let entity_id = Entity::Solo(player.index);
         let entity_key = (m, id, entity_id);
         near_sdk::require!(self.compute_float >= p.outlayer_deposit.verdict.0, "E22");
+        near_sdk::require!(
+            self.pending_referee_requests < USER_REFEREE_REQUEST_LIMIT,
+            "E23"
+        );
         let seed = round.seed;
         let commit = round.commit.expect("missing commitment");
         let request_id = self.next_request_id;
@@ -106,6 +110,7 @@ impl Game {
                 expires_at_ns: recovery::deadline(),
             },
         );
+        self.pending_referee_requests += 1;
         let req = RefereeRequest::Verdict {
             g: Grammar::G1,
             chain: p.chain_id.clone(),
@@ -139,6 +144,9 @@ impl Game {
     }
 
     pub(crate) fn finish_verdict(&mut self, request_id: u64, parsed: Option<bool>) {
+        if !matches!(self.pending.get(&request_id), Some(Request::Verdict { .. })) {
+            return;
+        }
         let Some(Request::Verdict {
             mode,
             round,
@@ -153,6 +161,7 @@ impl Game {
         else {
             return;
         };
+        self.pending_referee_requests = self.pending_referee_requests.saturating_sub(1);
         let p = self.params();
         let amount = p.play_fee.0 + p.storage_charge_per_play.0;
         let parsed_play = serde_json::from_str::<Play>(&play).ok();

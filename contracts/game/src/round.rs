@@ -37,6 +37,10 @@ impl Game {
             .expect("E50");
         near_sdk::require!(now >= slot, "E50");
         near_sdk::require!(self.compute_float >= p.outlayer_deposit.begin.0, "E22");
+        near_sdk::require!(
+            self.pending_referee_requests < MAX_PENDING_REFEREE_REQUESTS,
+            "E23"
+        );
         let seed = if self.current[i] == Some(id) {
             self.rounds.get(&(m, id)).expect("missing round").seed
         } else {
@@ -94,6 +98,7 @@ impl Game {
                 expires_at_ns: recovery::deadline(),
             },
         );
+        self.pending_referee_requests += 1;
         let req = RefereeRequest::Begin {
             g: Grammar::G1,
             chain: p.chain_id.clone(),
@@ -122,9 +127,13 @@ impl Game {
     }
 
     pub(crate) fn finish_begin(&mut self, request_id: u64, response: Option<RefereeResponse>) {
+        if !matches!(self.pending.get(&request_id), Some(Request::Begin { .. })) {
+            return;
+        }
         let Some(Request::Begin { mode, round, .. }) = self.pending.remove(&request_id) else {
             return;
         };
+        self.pending_referee_requests = self.pending_referee_requests.saturating_sub(1);
         let params = self.params();
         let Some(r) = self.rounds.get_mut(&(mode, round)) else {
             return;

@@ -75,7 +75,7 @@ This recipe does not establish real OutLayer latency/charges, production artifac
 
 ### Local storage funding proof recipe
 
-Run `make storage` in WSL. It rebuilds local artifacts and uses only an isolated sandbox with MOCK OutLayer. The executable fails on sampled retained-storage underfunding and reports transient/operator liquidity separately. It also exercises two 64-character players with two verdicts and six Checking guesses pending, checks owner debits/refunds and request cleanup, then settles and starts another round with earlier state retained. Existing production allowances cover the observed retained records; request-only type bounds and sample concurrency are not whole-system reserve bounds. No global request cap exists yet. See SMART-CONTRACT for exact measurements and B6/D27 for the remaining gates.
+Run `make storage` in WSL. It rebuilds local artifacts and uses only an isolated sandbox with MOCK OutLayer. The executable fails on sampled retained-storage underfunding and reports transient/operator liquidity separately. It also exercises two 64-character players with two verdicts and six Checking guesses pending, checks owner debits/refunds and request cleanup, then settles and starts another round with earlier state retained. Existing production allowances cover the observed retained records; request-only type bounds and sample concurrency are not whole-system reserve bounds. D27 now caps locally tracked referee requests at 10, admitting new play/guess only below 8; token/payment requests and retained rounds are not globally capped by that policy. See SMART-CONTRACT for exact measurements and B6 for remaining gates.
 
 ### Local live-balance proof recipe
 

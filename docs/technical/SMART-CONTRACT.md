@@ -69,6 +69,12 @@ The game account name is compiled into the referee manifest (`callers.contract.o
 
 Initialization also rejects a mint base above the round allowance, callbacks below 60 Tgas, OutLayer calls below 100 Tgas, token calls below 10 Tgas, or callback-plus-outgoing sums above 250 Tgas (E11). These conservative local bounds leave headroom in a 300 Tgas initiating call; they do not constitute real OutLayer callback measurements or recovery from every possible callback failure. Whole-path gas proof and timeout recovery review remain pre-freeze work.
 
+**Referee admission (D27).** The game tracks at most 10 pending begin/verdict/guess/open requests across all modes and retained rounds. New plays and guess reveals require the tracked total to be below 8; begin/open can use the last two admissions, but reject at 10. These fixed pre-freeze limits are returned as `max_pending_referee_requests` and `user_referee_request_limit` by `get_params`; `get_ledger.pending_referee_requests` exposes the current count.
+
+Capacity rejection is E23, after ordinary validation but before credit/compute debits, status changes, sequence allocation, round creation or commit sweeping. It charges no game fee; transaction gas still applies. A settled duplicate still returns its free Known result even at capacity. A rejected reveal leaves its commit Committed and its original reveal deadline unchanged; callers must retry only while the normal deadline permits. There is no on-chain queue or automatic retry.
+
+Each matching referee callback or expiry consumes one request and releases exactly one admission, even on failure or a stale round. Duplicate, late and wrong-kind callbacks cannot release another request's slot. Token/payment requests do not count. Expiry only releases local tracking: an old OutLayer execution may still physically exist, so this is not a provider concurrency/SLA guarantee, a rate limit or a whole-system storage bound.
+
 ### Contract state (game)
 
 ```text
@@ -83,6 +89,7 @@ Game {
   log: LookupMap<RoundKey, Vector<LogRow>>          // settled verdicts, append-only, paged view
   seen: LookupMap<(RoundKey, u64 play_key), u32>    // play_key -> log index or PENDING
   pending: LookupMap<u64 request_id, Request>       // in-flight OutLayer calls
+  pending_referee_requests: u32                     // O(1) admission count, excludes token/payment
   commits: LookupMap<(RoundKey, u32 commit_seq), Commit>
   entity_round: LookupMap<(RoundKey, Entity), EntityRound> // attempts, shares, line, pending flag, locks
   seasons: LookupMap<(Mode, u32 season), SeasonBoard>
@@ -230,7 +237,7 @@ Expiry never restores compute already spent at OutLayer. Withdraw, platform paym
 | E20 | Insufficient credit or vault balance | E52 | Token: mint receiver is not registered |
 | E53 | Token: `storage_unregister(force=true)` rejected | E54 | Token: caller is not the minter |
 | E55 | Token: mint would exceed the cap | E56 | Nothing to claim (already claimed, no entry, or nothing owed) |
-| E57 | Token registration check already pending | | |
+| E57 | Token registration check already pending | E23 | Referee admission capacity reached; nothing charged |
 
 ### Payout formulas (exact integer arithmetic)
 
@@ -369,7 +376,7 @@ The extended executable passed two 64-character players holding one pending verd
 
 After one paid play, one frozen-play refund and five system-failed plus one correct guess, requests cleared and each owner's credit and retained storage charges reconciled. Retained growth was 433 bytes including freeze metadata; player prefixes used 413 bytes against one 768-byte paid-play charge. Opening/settling added 193 retained operator bytes in that sample; the next round retained another 340 bytes while the earlier round remained. No per-round user charge was assumed.
 
-Operator collateral must cover `byte_cost * max(0, total stored bytes - funded storage byte-equivalents)`, with retained rounds and all concurrent request/callback variants included. There is no global pending-request cap yet, so this sample cannot establish a fixed maximum concurrency reserve. D27's request-limit confirmation, complete sizing and Team remain open; neither 1,038 bytes nor a multiple of the two measured request sizes is a whole-system reserve quote.
+Operator collateral must cover `byte_cost * max(0, total stored bytes - funded storage byte-equivalents)`, with retained rounds and all concurrent request/callback variants included. D27 now caps tracked referee requests at 10, with user admission below 8; token/payment requests and retained rounds are not globally capped by it. Complete sizing and Team remain open; neither 1,038 bytes nor a multiple of the two measured request sizes is a whole-system reserve quote.
 
 Local no-ABI artifact sizes below are non-reproducible sandbox observations, not freeze hashes or evidence of a deployment.
 
@@ -407,7 +414,7 @@ Commands below are acceptance recipes, not blanket claims of completion; BUILD-P
 | Area | Cases (success, rejection, boundary) | Command |
 | --- | --- | --- |
 | T-ENC | Golden vectors for play key, canonical rule, commitments, commit preimage, referee I/O: identical bytes in native, contract, wasip2 and browser | `make vectors` |
-| T-PLAY | Fee and storage debit; insufficient credit E20; bad word E11; number 1000 E11; duplicate is free and stateless (I10); pending duplicate E12; second pending E13; attempt limit E14; compute float low E22 | `cargo test -p game` |
+| T-PLAY | Fee and storage debit; insufficient credit E20; bad word E11; number 1000 E11; duplicate is free and stateless (I10); pending duplicate E12; second pending E13; attempt limit E14; compute float low E22; full referee admission E23 with no state/debit effects and lifecycle room | native + sandbox |
 | T-CB | Valid verdict; `null` result refunds; promise error refunds; malformed JSON refunds; duplicate and late callback applied once (I6); callback after freeze refunds (I9) | `cargo test -p game`, sandbox |
 | T-GUESS | Stake floor and percentage; wrong reveal E19; reveal by another account E17; same-block reveal E18; out-of-order correct callbacks pick min `seq` (I5); wrong returns 50%; failure refunds 100% and blocks re-reveal; unrevealed is treated as wrong | unit + sandbox |
 | T-ROUND | Every transition in the state diagram and every forbidden transition; begin and open timeouts lead to Cancelled; mismatch leads to Void; schedule slot enforcement | unit + sandbox |

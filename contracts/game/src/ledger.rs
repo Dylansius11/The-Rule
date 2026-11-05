@@ -15,6 +15,7 @@ pub struct Ledger {
     storage_reserve: U128,
     locked_storage: U128,
     pending_credit: U128,
+    pending_referee_requests: u32,
 }
 
 impl Game {
@@ -34,6 +35,7 @@ impl Game {
                 u128::from(env::storage_usage()) * env::storage_byte_cost().as_yoctonear(),
             ),
             pending_credit: U128(self.pending_credit),
+            pending_referee_requests: self.pending_referee_requests,
         }
     }
 }

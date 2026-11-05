@@ -68,7 +68,7 @@ Priorities follow the founder's MVP build order (D23): cut from the bottom, and 
 | Id | Feature | Inputs, outputs, states, rejections | Acceptance and proof surface |
 | --- | --- | --- | --- |
 | F1 | Sealed round start | Keeper or anyone calls `start_round(mode)` at slot time. The referee `begin` returns the commitment and header. States: Scheduled, Sealing, Investigation; begin failure past timeout leads to Cancelled | Testnet tx with commitment stored; seed block after the key-deletion block |
-| F2 | Play and verdict | `play(mode, number 000-999, word from 128 list)`; time context from block. Output YES/NO via callback. Rejections: E10 to E14, E20, E22. Failure refunds in full | Receipts for YES and NO; refund receipt for a forced failure on rehearsal |
+| F2 | Play and verdict | `play(mode, number 000-999, word from 128 list)`; time context from block. Output YES/NO via callback. Rejections: E10 to E14, E20, E22, E23 (capacity, nothing charged). Failure refunds in full | Receipts for YES and NO; refund receipt for a forced failure on rehearsal |
 | F3 | Duplicate play | Same full combination: "Already tried: YES/NO". No fee, no enclave call, no mint, no share, no log row | Sandbox T-PLAY-4; UI pre-check via `get_verdict` |
 | F4 | Public log | Paged contract view; client-side search and filter by number, word, result, player; CSV and JSON export of all filtered rows | Export of a real round matches `get_log` row count |
 | F5 | Final guess | `commit_guess(hash)` any time in Investigation; `reveal_guess(guess, salt)`; exact semantic check in the enclave; earliest correct commit wins; freeze stops new plays and commits | Sandbox T-GUESS; testnet correct guess with different syntax from the rule |

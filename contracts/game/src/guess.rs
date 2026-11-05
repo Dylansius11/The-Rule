@@ -222,6 +222,10 @@ impl Game {
         });
         near_sdk::require!(env::sha256_array(&preimage) == commit.hash, "E19");
         near_sdk::require!(self.compute_float >= p.outlayer_deposit.guess.0, "E22");
+        near_sdk::require!(
+            self.pending_referee_requests < USER_REFEREE_REQUEST_LIMIT,
+            "E23"
+        );
 
         let request_id = self.next_request_id;
         self.next_request_id = request_id
@@ -250,6 +254,7 @@ impl Game {
                 expires_at_ns: recovery::deadline(),
             },
         );
+        self.pending_referee_requests += 1;
         let request = RefereeRequest::Guess {
             g: Grammar::G1,
             chain: p.chain_id.clone(),
@@ -283,6 +288,9 @@ impl Game {
     }
 
     pub(crate) fn finish_guess(&mut self, request_id: u64, verdict: Option<bool>) {
+        if !matches!(self.pending.get(&request_id), Some(Request::Guess { .. })) {
+            return;
+        }
         let Some(Request::Guess {
             mode,
             round,
@@ -292,6 +300,7 @@ impl Game {
         else {
             return;
         };
+        self.pending_referee_requests = self.pending_referee_requests.saturating_sub(1);
         let key = (mode, round, commit_seq);
         let Some(mut commit) = self.commits.get(&key).cloned() else {
             return;

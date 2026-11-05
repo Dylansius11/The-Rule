@@ -2,22 +2,22 @@
 
 ## TL;DR
 
-- **Exercised so far (2026-11-04):** read-only RPC views only (`outlayer.testnet` limits and pricing, testnet protocol config, account-name availability). No account, transaction, upload, deploy or login exists.
-- **Documented, not yet exercised:** OutLayer contract-initiated execution with a wasm-bound key (Phase 0 kill test), FastFS upload, testnet accounts and faucet, wallet connection, keeper, static hosting, NEAR Auth (P1).
-- **Founder actions:** say "go" (B3); fund `therule.testnet` from the faucet once the lead sends the id (B2); share design references (B1); create the GitHub repo and publish at P8.6; submit at P8.7.
+- **Exercised (2026-11-04):** testnet accounts and funding, the deployed Phase 0 probe, OutLayer T1 to T3 and failure/latency probes, temporary HTTPS hosting; receipts are in SMART-CONTRACT. Local sandbox game/token tests use MOCK OutLayer and are not testnet evidence.
+- **Not yet exercised:** the real game/referee rehearsal, durable referee hosting, deployed keeper, web wallet and static hosting, NEAR Auth (P1).
+- **Founder actions:** additional rehearsal funding (B2), design references (B1), durable hosting/publication decision (D28), then publish and submit at P8.6/P8.7. Build authorization B3 is resolved.
 - **Skills:** five project skills installed into `.claude/skills/` with `skills-lock.json`; two skipped. Restore recipe below.
 
 ## Integration inventory
 
 | Integration | Purpose | Owner | Manual / automatic | Access or cost gate | Status and source |
 | --- | --- | --- | --- | --- | --- |
-| OutLayer (`outlayer.testnet`) | TEE referee execution | Lead | Automatic (contract calls) | Testnet NEAR per execution, paid by the game's compute float | Documented [V]; untested (P0.6) |
-| NEAR testnet RPC | Views, transactions | Lead | Automatic | Free public endpoints; rate limits unpublished | Views exercised [V] 2026-11-04 |
-| Testnet accounts + faucet | Parent and sub-accounts, funding | Lead creates, founder funds | Manual funding | Faucet availability | Names free at block 276191846 [V] |
-| FastFS testnet + raw GitHub mirror | Host the referee bytes for `WasmUrl` | Lead | Script | Upload gas; OutLayer CLI install [U] | Documented [V]; untested |
+| OutLayer (`outlayer.testnet`) | TEE referee execution | Lead | Automatic (contract calls) | Testnet NEAR per execution, paid by the game's compute float | Phase 0 probe exercised [V] 2026-11-04; real referee remains P2.9 |
+| NEAR testnet RPC | Views, transactions | Lead | Automatic | Free public endpoints; rate limits unpublished | Views and probe transactions exercised [V] 2026-11-04 |
+| Testnet accounts + faucet | Parent and sub-accounts, funding | Lead creates, founder funds | Manual funding | Faucet availability | Accounts created [V] 2026-11-04; additional funding B2 |
+| FastFS testnet + raw GitHub mirror | Host the referee bytes for `WasmUrl` | Lead | Script | Upload gas; publication authorization | FastFS upload returned 404; temporary tunnel exercised; durable hosting D28 open |
 | NEAR Connect wallet | P0 sign-in and signing in the web app | Lead (Phase 7) | Automatic | None | Documented [V] |
 | Cloudflare Pages | Static web hosting | Founder account, lead deploys | Manual account, scripted deploy | Free tier | Documented [V]; no account |
-| Keeper runtime (Cloudflare Workers Cron, fallback GitHub Actions) | Permissionless transitions | Lead | Automatic | Free tier; signing qualification B5 | Documented [V]; untested |
+| Keeper runtime (Cloudflare Workers Cron, fallback GitHub Actions) | Permissionless transitions | Lead | Automatic | Free tier; signing qualification B5 | Local workerd signing qualified (B5); deployed/runtime rehearsal still P6.2 |
 | Healthchecks.io | Keeper heartbeat alert | Founder account | Manual account | Free Hobbyist | Documented [V] |
 | GitHub | Public repo, CI, raw mirror | Founder | Manual (P8.6) | None | Decided D22 |
 | NEAR Auth (P1) | Passkey sign-in | Lead | Automatic | SDK depends on near-api-js 4/5 (B4) | Documented [V]; P1 only |

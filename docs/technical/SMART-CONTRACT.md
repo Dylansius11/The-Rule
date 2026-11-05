@@ -307,6 +307,30 @@ All byte layouts live in `crates/rule-core` (grammar) and `crates/protocol` (wir
 
 Local contract builds use the workspace `release` profile (`opt-level="z"`, LTO, one codegen unit, panic abort, overflow checks enabled). `fast` inherits the same overflow checks but disables LTO and uses normal optimized codegen for native tests. Sandbox artifacts are non-reproducible local builds, not deployment artifacts; P6.4 still requires `cargo near build reproducible-wasm`.
 
+### Local sandbox gas report (2026-11-05)
+
+`make gas` builds local artifacts and runs `cargo run -p sandbox-tests --profile fast --example gas`. That executable was exercised with MOCK OutLayer through direct token registration, an ACCEPT mint, lock/unlock, a correct guess, open, settlement and claim. The printed transaction totals below are truncated to 0.1 Tgas. They are not OutLayer charges or testnet measurements.
+
+| Operation | Observed transaction total (Tgas) |
+| --- | --- |
+| `register_token` check | 6.8 |
+| `play` request side | 6.1 |
+| Lock through `ft_transfer_call` | 6.9 |
+| `unlock` | 7.3 |
+| `commit_guess` | 2.7 |
+| `reveal_guess` request side | 6.0 |
+| `finalize` request side | 5.8 |
+| `claim` | 2.6 |
+
+Yield-resume callbacks (`on_verdict`, `on_guess`, `on_open`) finish later and are not included in their request-side totals. Do not use this report as proof of the production callback budget; full callback measurements remain P2.9 and B6.
+
+Local no-ABI artifact sizes below are non-reproducible sandbox observations, not freeze hashes or evidence of a deployment.
+
+| Artifact | Bytes |
+| --- | --- |
+| Game | 424,431 |
+| Token | 166,989 |
+
 ## Test matrix
 
 Commands below are acceptance recipes, not blanket claims of completion; BUILD-PLAN records observed results. Unit tests use `near-sdk` unit testing. Sandbox tests use near-workspaces 0.24.0 on WSL Linux, with a **mock OutLayer contract** that replays the captured real callback shape from Phase 0 (`tests/vectors/outlayer-callback.json`, labeled mock). Real-referee evidence comes only from testnet.

@@ -1,5 +1,7 @@
-// [U] opening_started_ns, open_status, rule and salt are not yet implemented
-// by the game contract. Other newly agreed view fields are still landing.
+// Decisions mirror SMART-CONTRACT 'Round lifecycle'. `finalize` is proposed on every tick while
+// a Reveal round is past its deadline: the contract sweeps unrevealed commits in batches and
+// returns null until the round is Opening, so repeating the call is the protocol.
+// `cancel` on a pending open is a harmless E50 panic; the contract only cancels failed opens.
 // Times are u64 JSON numbers (or decimal strings); u128 amounts are strings.
 export type Integer = number | string;
 export type Mode = 0 | 1;

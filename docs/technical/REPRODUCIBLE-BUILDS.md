@@ -1,6 +1,6 @@
 # Reproducible builds
 
-Status 2026-11-05: the earlier referee was built twice in fresh containers **on this one machine**, from two copies of the same working-tree snapshot. This is not evidence of reproducibility across machines or of equivalence to a committed revision. The game/token entrypoint and matching pinned manifest metadata are prepared; actual reproducible contract builds and durable hosting remain blocked below. Repeat checks on the frozen, committed sources before P6.4 and preserve the final artifacts and source revision.
+Status 2026-11-05: the earlier referee was built twice in fresh containers **on this one machine**, from two copies of the same working-tree snapshot. This is not evidence of reproducibility across machines or of equivalence to a committed revision. The game/token entrypoint and pinned manifest metadata are prepared; Docker access is now exercised, but successful contract artifacts/comparison and durable hosting remain open. Repeat checks on the frozen, committed sources before P6.4 and preserve the final artifacts and source revision.
 
 ## Referee
 
@@ -48,6 +48,8 @@ The local comparison command `cargo near build non-reproducible-wasm --locked --
 `make build-contracts` now invokes `scripts/build/contracts-reproducible.sh` for both contracts, with isolated config/cache defaults and a `CONTRACTS_OUT` output root. The wrapper checks Docker before creating output, reports the committed source revision, invokes only `cargo near build reproducible-wasm`, and prints each successful artifact hash under `<output>/<game|token>/<game|token>.wasm`. It never signs, deploys or falls back to non-reproducible bytes. A later contract failure may leave the earlier successful contract artifact; absence of the second hash is not a complete build.
 
 Observed 2026-11-05: WSL `docker info` still reports unavailable integration; Windows `docker.exe info` cannot open `dockerDesktopLinuxEngine`, and engine enumeration cannot open `dockerBackendApiServer`. `docker.exe desktop start` reports already running, so that did not repair the backend. The actual make entrypoint fails nonzero on the Docker prerequisite; no reproducible artifact is claimed. Restarting Desktop could interrupt another project's containers, so owner approval is required before doing that. No Docker settings were changed.
+
+Later on 2026-11-05, after the founder enabled the engine, Windows and WSL `docker info` both reached Docker Desktop 28.5.1. The actual `make build-contracts` passed that prerequisite and failed NEP-330 validation: `[package.repository]: should not be empty`. Both contract packages now inherit the planned D22 HTTPS repository identifier from the workspace. This is build metadata, not an added remote or evidence that the revision is publicly retrievable. The requirement follows [cargo-near validation](https://github.com/near/cargo-near/blob/main/cargo-near-build/src/types/near/docker_build/metadata/validate.rs) and [NEP-330](https://github.com/near/NEPs/blob/master/neps/nep-0330.md). A successful manifest check alone does not accept a reproducible build.
 
 Once a usable WSL Docker client/Linux engine exists, run twice from the same clean committed sources:
 

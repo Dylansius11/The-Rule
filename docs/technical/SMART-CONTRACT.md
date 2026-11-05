@@ -324,6 +324,15 @@ All byte layouts live in `crates/rule-core` (grammar) and `crates/protocol` (wir
 
 Local contract builds use the workspace `release` profile (`opt-level="z"`, LTO, one codegen unit, panic abort, overflow checks enabled). `fast` inherits the same overflow checks but disables LTO and uses normal optimized codegen for native tests. Sandbox artifacts are non-reproducible local builds, not deployment artifacts; P6.4 still requires `cargo near build reproducible-wasm`.
 
+### Local referee admission report (2026-11-05)
+
+Five native capacity tests and the five expiry/recovery regressions passed. They cover the user threshold, total limit 10, lifecycle headroom, finalize/retry rejection before state effects, free settled duplicates, wrong-kind/duplicate/late callbacks and token/payment exclusion.
+
+The actual game wasm with MOCK OutLayer held eight distinct players' verdicts. A ninth user play and an existing valid guess reveal rejected E23 with identical stored state and no new OutLayer request. Team `begin` was admitted as the ninth tracked request (not Team gameplay evidence). Its failure released one lifecycle slot; completing a verdict then admitted the unchanged original reveal. The wrong guess, replacement play, paid plays and remaining refunds reconciled each owner's exact credit, with both pending referee and pending-credit totals returning to zero. This is a local admission/recovery runtime, not a throughput or testnet measurement.
+
+Initiating calls detach their callback chains. The harness therefore observes the expected callback-state transition before asserting its effects; awaiting the initiating transaction alone is not callback completion. The first run exposed that harness race, and the corrected executable passed. No callback was impersonated or state patched.
+
+
 ### Local sandbox gas report (2026-11-05)
 
 `make gas` builds local artifacts and runs `cargo run -p sandbox-tests --profile fast --example gas`. The executable was exercised with MOCK OutLayer through registration, null/failed-promise play refunds, ACCEPT + mint, lock/unlock, wrong/correct guesses, open, settlement and claim. It re-queries the sandbox RPC after resumption, matching receipt ids, executors and function-call actions; missing or failed expected callbacks make the run fail. It also observed E21 and unchanged credit for withdrawal while Checking, then successful withdrawals after resolution. These are local sandbox measurements, not OutLayer charges or testnet evidence.

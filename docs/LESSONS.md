@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-05: initiating transaction completion is not detached callback completion
+
+- **What happened:** the first capacity sandbox run read nine pending referee requests immediately after awaiting a resolved begin transaction and expected eight. Waiting for the callback's state transition made the full saturation/refund/reveal runtime pass.
+- **Root cause:** game `execute` detaches its promise chain. The initiating transaction can complete before the later callback updates game state; a resolved mock yield does not itself establish callback completion.
+- **Rule:** resolve the observed dependency, then wait for the specific callback-state transition before checking its effects. Bound the observation wait and fail if the transition never occurs; never resend the operation or weaken the assertion.
+
 ### 2026-11-05: matching artifact hashes do not establish Docker provenance
 
 - **What happened:** a successful cargo-near Docker build reported a new game hash inside the container, but its host output matched the old local artifact. The actual sandbox metadata view returned null `build_info`; the requested-source smoke failed.

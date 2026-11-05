@@ -89,6 +89,10 @@ The complementary native principal model runs with `PROPTEST_CASES=10000 cargo t
 
 Run `make token-failure` in WSL. The real local token/game and MOCK OutLayer exercise a null registration check, registration retry without a game-credit debit, failed mint after external unregistration, restored allowance with unchanged YES, failed unlock and successful retry after re-registration. Receipt identity/status/gas checks accompany log/supply and custody/lock reconciliation. The executable was exercised locally; it does not establish worst-case callback gas, safe recovery from unknown external outcomes or testnet behavior.
 
+### Local admission proof recipe
+
+After `scripts/build/sandbox-artifacts.sh`, run `cargo test -p sandbox-tests --profile fast --test capacity -- --nocapture` in WSL. The exercised runtime holds eight distinct verdicts, proves E23 rejects play/reveal without any stored-state mutation or new mock request, admits a lifecycle begin, and reconciles callback release, reveal/replacement and owner refunds. It uses MOCK OutLayer and independently waits for detached callback state. Native `cargo test -p game --test capacity --test recovery --profile fast` covers total limit 10, atomic finalize/open retry and duplicate/expiry fences. These checks do not prove provider throughput or whole-system reserves.
+
 
 ### Local cross-target vector recipe
 

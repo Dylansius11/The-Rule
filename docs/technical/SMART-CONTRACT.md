@@ -163,6 +163,7 @@ A team is locked from its first play or commit in a round until that round is Se
 `on_verdict(request_id)` `#[private]`, never panics after loading the request:
 
 - Parse the promise result strictly as `{"v":0|1}`. Anything else, JSON `null` (OutLayer's failure encoding [V](https://raw.githubusercontent.com/out-layer/outlayer/main/contract/src/execution.rs)), a promise error, a wrong round, or a round that has left Investigation leads to **refund**: credit back fee + storage charge, attempt restored, `seen` entry removed, pending cleared, event `play_refunded{reason}`.
+- Refund cleanup removes an otherwise empty entity only if it has no open/correct commits, pot contribution or prior claim. A play and a guess may overlap; restoring a play attempt must not erase another operation's stake, refund entitlement or three-open-commit limit.
 - On a valid verdict: pot += 80% of fee, compute_float += 15%, platform_accrued += 5%. Append the `LogRow`. Set `seen[play_key] = log_idx`. Shares += 1 if under `share_cap`, and `total_shares` += 1 likewise. If ACCEPT, advance the line and mint (below). Clear pending. Event `play_settled`.
 - Mint on ACCEPT: `m = mint_base * allowance_left / round_allowance * bucket_bps / 10_000` (exact integer math with a 128-bit mul-div), with bucket 10000 Rare, 5000 Mid, 2500 Common. Initialization rejects `mint_base > round_allowance`; the computed amount is also capped at the remaining allowance. If the player is Registered and `m > 0`: `allowance_left -= m`, log `minted = m`, then `token.mint(player, m)`. A failed mint restores the allowance and records `minted = 0` with event `mint_failed`; the verdict stands. Registration is direct user-paid NEP-145 storage plus the game's zero-deposit check (D29), never an implicit charge on the first ACCEPT. If the player unregisters from the token, subsequent mints can fail until direct registration is restored.
 
@@ -359,7 +360,7 @@ Local no-ABI artifact sizes below are non-reproducible sandbox observations, not
 
 | Artifact | Bytes |
 | --- | --- |
-| Game | 428,184 |
+| Game | 428,224 |
 | Token | 166,989 |
 
 ## Test matrix

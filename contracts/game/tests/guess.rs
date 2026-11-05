@@ -229,6 +229,78 @@ fn in_flight_play_refunds_when_a_guess_freezes_the_round() {
 }
 
 #[test]
+fn refunded_first_play_preserves_correct_guess_stakes_in_either_callback_order() {
+    for guess_first in [false, true] {
+        let mut fx = fixture(params());
+        fx.at(10, 0);
+        let play = fx.play(2, "otter");
+        fx.at(11, 0);
+        fx.commit();
+        fx.at(13, 0);
+        let guess = fx.reveal(0);
+        if guess_first {
+            fx.answer(guess, yes());
+        }
+        deliver_env(&fx.ctx, PromiseResult::Failed);
+        fx.game.on_verdict(play);
+        if !guess_first {
+            fx.answer(guess, yes());
+        }
+        let deadline = fx.round()["reveal_deadline_ns"].as_u64().unwrap();
+        fx.at(14, deadline);
+        let (_, open) = fx.finalize_all();
+        let response = fx.open_ok();
+        fx.on_open(open, response);
+        assert_eq!(fx.claimable("bob.near"), 100, "guess_first={guess_first}");
+        let before = fx.credit();
+        fx.game.claim(Mode::Solo, 0);
+        assert_eq!(fx.credit(), before + 100);
+        assert_eq!(fx.term("open_stakes"), 0);
+    }
+}
+
+#[test]
+fn refunded_first_play_preserves_wrong_stake_contribution_for_void_refund() {
+    let mut fx = fixture(params());
+    fx.at(10, 0);
+    let play = fx.play(2, "otter");
+    fx.at(11, 0);
+    fx.commit();
+    fx.at(13, 0);
+    let guess = fx.reveal(0);
+    fx.answer(guess, no());
+    deliver_env(&fx.ctx, PromiseResult::Failed);
+    fx.game.on_verdict(play);
+    fx.run_to_finalize(14);
+    let (_, open) = fx.finalize_all();
+    let response = fx.open_with([99; 32]);
+    fx.on_open(open, response);
+    assert_eq!(fx.round()["phase"], "Void");
+    assert_eq!(fx.claimable("bob.near"), 50);
+    fx.game.claim(Mode::Solo, 0);
+    assert_eq!(fx.term("claimable"), 0);
+}
+
+#[test]
+fn expired_first_play_preserves_the_existing_open_commit_limit() {
+    let mut fx = fixture(params());
+    fx.at(10, 0);
+    let play = fx.play(2, "otter");
+    fx.at(11, 0);
+    for _ in 0..3 {
+        fx.commit();
+    }
+    fx.at(12, 600_000_000_000);
+    assert!(fx.game.expire_request(play));
+    assert!(
+        panic_text(|| {
+            fx.commit();
+        })
+        .contains("E15")
+    );
+}
+
+#[test]
 #[should_panic(expected = "E16")]
 fn reveal_after_the_deadline_is_rejected() {
     let mut fx = fixture(params());

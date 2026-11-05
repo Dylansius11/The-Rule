@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-05: refund cleanup must preserve state owned by overlapping operations
+
+- **What happened:** three new regressions failed: an overlapping correct stake had claimable 0 instead of 100, a wrong stake's Void refund had 0 instead of 50, and first-play expiry bypassed E15. All three passed after the fix; the local sandbox also preserved the commit cap and claimed the overlapping stake.
+- **Root cause:** first-play refund removed an entity when its play counters were empty, ignoring that guesses shared the same entity record. Global ledger conservation alone did not expose the orphaned per-player entitlement.
+- **Rule:** remove shared records only when every owning operation and entitlement is empty. Reconcile aggregate stakes/claimables against per-account claims, not just the sum of ledger fields.
+
 ### 2026-11-05: a pending play flag does not cover Checking guesses
 
 - **What happened:** the new withdrawal regression failed because `withdraw_credit` succeeded while two guesses were Checking; the specification requires E21. The three credit tests passed after the fix, and the sandbox gas flow observed E21 with unchanged credit during a check and successful withdrawal afterward.

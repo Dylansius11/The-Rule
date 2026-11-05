@@ -176,7 +176,13 @@ impl Game {
             }
             let remove_entity = if let Some(entity) = self.entities.get_mut(&entity_key) {
                 entity.attempts = entity.attempts.saturating_sub(1);
-                entity.attempts == 0 && entity.shares == 0 && entity.last_number.is_none()
+                entity.attempts == 0
+                    && entity.shares == 0
+                    && entity.last_number.is_none()
+                    && entity.open_commits == 0
+                    && entity.correct_commits.is_empty()
+                    && entity.pot_contribution == 0
+                    && !entity.claimed
             } else {
                 false
             };

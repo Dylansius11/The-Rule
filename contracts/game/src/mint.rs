@@ -46,7 +46,7 @@ pub(crate) fn accept_mint(p: &Params, header: Option<&str>, allowance_left: u128
         allowance_left.min(p.round_allowance.0),
         p.round_allowance.0,
     );
-    bps(scaled, bucket)
+    bps(scaled, bucket).min(allowance_left)
 }
 
 /// Gas given to `on_mint`; it only restores the allowance on failure.
@@ -72,10 +72,17 @@ fn event(name: &str, data: &Value) {
     ));
 }
 
+#[derive(Deserialize)]
+#[serde(crate = "near_sdk::serde", deny_unknown_fields)]
+struct TokenStorageBalance {
+    total: U128,
+    available: U128,
+}
+
 #[near]
 impl Game {
-    /// One-time: register the caller's account on the RULE token. The token's storage deposit is
-    /// paid from the caller's credit. Without it an ACCEPT mints nothing and uses no allowance.
+    /// Check the caller's existing token registration. The player pays token storage directly.
+    /// Until registered, an ACCEPT mints nothing and uses no allowance.
     pub fn register_token(&mut self) -> u64 {
         self.register_token_inner()
     }
@@ -104,33 +111,26 @@ impl Game {
     fn register_token_inner(&mut self) -> u64 {
         let actor = env::predecessor_account_id();
         let p = self.params();
-        let deposit = p.token_storage_deposit.0;
+        let token: AccountId = p.token.parse().expect("validated at init");
         let player = self
             .players
             .get_mut(&actor)
             .unwrap_or_else(|| env::panic_str("E20"));
-        near_sdk::require!(player.token == TokenState::None, "E57");
-        near_sdk::require!(player.credit >= deposit, "E20");
-        player.credit -= deposit;
+        near_sdk::require!(player.token != TokenState::Pending, "E57");
         player.token = TokenState::Pending;
-        self.total_credit -= deposit;
-        self.pending_credit += deposit;
         let id = self.next_request_id;
         self.next_request_id = id.checked_add(1).unwrap_or_else(|| env::panic_str("E50"));
         self.pending.insert(
             id,
             Request::Register {
                 actor: actor.clone(),
-                amount: deposit,
             },
         );
-        let token: AccountId = p.token.parse().expect("validated at init");
         Promise::new(token)
             .function_call(
-                "storage_deposit",
-                serde_json::to_vec(&json!({"account_id":actor,"registration_only":true}))
-                    .expect("arguments serialization"),
-                NearToken::from_yoctonear(deposit),
+                "storage_balance_of",
+                serde_json::to_vec(&json!({"account_id":actor})).expect("arguments serialization"),
+                NearToken::from_yoctonear(0),
                 Gas::from_gas(p.gas_mint),
             )
             .then(Promise::new(env::current_account_id()).function_call(
@@ -144,19 +144,19 @@ impl Game {
     }
 
     fn on_register_inner(&mut self, request_id: u64) {
-        let Some(Request::Register { actor, amount }) = self.pending.remove(&request_id) else {
+        let Some(Request::Register { actor }) = self.pending.remove(&request_id) else {
             return;
         };
-        self.pending_credit -= amount;
-        let ok = env::promise_result_checked(0, 4096).is_ok();
+        let registered = env::promise_result_checked(0, 4096)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<TokenStorageBalance>(&bytes).ok())
+            .is_some_and(|balance| balance.available.0 <= balance.total.0);
         if let Some(player) = self.players.get_mut(&actor) {
-            if ok {
-                player.token = TokenState::Registered;
+            player.token = if registered {
+                TokenState::Registered
             } else {
-                player.token = TokenState::None;
-                player.credit += amount;
-                self.total_credit += amount;
-            }
+                TokenState::None
+            };
         }
     }
 

@@ -2,6 +2,18 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-05: token registration refunds cannot identify a new registration
+
+- **What happened:** the pre-freeze regression showed an already-registered token user losing 1,000 yocto of game credit (`998900` instead of `999900`) when game-funded `storage_deposit` succeeded.
+- **Root cause:** NEP-145 returns a successful storage balance for both new and existing accounts; an existing registration refunds the attached deposit to the predecessor, not the player whose game credit was debited. A preliminary check would still race with external registration.
+- **Rule:** players pay token storage directly. The game only checks `storage_balance_of` with zero attached NEAR, parses its response strictly, and never moves registration money through game credit.
+
+### 2026-11-05: unit fixtures must separate logical receipt gas
+
+- **What happened:** after raising callback budgets, the two-reveal ordering test failed with `HostError(GasExceeded)` before applying either result.
+- **Root cause:** two logical reveal receipts each scheduled 100 + 60 Tgas but shared one 300 Tgas mocked environment. The contract configuration was not the cause.
+- **Rule:** reset the mocked environment before each reveal helper invocation, preserving block/time and persistent storage. Do not inflate gas or weaken the out-of-order callback assertions to hide fixture errors.
+
 ### 2026-11-04: worker checks missed lints and a hidden build prerequisite
 
 - **What happened:** the lead's integrated run found four clippy errors in `crates/rule-core/tests/equiv_brute.rs` and three token sandbox tests failing on a missing wasm file, although each worker reported green.

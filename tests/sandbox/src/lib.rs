@@ -37,7 +37,7 @@ pub fn params(outlayer: &str) -> Value {
         "referee":{"outlayer":outlayer,"urls":["https://example.com/referee.wasm"],"hash":"0000000000000000000000000000000000000000000000000000000000000000","build_target":"wasm32-wasip2"},
         "resource_limits":{"begin":limits,"verdict":limits,"guess":limits,"open":limits},
         "outlayer_deposit":{"begin":"0","verdict":"0","guess":"0","open":"0"},
-        "gas_outlayer":100000000000000u64,"gas_callback":60000000000000u64,"gas_mint":10000000000000u64,"token_storage_deposit":"1250000000000000000000",
+        "gas_outlayer":100000000000000u64,"gas_callback":60000000000000u64,"gas_mint":10000000000000u64,
         "token":"token.testnet","platform":"platform.testnet","chain_id":"testnet"
     })
 }

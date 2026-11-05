@@ -15,7 +15,7 @@ fn params() -> Params {
         "genesis_ns":0,"round_period_ns":86400000000000u64,"mode_offset_ns":[0,0],"investigation_max_ns":3600000000000u64,"reveal_window_ns":60000000000u64,"begin_timeout_ns":3600000000000u64,"open_timeout_ns":3600000000000u64,
         "min_reveal_delay_blocks":2,"base_attempts":[25,50],"lock_tiers":[],"attempt_cap":[125,250],"share_cap":[25,50],"round_allowance":"500000","mint_base":"100","max_team_size":5,
         "referee":{"outlayer":"outlayer.testnet","urls":["https://example.com/referee.wasm"],"hash":"0000000000000000000000000000000000000000000000000000000000000000","build_target":"wasm32-wasip2"},
-        "resource_limits":{"begin":limits,"verdict":limits,"guess":limits,"open":limits},"outlayer_deposit":{"begin":"0","verdict":"0","guess":"0","open":"0"},"gas_outlayer":100000000000000u64,"gas_callback":30000000000000u64,"gas_mint":10000000000000u64,"token_storage_deposit":"1000","token":"token.testnet","platform":"platform.testnet","chain_id":"testnet"
+        "resource_limits":{"begin":limits,"verdict":limits,"guess":limits,"open":limits},"outlayer_deposit":{"begin":"0","verdict":"0","guess":"0","open":"0"},"gas_outlayer":100000000000000u64,"gas_callback":60000000000000u64,"gas_mint":10000000000000u64,"token":"token.testnet","platform":"platform.testnet","chain_id":"testnet"
     })).unwrap()
 }
 
@@ -532,4 +532,41 @@ fn malformed_verdict_refunds_without_log() {
     game.on_verdict(request);
     assert_eq!(ledger_view(&game), before);
     assert!(game.get_log(Mode::Solo, 0, 0, 200).is_empty());
+}
+
+#[test]
+#[should_panic(expected = "E11")]
+fn mint_base_cannot_exceed_the_round_allowance() {
+    testing_env!(VMContextBuilder::new().build());
+    let mut p = params();
+    p.round_allowance = protocol::params::Amount(100);
+    p.mint_base = protocol::params::Amount(200);
+    Game::new(p, true);
+}
+
+#[test]
+fn unsafe_gas_budgets_are_rejected_at_initialization() {
+    for (field, gas) in [
+        ("gas_callback", 0),
+        ("gas_callback", 59_999_999_999_999),
+        ("gas_outlayer", 99_999_999_999_999),
+        ("gas_mint", 9_999_999_999_999),
+        ("gas_outlayer", 191_000_000_000_000),
+        ("gas_mint", 191_000_000_000_000),
+        ("gas_callback", u64::MAX),
+    ] {
+        testing_env!(VMContextBuilder::new().build());
+        let mut value = near_sdk::serde_json::to_value(params()).unwrap();
+        value[field] = json!(gas);
+        let p = near_sdk::serde_json::from_value(value).unwrap();
+        let error = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| Game::new(p, true)))
+            .err()
+            .expect("unsafe gas can strand an asynchronous request");
+        let message = error
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .or_else(|| error.downcast_ref::<&str>().copied())
+            .unwrap_or("");
+        assert!(message.contains("E11"), "{field}: {message}");
+    }
 }

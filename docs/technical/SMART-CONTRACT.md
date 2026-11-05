@@ -1,6 +1,6 @@
 # THE RULE: smart contract specification
 
-This is the protocol contract between the game contract, the token contract, the OutLayer referee, the verifier and every client. It is a design, **not a deployment or an audit**. Nothing below has run on any network yet (status 2026-11-04).
+This is the protocol contract between the game contract, the token contract, the OutLayer referee, the verifier and every client. Core Solo behavior is locally tested with a mock OutLayer; Phase 0 probe receipts are recorded below. The real game/referee rehearsal and whole-system security review remain open (status 2026-11-05).
 
 ## TL;DR and necessity
 
@@ -64,9 +64,10 @@ The game account name is compiled into the referee manifest (`callers.contract.o
 | `outlayer_deposit` per op | `estimate_execution_cost` for those limits plus 20% margin, measured in Phase 0 | same | Paid from the compute float |
 | `gas` | OutLayer call 100 Tgas, callback 60 Tgas, mint 10 Tgas | same | Starting values; measured in P2.9. The verdict callback must schedule `mint` (10) and `on_mint` (10) with a 5 Tgas margin; when `prepaid - used` is below that it mints nothing and keeps the allowance, because a callback that runs out of gas would strand its request |
 | `token`, `platform`, `chain_id` | accounts above, `"testnet"` | demo accounts | |
-| `token_storage_deposit` | the token's `storage_balance_bounds().min`, read at deploy | same | Charged once per player from credit by `register_token` (D29) |
 
 `new(params, demo: bool)`: `demo` is stored immutably, returned by `get_params` and in every `RoundView`, so the permanent "Demo Mode - preselected rule" label comes from chain data. A production deployment (`demo=false`) requires `genesis_ns >= now + 2 h` (blindness ordering) and production bounds on the schedule (`round_period_ns >= 1 h`, `reveal_window_ns >= 10 min`, begin and open timeouts `>= 10 min`); `demo=true` skips them. Decided 2026-11-04 and tested (1 h 59 m rejected, exactly 2 h accepted, short demo schedule accepted).
+
+Initialization also rejects a mint base above the round allowance, callbacks below 60 Tgas, OutLayer calls below 100 Tgas, token calls below 10 Tgas, or callback-plus-outgoing sums above 250 Tgas (E11). These conservative local bounds leave headroom in a 300 Tgas initiating call; they do not constitute real OutLayer callback measurements or recovery from every possible callback failure. Whole-path gas proof and timeout recovery review remain pre-freeze work.
 
 ### Contract state (game)
 
@@ -138,8 +139,8 @@ stateDiagram-v2
 | `invite(account)` / `join_team(team_id)` / `leave_team()` / `remove_member(account)` | captain / invitee / member / captain | Roster changes only while the team is not locked (E30). Size never exceeds 5 (E31) |
 | `team_deposit(team_id)` payable | member | Vault += deposit; depositor weight += deposit |
 | `team_withdraw(team_id)` `1y` | depositor | Only while unlocked. Pays `vault * w_i / W` (floor), then reduces vault and `W` by the same amounts, so the remaining depositors keep exact pro-rata claims |
-| `register_token()` | any depositor | One-time (E57 if registered or pending): charges `token_storage_deposit` from credit (E20), calls `token.storage_deposit(account, registration_only)`, and marks the player Registered when it succeeds; a failure refunds the credit. Until then an ACCEPT mints nothing and consumes no allowance (D29) |
-| `ft_on_transfer(sender, amount, msg)` | `token` only (E40) | `msg = {"lock":{"mode":0,"round_id":r}}` locks RULE for round `r`, which must be the round being sealed or the next one (locks close when Investigation starts). Locks add up per round and account. Returns `"0"` (all used) or the full amount on any rejection (bad message, wrong round E41, Team mode until P4, zero amount) with event `lock_rejected{reason}`. For Team mode the sender's team receives the lock (P4) |
+| `register_token()` | any depositor | Calls token `storage_balance_of(account)` with zero attached NEAR and never debits credit. Players first pay the standard NEP-145 storage deposit directly to the token. A valid non-null `{total, available}` response marks Registered; malformed/null/failed responses reset None. Pending checks reject E57; completed checks may be refreshed. Until confirmed, ACCEPT mints nothing and consumes no allowance (D29) |
+| `ft_on_transfer(sender, amount, msg)` | `token` only (E40) | `msg = {"lock":{"mode":0,"round_id":r}}` locks RULE for the sealing or next round. Each new `(mode, round, account)` lock requires a game player and debits `storage_charge_per_play` from credit into non-refundable storage funding; top-ups reuse their entry and do not pay twice. Insufficient credit rejects E20 and returns all tokens without state changes. Other rejections (bad message, wrong round E41, Team until P4, zero amount) also return the full amount with `lock_rejected{reason}`. Team locks follow in P4 |
 | `unlock(mode, round_id)` `1y` | locker | After the round is Settled, Cancelled or Void, or one full `round_period_ns` after the slot of a round that never started: transfers the caller's locked RULE back with `ft_transfer`. A failed transfer restores the lock, so locked RULE is never forfeited (D16) |
 
 A team is locked from its first play or commit in a round until that round is Settled, Cancelled or Void.
@@ -161,7 +162,7 @@ A team is locked from its first play or commit in a round until that round is Se
 
 - Parse the promise result strictly as `{"v":0|1}`. Anything else, JSON `null` (OutLayer's failure encoding [V](https://raw.githubusercontent.com/out-layer/outlayer/main/contract/src/execution.rs)), a promise error, a wrong round, or a round that has left Investigation leads to **refund**: credit back fee + storage charge, attempt restored, `seen` entry removed, pending cleared, event `play_refunded{reason}`.
 - On a valid verdict: pot += 80% of fee, compute_float += 15%, platform_accrued += 5%. Append the `LogRow`. Set `seen[play_key] = log_idx`. Shares += 1 if under `share_cap`, and `total_shares` += 1 likewise. If ACCEPT, advance the line and mint (below). Clear pending. Event `play_settled`.
-- Mint on ACCEPT: `m = mint_base * allowance_left / round_allowance * bucket_bps / 10_000` (exact integer math with a 128-bit mul-div; the mint shrinks as the allowance is spent), with bucket 10000 Rare, 5000 Mid, 2500 Common from the round header. If the player is Registered (see `register_token`) and `m > 0`: `allowance_left -= m`, the row records `minted = m`, then `token.mint(player, m)`. Team mints go to the acting member. A failed mint callback restores `allowance_left` and records `minted = 0` on the row with event `mint_failed`. The verdict stands. [I, D29] The first-mint storage deposit is not taken implicitly: when a registration chain fails after the deposit was spent the game could not tell, so a refund would break the ledger; registration is its own explicit, accounted step.
+- Mint on ACCEPT: `m = mint_base * allowance_left / round_allowance * bucket_bps / 10_000` (exact integer math with a 128-bit mul-div), with bucket 10000 Rare, 5000 Mid, 2500 Common. Initialization rejects `mint_base > round_allowance`; the computed amount is also capped at the remaining allowance. If the player is Registered and `m > 0`: `allowance_left -= m`, log `minted = m`, then `token.mint(player, m)`. A failed mint restores the allowance and records `minted = 0` with event `mint_failed`; the verdict stands. Registration is direct user-paid NEP-145 storage plus the game's zero-deposit check (D29), never an implicit charge on the first ACCEPT. If the player unregisters from the token, subsequent mints can fail until direct registration is restored.
 
 ### Guesses
 
@@ -219,7 +220,7 @@ A team is locked from its first play or commit in a round until that round is Se
 | E20 | Insufficient credit or vault balance | E52 | Token: mint receiver is not registered |
 | E53 | Token: `storage_unregister(force=true)` rejected | E54 | Token: caller is not the minter |
 | E55 | Token: mint would exceed the cap | E56 | Nothing to claim (already claimed, no entry, or nothing owed) |
-| E57 | Token registration already done or pending | | |
+| E57 | Token registration check already pending | | |
 
 ### Payout formulas (exact integer arithmetic)
 
@@ -254,7 +255,7 @@ All byte layouts live in `crates/rule-core` (grammar) and `crates/protocol` (wir
 
 | Id | Invariant | Enforced by | Test |
 | --- | --- | --- | --- |
-| I1 | `balance >= Σcredit + Σvault + Σround pots + Σcarry + Σopen stakes + Σclaimable + compute_float + platform_accrued + storage_reserve + locked storage` | Every money path updates `get_ledger` terms | T-INV-1 property over random op sequences |
+| I1 | At quiescence, `balance >= Σcredit + Σvault + Σround pots + Σcarry + Σopen stakes + Σclaimable + compute_float + platform_accrued + max(storage_reserve, locked_storage)` | `storage_reserve` is cumulative, non-withdrawable storage funding, including funds already backing collateral; `locked_storage` is measured collateral, not an additional liability. `pending_credit` reports transfers awaiting callbacks separately | T-INV-1 property over random op sequences; live-balance reconciliation remains open |
 | I2 | Per round `P == W + C_paid + R + L` (or the exact refund sum when Cancelled) | Payout code, dust to R | T-INV-2 |
 | I3 | `token.ft_total_supply == Σ minted on LogRows − Σ burned <= cap`; the only burn is the standard NEP-141 resolver burn when a refund target unregistered; per round `minted <= round_allowance` | Mint and mint-failure callback | T-INV-3 sandbox, T-TOK-3 |
 | I4 | Referee output cannot name an account or an amount | Strict schema parse | T-REF-4 fuzz the parsers |
@@ -304,9 +305,11 @@ All byte layouts live in `crates/rule-core` (grammar) and `crates/protocol` (wir
 | Testnet protocol | 88; 1,000 Tgas max prepaid; 4 MiB contract; yield timeout 200 blocks; 1e19 yocto/byte storage | `EXPERIMENTAL_protocol_config` on rpc.testnet.near.org [V] |
 | OutLayer limits | `get_max_limits` = 500e9 instructions, 180 s execution, 300 s compile; base fee 0.001 NEAR, 1e-7 NEAR/ms | `outlayer.testnet` views at blocks 276188426 to 276188511 [V] |
 
+Local contract builds use the workspace `release` profile (`opt-level="z"`, LTO, one codegen unit, panic abort, overflow checks enabled). `fast` inherits the same overflow checks but disables LTO and uses normal optimized codegen for native tests. Sandbox artifacts are non-reproducible local builds, not deployment artifacts; P6.4 still requires `cargo near build reproducible-wasm`.
+
 ## Test matrix
 
-All commands are **planned, not run**. Unit tests use `near-sdk` unit testing. Sandbox tests use near-workspaces 0.24.0 on WSL Linux, with a **mock OutLayer contract** that replays the captured real callback shape from Phase 0 (`tests/vectors/outlayer-callback.json`, labeled mock). Real-referee evidence comes only from testnet.
+Commands below are acceptance recipes, not blanket claims of completion; BUILD-PLAN records observed results. Unit tests use `near-sdk` unit testing. Sandbox tests use near-workspaces 0.24.0 on WSL Linux, with a **mock OutLayer contract** that replays the captured real callback shape from Phase 0 (`tests/vectors/outlayer-callback.json`, labeled mock). Real-referee evidence comes only from testnet.
 
 | Area | Cases (success, rejection, boundary) | Command |
 | --- | --- | --- |

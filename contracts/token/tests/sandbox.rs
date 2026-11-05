@@ -259,8 +259,9 @@ fn t_abi_1_wasm_exports() {
             }
         }
     }
+    // Pin the no-ABI sandbox artifact, as built by scripts/build/sandbox-artifacts.sh.
+    // Generated ABI metadata is not part of the token's application method contract.
     let expected: BTreeSet<String> = [
-        "__contract_abi",
         "contract_source_metadata",
         "new",
         "mint",

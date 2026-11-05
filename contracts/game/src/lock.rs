@@ -25,7 +25,8 @@ fn event(name: &str, data: &Value) {
 impl Game {
     /// NEP-141 receiver. Only the RULE token may call it. A valid message
     /// `{"lock":{"mode":0,"round_id":r}}` for a round that has not reached Investigation locks the
-    /// tokens; anything else returns the full amount to the sender.
+    /// tokens. New lock entries pay the per-record storage charge from game credit; top-ups are
+    /// free. Rejected transfers return the full amount to the sender without charging credit.
     pub fn ft_on_transfer(&mut self, sender_id: AccountId, amount: U128, msg: String) -> U128 {
         self.ft_on_transfer_inner(sender_id, amount, &msg)
     }
@@ -112,15 +113,25 @@ impl Game {
             return reject("E41");
         }
         let key = (m, lock.round_id, sender.clone());
-        let Some(total) = self
-            .locks
-            .get(&key)
-            .copied()
-            .unwrap_or(0)
-            .checked_add(amount.0)
-        else {
+        let existing = self.locks.get(&key).copied();
+        let Some(total) = existing.unwrap_or(0).checked_add(amount.0) else {
             return reject("E11");
         };
+        if existing.is_none() {
+            let storage = p.storage_charge_per_play.0;
+            let Some(player) = self.players.get(&sender) else {
+                return reject("E20");
+            };
+            if player.credit < storage {
+                return reject("E20");
+            }
+            let Some(reserve) = self.storage_reserve.checked_add(storage) else {
+                return reject("E11");
+            };
+            self.players.get_mut(&sender).expect("player exists").credit -= storage;
+            self.total_credit -= storage;
+            self.storage_reserve = reserve;
+        }
         self.locks.insert(key, total);
         event(
             "lock_placed",

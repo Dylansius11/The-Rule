@@ -97,6 +97,60 @@ fn a_lock_for_the_next_round_is_kept_and_accumulates() {
 }
 
 #[test]
+fn unfunded_accounts_cannot_allocate_lock_storage() {
+    let mut fx = fixture(params());
+    let ledger = fx.ledger();
+    for i in 0..32 {
+        let sender = format!("dust-{i}.testnet");
+        assert_eq!(
+            token_transfer(&mut fx.game, &mut fx.ctx, &sender, 1, &msg(0, 1)),
+            1,
+            "an unregistered sender must receive every token back"
+        );
+        assert_eq!(
+            fx.game.get_lock(Mode::Solo, 1, sender.parse().unwrap()).0,
+            0
+        );
+    }
+    assert_eq!(fx.ledger(), ledger);
+}
+
+#[test]
+fn a_new_lock_charges_storage_once_and_rejects_insufficient_credit() {
+    let p = params();
+    let fee = p.storage_charge_per_play.0;
+    let mut fx = fixture(p);
+    let credit = fx.credit();
+    let reserve = fx.term("storage_reserve");
+    let money = fx.money();
+    assert_eq!(lock_for(&mut fx, 1, 1), 0);
+    assert_eq!(fx.credit(), credit - fee);
+    assert_eq!(fx.term("storage_reserve"), reserve + fee);
+    assert_eq!(fx.money(), money);
+    assert_eq!(lock_for(&mut fx, 2, 1), 0);
+    assert_eq!(locked(&fx, 1), 3);
+    assert_eq!(fx.credit(), credit - fee, "top-ups reuse their storage");
+
+    fx.ctx
+        .predecessor_account_id("empty.testnet".parse().unwrap())
+        .attached_deposit(NearToken::from_yoctonear(params().storage_charge_account.0));
+    testing_env!(fx.ctx.build());
+    fx.game.deposit_credit();
+    let ledger = fx.ledger();
+    assert_eq!(
+        token_transfer(&mut fx.game, &mut fx.ctx, "empty.testnet", 1, &msg(0, 1)),
+        1
+    );
+    assert_eq!(
+        fx.game
+            .get_lock(Mode::Solo, 1, "empty.testnet".parse().unwrap())
+            .0,
+        0
+    );
+    assert_eq!(fx.ledger(), ledger);
+}
+
+#[test]
 fn every_other_message_returns_the_full_amount() {
     let mut fx = fixture(params());
     for (amount, text) in [
@@ -214,6 +268,38 @@ fn a_round_that_never_started_releases_its_locks_one_period_after_its_slot() {
     deliver_env(&fx.ctx, PromiseResult::Failed);
     fx.game.on_unlock(2);
     assert_eq!(locked(&fx, 1), 0);
+}
+
+#[test]
+fn failed_unlock_restores_tokens_into_a_paid_replacement_lock() {
+    let mut fx = fixture(params());
+    assert_eq!(lock_for(&mut fx, 500, 1), 0);
+    fx.ctx.attached_deposit(NearToken::from_yoctonear(1));
+    fx.at(50, 2 * 86_400_000_000_000);
+    fx.game.unlock(Mode::Solo, 1);
+    let credit = fx.credit();
+    let reserve = fx.term("storage_reserve");
+    // The old transfer is still in flight; a new key must pay for its own storage.
+    assert_eq!(lock_for(&mut fx, 7, 1), 0);
+    let fee = params().storage_charge_per_play.0;
+    assert_eq!(fx.credit(), credit - fee);
+    assert_eq!(fx.term("storage_reserve"), reserve + fee);
+    deliver_env(&fx.ctx, PromiseResult::Failed);
+    fx.game.on_unlock(1);
+    assert_eq!(locked(&fx, 1), 507);
+    assert_eq!(
+        fx.credit(),
+        credit - fee,
+        "restoration must not charge again"
+    );
+    assert_eq!(fx.term("storage_reserve"), reserve + fee);
+    deliver_env(&fx.ctx, PromiseResult::Failed);
+    fx.game.on_unlock(1);
+    assert_eq!(
+        locked(&fx, 1),
+        507,
+        "duplicate callbacks cannot restore twice"
+    );
 }
 
 #[test]

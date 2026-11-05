@@ -173,7 +173,6 @@ pub enum Request {
     },
     Register {
         actor: AccountId,
-        amount: u128,
     },
     Mint {
         mode: u8,
@@ -349,6 +348,7 @@ impl Game {
         near_sdk::require!(
             params.round_allowance.0 > 0
                 && params.round_allowance.0 < 1 << 127
+                && params.mint_base.0 <= params.round_allowance.0
                 && params.attempt_cap[0] >= params.base_attempts[0]
                 && params.attempt_cap[1] >= params.base_attempts[1],
             "E11"
@@ -359,6 +359,22 @@ impl Game {
                 .0
                 .checked_add(params.storage_charge_per_play.0)
                 .is_some(),
+            "E11"
+        );
+        // Leave 50 Tgas for the initiating receipt when callers attach the documented 300 Tgas.
+        // A zero/undersized callback can strand the request even after OutLayer has completed.
+        near_sdk::require!(
+            params.gas_callback >= Gas::from_tgas(60).as_gas()
+                && params.gas_outlayer >= Gas::from_tgas(100).as_gas()
+                && params.gas_mint >= Gas::from_tgas(10).as_gas()
+                && params
+                    .gas_outlayer
+                    .checked_add(params.gas_callback)
+                    .is_some_and(|gas| gas <= Gas::from_tgas(250).as_gas())
+                && params
+                    .gas_mint
+                    .checked_add(params.gas_callback)
+                    .is_some_and(|gas| gas <= Gas::from_tgas(250).as_gas()),
             "E11"
         );
         if !demo {

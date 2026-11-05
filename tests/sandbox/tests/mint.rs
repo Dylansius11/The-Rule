@@ -40,6 +40,21 @@ async fn lock_view(game: &Contract, who: &Account, round: u32) -> Res<u128> {
     Ok(value.parse()?)
 }
 
+async fn wait_token_state(game: &Contract, who: &Account, expected: &str) -> Res<()> {
+    for _ in 0..30 {
+        let state: String = game
+            .view("get_token_state")
+            .args_json(json!({"account":who.id()}))
+            .await?
+            .json()?;
+        if state == expected {
+            return Ok(());
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+    }
+    Err(format!("token state for {} never became {expected}", who.id()).into())
+}
+
 #[tokio::test]
 async fn accept_mints_real_rule_and_a_lock_round_trips_through_the_token() -> Res<()> {
     let worker = near_workspaces::sandbox().await?;
@@ -65,27 +80,40 @@ async fn accept_mints_real_rule_and_a_lock_round_trips_through_the_token() -> Re
         .await?
         .into_result()?;
     let before = credit(&game, &alice).await?;
+    // Before token registration the game check returns to None without spending credit.
     alice
         .call(game.id(), "register_token")
         .max_gas()
         .transact()
         .await?
         .into_result()?;
-    let mut registered = false;
-    for _ in 0..30 {
-        let state: String = game
-            .view("get_token_state")
-            .args_json(json!({"account":alice.id()}))
-            .await?
-            .json()?;
-        if state == "registered" {
-            registered = true;
-            break;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-    }
-    assert!(registered, "register_token callback never arrived");
-    assert_eq!(before - credit(&game, &alice).await?, min);
+    wait_token_state(&game, &alice, "none").await?;
+    assert_eq!(before, credit(&game, &alice).await?);
+    // Each player funds token storage directly; game credit is never used for registration.
+    alice
+        .call(token.id(), "storage_deposit")
+        .args_json(json!({"account_id":alice.id(),"registration_only":true}))
+        .deposit(NearToken::from_yoctonear(min))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+    alice
+        .call(game.id(), "register_token")
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+    wait_token_state(&game, &alice, "registered").await?;
+    assert_eq!(before, credit(&game, &alice).await?);
+    alice
+        .call(game.id(), "register_token")
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+    assert_eq!(before, credit(&game, &alice).await?);
+    wait_token_state(&game, &alice, "registered").await?;
 
     // One ACCEPT mints mint_base (100 RULE) of a Rare round at a full allowance.
     let play = alice

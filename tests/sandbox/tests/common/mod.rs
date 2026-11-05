@@ -72,11 +72,9 @@ pub async fn start(worker: &Worker<Sandbox>, commit: &str, window_ns: u64) -> Re
         .transact()
         .await?
         .into_result()?;
-    let bounds: Value = token.view("storage_balance_bounds").await?.json()?;
     let mut config = params(mock.id().as_str());
     config["reveal_window_ns"] = json!(window_ns);
     config["token"] = json!(token.id());
-    config["token_storage_deposit"] = bounds["min"].clone();
     game.call("new")
         .args_json(json!({"params":config,"demo":true}))
         .transact()

@@ -5,12 +5,12 @@ use near_sdk::PromiseResult;
 use near_sdk::serde_json::{Value, json};
 use protocol::Mode;
 
-const TOKEN_DEPOSIT: u128 = 1_000;
+const REGISTERED: &[u8] = br#"{"total":"1000","available":"0"}"#;
 
-/// Register the current actor on the token and deliver a successful callback.
+/// Deliver the token's successful storage balance response.
 fn register(fx: &mut Fx) {
     let request = fx.game.register_token();
-    deliver_env(&fx.ctx, PromiseResult::Successful(Vec::new()));
+    deliver_env(&fx.ctx, PromiseResult::Successful(REGISTERED.to_vec()));
     fx.game.on_register(request);
 }
 
@@ -27,73 +27,101 @@ fn accept(fx: &mut Fx, number: u16) -> u64 {
 }
 
 #[test]
-fn registering_charges_credit_for_the_token_storage_deposit() {
+fn existing_token_registration_does_not_debit_game_credit() {
     let mut fx = fixture(params());
-    let credit = fx.credit();
+    let (credit, money) = (fx.credit(), fx.money());
     let request = fx.game.register_token();
-    assert_eq!(fx.credit(), credit - TOKEN_DEPOSIT);
-    assert_eq!(fx.term("pending_credit"), TOKEN_DEPOSIT);
+    assert_eq!(fx.credit(), credit);
+    assert_eq!(fx.term("pending_credit"), 0);
     assert_eq!(
         fx.game.get_token_state("bob.near".parse().unwrap()),
         "pending"
     );
-    let sent = calls();
     assert_eq!(
-        sent[0],
+        calls()[0],
         (
             "token.testnet".to_owned(),
-            "storage_deposit".to_owned(),
-            json!({"account_id":"bob.near","registration_only":true}),
-            TOKEN_DEPOSIT
+            "storage_balance_of".to_owned(),
+            json!({"account_id":"bob.near"}),
+            0
         )
     );
-    deliver_env(&fx.ctx, PromiseResult::Successful(Vec::new()));
+    let pending_error = panic_text(|| {
+        fx.game.register_token();
+    });
+    assert!(pending_error.contains("E57"), "{pending_error}");
+    deliver_env(&fx.ctx, PromiseResult::Successful(REGISTERED.to_vec()));
     fx.game.on_register(request);
     assert_eq!(
         fx.game.get_token_state("bob.near".parse().unwrap()),
         "registered"
     );
-    assert_eq!(fx.term("pending_credit"), 0);
-    assert_eq!(fx.credit(), credit - TOKEN_DEPOSIT);
-    let again = panic_text(|| {
-        fx.game.register_token();
-    });
-    assert!(again.contains("E57"), "{again}");
+    assert_eq!(fx.credit(), credit);
+    assert_eq!(fx.money(), money);
+    let refresh = fx.game.register_token();
+    deliver_env(&fx.ctx, PromiseResult::Successful(REGISTERED.to_vec()));
+    fx.game.on_register(refresh);
+    assert_eq!(
+        fx.game.get_token_state("bob.near".parse().unwrap()),
+        "registered"
+    );
+    assert_eq!(fx.credit(), credit);
 }
 
 #[test]
-fn a_failed_registration_refunds_the_deposit_and_can_be_retried() {
+fn null_malformed_and_failed_registration_checks_leave_no_credit_change() {
     let mut fx = fixture(params());
     let (credit, money) = (fx.credit(), fx.money());
-    let request = fx.game.register_token();
-    deliver_env(&fx.ctx, PromiseResult::Failed);
-    fx.game.on_register(request);
-    assert_eq!(fx.credit(), credit);
-    assert_eq!(fx.money(), money);
-    assert_eq!(fx.game.get_token_state("bob.near".parse().unwrap()), "none");
-    // A duplicate callback changes nothing; the player can try again.
-    deliver_env(&fx.ctx, PromiseResult::Successful(Vec::new()));
-    fx.game.on_register(request);
-    assert_eq!(fx.game.get_token_state("bob.near".parse().unwrap()), "none");
+    for result in [
+        PromiseResult::Successful(b"null".to_vec()),
+        PromiseResult::Successful(Vec::new()),
+        PromiseResult::Successful(br#"{"total":"1000"}"#.to_vec()),
+        PromiseResult::Successful(br#"{"total":1000,"available":"0"}"#.to_vec()),
+        PromiseResult::Successful(br#"{"total":"1","available":"2"}"#.to_vec()),
+        PromiseResult::Successful(br#"{"total":"1","available":"0","extra":true}"#.to_vec()),
+        PromiseResult::Failed,
+    ] {
+        let request = fx.game.register_token();
+        deliver_env(&fx.ctx, result);
+        fx.game.on_register(request);
+        assert_eq!(fx.game.get_token_state("bob.near".parse().unwrap()), "none");
+        assert_eq!(fx.credit(), credit);
+        assert_eq!(fx.money(), money);
+        deliver_env(&fx.ctx, PromiseResult::Successful(REGISTERED.to_vec()));
+        fx.game.on_register(request);
+        assert_eq!(fx.game.get_token_state("bob.near".parse().unwrap()), "none");
+    }
     register(&mut fx);
     assert_eq!(
         fx.game.get_token_state("bob.near".parse().unwrap()),
         "registered"
     );
+    let refresh = fx.game.register_token();
+    deliver_env(&fx.ctx, PromiseResult::Successful(b"null".to_vec()));
+    fx.game.on_register(refresh);
+    assert_eq!(fx.game.get_token_state("bob.near".parse().unwrap()), "none");
 }
 
 #[test]
-fn registering_needs_credit_for_the_deposit() {
+fn token_check_needs_a_player_but_no_credit() {
     let mut fx = fixture(params());
-    fx.ctx
-        .predecessor_account_id("poor.near".parse().unwrap())
-        .attached_deposit(near_sdk::NearToken::from_yoctonear(100 + TOKEN_DEPOSIT - 1));
+    fx.ctx.predecessor_account_id("poor.near".parse().unwrap());
     near_sdk::testing_env!(fx.ctx.build());
-    fx.game.deposit_credit();
     let error = panic_text(|| {
         fx.game.register_token();
     });
     assert!(error.contains("E20"), "{error}");
+    fx.ctx
+        .attached_deposit(near_sdk::NearToken::from_yoctonear(100));
+    near_sdk::testing_env!(fx.ctx.build());
+    fx.game.deposit_credit();
+    assert_eq!(fx.credit(), 0);
+    register(&mut fx);
+    assert_eq!(fx.credit(), 0);
+    assert_eq!(
+        fx.game.get_token_state("poor.near".parse().unwrap()),
+        "registered"
+    );
 }
 
 #[test]

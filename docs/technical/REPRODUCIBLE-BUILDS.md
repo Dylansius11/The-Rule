@@ -1,6 +1,6 @@
 # Reproducible builds
 
-Status 2026-11-04: the referee was built twice in fresh containers **on this one machine**, from two copies of the same working-tree snapshot. This is not evidence of reproducibility across machines or of equivalence to a committed revision. The token reproducible dry run and hosting remain blocked below. Repeat these checks on the frozen, committed sources before P6.4 and preserve the final artifacts and source revision.
+Status 2026-11-05: the earlier referee was built twice in fresh containers **on this one machine**, from two copies of the same working-tree snapshot. This is not evidence of reproducibility across machines or of equivalence to a committed revision. The game/token entrypoint and matching pinned manifest metadata are prepared; actual reproducible contract builds and durable hosting remain blocked below. Repeat checks on the frozen, committed sources before P6.4 and preserve the final artifacts and source revision.
 
 ## Referee
 
@@ -37,22 +37,27 @@ Observed on the isolated snapshot: the existing script reported `PASS: OutLayer 
 
 No upload or URL verification for this referee was performed. P2.2 remains open until the chosen hosting and both matching URLs are exercised. Older INTEGRATIONS and BUILD-PLAN text describes automatic FastFS upload and a GitHub mirror; it conflicts with D28's current blocked status and this no-upload helper.
 
-## Token contract dry run
+## Contract build entrypoint and dry-run limits
 
-The intended pinned contract builder is `sourcescan/cargo-near:0.22.0-rust-1.97.1@sha256:7467038bdddc86484b73b416eeadce926ff59013e128e53dec5a19e1cb4b2234` (Docker Hub digest checked 2026-11-04). Token manifest metadata specifies the image and a locked container build with `--no-abi`; cargo-near's help lists `--no-abi` for `non-reproducible-wasm`, the inner command. Whether this configuration successfully builds the token reproducibly remains unverified.
+The pinned contract builder is `sourcescan/cargo-near:0.22.0-rust-1.97.1@sha256:7467038bdddc86484b73b416eeadce926ff59013e128e53dec5a19e1cb4b2234` (Docker Hub digest checked 2026-11-04). Both game and token manifests specify the same image, locked container build and `--no-abi`. The game metadata follows the existing token convention and [cargo-near template](https://github.com/near/cargo-near/blob/main/cargo-near/src/commands/new/new-project-template/Cargo.template.toml). `cargo metadata --locked --no-deps --format-version 1` accepted the updated workspace locally. This validates manifest/dependency shape, not successful reproducible builds.
 
-`cargo near build reproducible-wasm --manifest-path contracts/token/Cargo.toml` clones committed Git sources, unlike a non-reproducible local build, and embeds reproducible-build metadata. On the observed HEAD it failed before Docker: `Cargo.lock is absent or not up-to-date` because the committed workspace lockfile did not cover that committed workspace. The current working tree has a different lockfile. WSL Docker integration is disabled: `docker version` in WSL reports that Docker could not be found and recommends enabling WSL integration; the Windows Docker CLI can reach the running engine, but cargo-near invokes Docker inside WSL. Neither two token hashes nor a byte comparison against a non-reproducible build was obtained.
+`cargo near build reproducible-wasm` clones committed Git sources, unlike a non-reproducible local build, and embeds reproducible-build metadata. On 2026-11-04's then-committed sources, token build failed before Docker because the committed lockfile was stale. That historical failure is not a current-lockfile diagnosis. The earlier WSL Docker integration check also failed. No pair of reproducible contract hashes was obtained.
 
 The local comparison command `cargo near build non-reproducible-wasm --locked --no-abi --manifest-path contracts/token/Cargo.toml --out-dir scratch/repro/token-local` succeeded on the working tree: 194,542 bytes, SHA-256 `84a1a8d94dd020d04f7b2c7822b2a13b87a11d91c920514464bd3dfdde3bbe9b`. This demonstrates `--no-abi` on the local build only; it does not establish that cargo-near's reproducible flow accepts that inner command or that its output differs.
 
-After the lead commits a coherent workspace lockfile and the token metadata, and enables a usable WSL Docker client/engine, run twice from that same clean commit:
+`make build-contracts` now invokes `scripts/build/contracts-reproducible.sh` for both contracts, with isolated config/cache defaults and a `CONTRACTS_OUT` output root. The wrapper checks Docker before creating output, reports the committed source revision, invokes only `cargo near build reproducible-wasm`, and prints each successful artifact hash under `<output>/<game|token>/<game|token>.wasm`. It never signs, deploys or falls back to non-reproducible bytes. A later contract failure may leave the earlier successful contract artifact; absence of the second hash is not a complete build.
+
+Observed 2026-11-05: WSL `docker info` still reports unavailable integration; Windows `docker.exe info` cannot open `dockerDesktopLinuxEngine`, and engine enumeration cannot open `dockerBackendApiServer`. `docker.exe desktop start` reports already running, so that did not repair the backend. The actual make entrypoint fails nonzero on the Docker prerequisite; no reproducible artifact is claimed. Restarting Desktop could interrupt another project's containers, so owner approval is required before doing that. No Docker settings were changed.
+
+Once a usable WSL Docker client/Linux engine exists, run twice from the same clean committed sources:
 
 ```sh
 export CARGO_TARGET_DIR="$HOME/target-the-rule-repro" CARGO_BUILD_JOBS=2
 export XDG_CONFIG_HOME="$HOME/.config-the-rule"
-bash scripts/build/token-reproducible.sh scratch/repro/token-1
-bash scripts/build/token-reproducible.sh scratch/repro/token-2
-sha256sum scratch/repro/token-{1,2}/token.wasm
+make build-contracts CONTRACTS_OUT=scratch/repro/contracts-1
+make build-contracts CONTRACTS_OUT=scratch/repro/contracts-2
+sha256sum scratch/repro/contracts-{1,2}/game/game.wasm
+sha256sum scratch/repro/contracts-{1,2}/token/token.wasm
 ```
 
-Compare hashes and inspect the resulting metadata and ABI behavior against a separately built local non-reproducible token. Do not deploy these dry-run bytes. The lead owns committing the workspace lockfile and resolving WSL integration; no Docker settings were changed here.
+Compare both pairs and inspect resulting metadata and ABI behavior against separately built local non-reproducible artifacts. Do not deploy dry-run bytes or call the contracts frozen. B7 tracks the local Docker prerequisite; P2.2/P6.4 still require actual clean builds and the account-bound referee.

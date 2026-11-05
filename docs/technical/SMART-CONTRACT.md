@@ -265,7 +265,7 @@ All byte layouts live in `crates/rule-core` (grammar) and `crates/protocol` (wir
 
 | Id | Invariant | Enforced by | Test |
 | --- | --- | --- | --- |
-| I1 | At quiescence, `balance >= Σcredit + Σvault + Σround pots + Σcarry + Σopen stakes + Σclaimable + compute_float + platform_accrued + max(storage_reserve, locked_storage)` | `storage_reserve` is cumulative, non-withdrawable storage funding, including funds already backing collateral; `locked_storage` is measured collateral, not an additional liability. `pending_credit` holds unsettled play fee/storage debits, not a complete ledger of outgoing transfers | T-INV-1 property over random op sequences; live-balance and in-flight-transfer reconciliation remains open |
+| I1 | At quiescence, `balance >= Σcredit + Σvault + Σround pots + Σcarry + Σopen stakes + Σclaimable + compute_float + platform_accrued + max(storage_reserve, locked_storage)` | `storage_reserve` already backs collateral. `pending_credit` holds unsettled play fee/storage debits, not outgoing transfers | 10k native Solo principal sequences and sampled same-block sandbox snapshots pass; actual unknown-outcome payment reconciliation and worst-case reserves remain B6 |
 | I2 | Per round `P == W + C_paid + R + L` (or the exact refund sum when Cancelled) | Payout code, dust to R | T-INV-2 |
 | I3 | `token.ft_total_supply == Σ minted on LogRows − Σ burned <= cap`; the only burn is the standard NEP-141 resolver burn when a refund target unregistered; per round `minted <= round_allowance` | Mint and mint-failure callback | T-INV-3 sandbox, T-TOK-3 |
 | I4 | Referee output cannot name an account or an amount | Strict schema parse | T-REF-4 fuzz the parsers |
@@ -363,6 +363,14 @@ Local no-ABI artifact sizes below are non-reproducible sandbox observations, not
 | Game | 428,224 |
 | Token | 166,989 |
 
+### Local native cash model (2026-11-05)
+
+`PROPTEST_CASES=10000 cargo test -p game --test invariants --profile fast -- --nocapture` passed 10,000 fixed-seed generated Solo sequences: 3,339 Settled, 3,324 Void, 3,337 Cancelled; 4,998 unsolved and 5,002 solved outcomes before the opening result. Seed amounts, top-ups, withdrawal amounts and up to eight additional play outcomes vary. Every case also exercises a required multi-player asynchronous suffix: play/guess overlap, failed/valid/duplicate callbacks, wrong/correct/system-failed/unrevealed stakes, overlapping withdrawals/platform payments and terminal claims.
+
+The oracle takes incoming amounts from operation inputs and outgoing principal from created receipt actions, not from the ledger sum. It checks `modeled balance == tracked obligations + unallocated one-yocto deposits` and independently `inputs == balance + transfer escrow + compute sent + successful payments`. Aggregate player credit and terminal per-account claimables must reconcile too; exact pot partitions and contributor dust are checked.
+
+This is a principal-only model, not a receipt-executing VM balance or storage proof. Failed transfer principal is credited at the modeled failure-callback boundary; actual refund/callback ordering, gas/rebates, Team, token operations, begin retry and arbitrary multi-round sequences are not covered here. The regular test uses proptest's default case count; set `PROPTEST_CASES=10000` for the extended gate. The initial fixed-10k run hit its 1,800-second command deadline; the completed extended run took 3,400.92 seconds. Do not call the timed-out attempt a pass or impose that deadline on this gate.
+
 ### Local live-balance report (2026-11-05)
 
 `make balance` exercises real local game/token wasm with MOCK OutLayer and nonzero 0.001-NEAR request deposits. Each solvency snapshot pins `get_ledger` and `view_account` to the same optimistic sandbox block, requires their balances to agree, and includes unsettled play charges plus `max(storage_reserve, locked_storage)`. Each operation also checks individual ledger deltas; an oversized account balance cannot hide a missing debit or refund in those checks.
@@ -388,7 +396,7 @@ Commands below are acceptance recipes, not blanket claims of completion; BUILD-P
 | T-TEAM | Size 5 cap E31; roster locked during a round E30; shared attempt limit; vault pro-rata withdraw (I12) | unit + property |
 | T-TOK | Only the minter can mint; cap; NEP-141/145/148 conformance; transfer works during an open round (I8); mint failure restores the allowance (I3) | `cargo test -p token`, sandbox |
 | T-LOCK | Lock only for a Scheduled round; tier to attempt limit; unlock after every terminal phase (I11); non-token caller E40 | unit + sandbox |
-| T-INV | Random sequences of all public calls and callbacks keep I1, I2, I3 (proptest, 10k cases) | `cargo test -p game --features proptest` |
+| T-INV | Target: all public calls/callbacks preserve I1, I2, I3. Current bounded Solo principal/I2 model passes 10k cases; full cross-layer coverage remains P3.3/B6 | `PROPTEST_CASES=10000 cargo test -p game --test invariants --profile fast` |
 | T-ABI-1 | Exported method list equals the table in this file; no deploy/add-key/delete paths | unit |
 | T-REF | Referee: deterministic outputs for fixed MAC stub; commitment mismatch aborts; strict parsers fuzzed (cargo-fuzz on WSL) | `cargo test -p referee`, `cargo fuzz run parse_output` |
 | T-E2E | Testnet: Phase 0 T1 to T6, then one full rehearsal round (P8.2), then production rounds | scripts in `scripts/`, evidence in this file |

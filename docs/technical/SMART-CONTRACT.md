@@ -337,6 +337,15 @@ Local contract builds use the workspace `release` profile (`opt-level="z"`, LTO,
 
 The ACCEPT trace includes separate successful token-mint and `on_mint` receipts. Their 10 + 10 Tgas allocations come from the verdict callback's budget; burnt gas alone is not the budget available for scheduling them. The guard requires 25 Tgas remaining at its check, but exact remaining gas there is not exposed by the receipt. This sampled path succeeds at the configured 60 Tgas; it is not a maximum-state or real OutLayer gas proof. Request-side transaction totals printed by the harness may exclude delayed receipts and must not be relabeled callback totals.
 
+### Local token failure report (2026-11-05)
+
+`make token-failure` runs the real local game/token wasm with MOCK OutLayer. The executable passed a null registration check followed by direct registration and a successful retry, with unchanged game credit for both checks. A player then unregistered while holding zero tokens after the game's check: token `mint` failed with E52, `on_mint` restored the full allowance and zeroed only the minted amount, and the YES verdict remained. Re-registration allowed the next YES to mint 100 RULE. Token supply equaled the sum of logged mints.
+
+The player locked all 100 RULE, unregistered again, and attempted to unlock. The token transfer genuinely failed because the receiver was unregistered; the callback restored the lock and game custody stayed 100 RULE. After direct re-registration, retry returned exactly 100 RULE, emptied custody and the lock, and a further unlock rejected E56. No state patching or callback impersonation was used.
+
+Matched receipt ids/executors/actions showed failed-mint `on_mint` burning 2.466 Tgas of its 10 Tgas allocation, and failed-unlock `on_unlock` burning 2.015 Tgas of 60 Tgas (truncated to 0.001). These are sampled normal-budget failure paths, not maximum-state gas bounds, recovery from a missing callback or testnet evidence. An unknown mint/transfer outcome cannot safely be treated as failure by timeout.
+
+
 ### Local sandbox storage report (2026-11-05)
 
 `make storage` exercises 64-character player ids with the real game/token wasm and MOCK OutLayer. Account-level `storage_usage` is authoritative; per-prefix key/value plus 40-byte record-overhead totals are diagnostics. Observed storage cost was `10^19` yoctoNEAR/byte. The initial 100-byte sandbox charges failed seven retained-growth checks; the fixture now uses the existing production allowances (160 bytes/account, 768 bytes/play/commit/lock), without changing the production economics.

@@ -85,6 +85,11 @@ The executable traces actual withdrawal/platform transfer actions and callbacks,
 
 The complementary native principal model runs with `PROPTEST_CASES=10000 cargo test -p game --test invariants --profile fast -- --nocapture`. Its fixed RNG seed makes generated cases repeatable. Ordinary test runs use proptest's default case count. The observed 10k run took 3,400.92 seconds; run it with a suitable command deadline. It models failed-transfer principal at the callback boundary and does not replace the sandbox's actual balance/receipt checks or the remaining B6 ordering/reserve gates.
 
+### Local token failure proof recipe
+
+Run `make token-failure` in WSL. The real local token/game and MOCK OutLayer exercise a null registration check, registration retry without a game-credit debit, failed mint after external unregistration, restored allowance with unchanged YES, failed unlock and successful retry after re-registration. Receipt identity/status/gas checks accompany log/supply and custody/lock reconciliation. The executable was exercised locally; it does not establish worst-case callback gas, safe recovery from unknown external outcomes or testnet behavior.
+
+
 ### 3. Referee hosting (P0.4, P2.2)
 
 1. **Docs [V]:** WasmUrl must be HTTPS on port 443 and a public address; the worker hashes the bytes and refuses a mismatch ([near-integration](https://app.outlayer.ai/docs/near-integration)). OutLayer source at commit `aaf60a26` follows at most 3 redirects, re-validates HTTPS, and caps wasm at 10 MiB ([compiler/mod.rs](https://raw.githubusercontent.com/out-layer/outlayer/aaf60a26855e30bc3318126382903df92dea7d3d/worker/src/compiler/mod.rs)). The [dev guide](https://app.outlayer.ai/docs/dev-guide) shows `outlayer upload <file>` returning `https://test.fastfs.io/<account>/outlayer.testnet/<sha256>.wasm`.

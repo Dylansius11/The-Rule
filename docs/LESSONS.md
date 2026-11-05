@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-05: caller binding belongs to the manifest section, not a byte-count heuristic
+
+- **What happened:** the rehearsal planner rejected the actual committed referee even though its caller was correct. Its manifest JSON appeared twice: once in program data and once in `outlayer.manifest`.
+- **Root cause:** raw-byte occurrence count confused compiler-retained data with the authoritative custom section. Pinned wasm-tools showed one manifest section; the old planner required one text occurrence.
+- **Rule:** parse bounded module/component sections and require exactly one caller-bound manifest section. Reject missing/duplicate/truncated sections, then independently validate the full artifact and audit imports. The corrected offline CLI and four boundary regressions passed; no deployment occurred.
+
 ### 2026-11-05: initiating transaction completion is not detached callback completion
 
 - **What happened:** the first capacity sandbox run read nine pending referee requests immediately after awaiting a resolved begin transaction and expected eight. Waiting for the callback's state transition made the full saturation/refund/reveal runtime pass.

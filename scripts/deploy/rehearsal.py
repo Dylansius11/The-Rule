@@ -50,6 +50,49 @@ def artifact(value, name):
     return path, data
 
 
+def referee_manifest(data):
+    """Read the sole manifest custom section, not copies in program data.
+
+    This validates section boundaries in core modules/components, not the full WASM instruction set.
+    """
+    def leb(pos, end):
+        value = 0
+        for shift in range(0, 35, 7):
+            require(pos < end, 'referee: truncated section length')
+            byte = data[pos]
+            pos += 1
+            require(shift < 28 or byte < 16, 'referee: invalid section length')
+            value |= (byte & 127) << shift
+            if byte < 128:
+                return value, pos
+        raise ValueError('referee: invalid section length')
+
+    manifests, pending = [], [(0, len(data), 0)]
+    while pending:
+        start, end, depth = pending.pop()
+        require(depth <= 32, 'referee: excessive component nesting')
+        header = data[start:start + 8]
+        require(end - start >= 8 and header in (b'\0asm\x01\0\0\0', b'\0asm\x0d\0\x01\0'), 'referee: invalid module/component header')
+        component = header == b'\0asm\x0d\0\x01\0'
+        pos = start + 8
+        while pos < end:
+            kind = data[pos]
+            size, payload = leb(pos + 1, end)
+            section_end = payload + size
+            require(section_end <= end, 'referee: truncated section payload')
+            if kind == 0:
+                length, name = leb(payload, section_end)
+                name_end = name + length
+                require(name_end <= section_end, 'referee: truncated custom section name')
+                if data[name:name_end] == b'outlayer.manifest':
+                    manifests.append(data[name_end:section_end].strip())
+            elif component and kind in (1, 4):
+                pending.append((payload, section_end, depth + 1))
+            pos = section_end
+    require(len(manifests) == 1, 'referee must have exactly one outlayer.manifest custom section')
+    return manifests[0]
+
+
 def prepare(config):
     obj(config, ("network", "game_account", "token_account", "game_wasm", "token_wasm", "referee_wasm", "referee_sha256", "referee_build_log", "token_cap", "token_metadata", "demo", "params", "init_gas", "token_storage_deposit", "registration_payer", "registration_gas"), 'config')
     require(config['network'] == 'testnet', 'network must be testnet')
@@ -73,9 +116,9 @@ def prepare(config):
     hashes = re.findall(r'^([0-9a-f]{64})[ \t]+(?:\*?)[^\r\n]+$', build_log, re.MULTILINE)
     require(callers == [game] and hashes == [digest], 'referee build log must record exactly this caller and sha256')
     manifest = template.replace('<GAME_ACCOUNT_PLACEHOLDER>', game).encode()
-    require(blobs['referee'].count(manifest) == 1, 'referee embedded build manifest does not bind this game')
-    require(b'RULE_DEMO' not in blobs['referee'], 'demo referee bytes are not allowed for this rehearsal')
     require(len(blobs['referee']) < 10 * 1024 * 1024, 'referee exceeds OutLayer size limit')
+    require(referee_manifest(blobs['referee']) == manifest, 'referee embedded build manifest does not bind this game')
+    require(b'RULE_DEMO' not in blobs['referee'], 'demo referee bytes are not allowed for this rehearsal')
     amount(config['token_cap'], 'token_cap', True)
     require(re.fullmatch(r'game-r[1-9][0-9]*\.therule\.testnet', game) is not None and token == game.replace('game-r', 'token-r', 1), 'rehearsal accounts must be matching game-rN/token-rN.therule.testnet')
     metadata = obj(config['token_metadata'], ('spec', 'name', 'symbol', 'decimals'), 'token_metadata')

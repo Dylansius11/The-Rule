@@ -100,9 +100,9 @@ Read the headlines before work. Record actual surprises from this project only, 
 
 ### 2026-11-04: FastFS testnet upload did not serve the file
 
-- **What happened:** the documented FastFS upload (a deliberately failing 1-gas transaction read by an indexer) was sent, but `https://test.fastfs.io/<signer>/outlayer.testnet/<sha256>.wasm` returned HTTP 404 on every check over about 20 minutes.
-- **Root cause:** unknown [U]. The CLI printed no transaction hash and the indexer is outside our control.
-- **Rule:** never depend on FastFS alone. Probes ran through a Cloudflare quick tunnel (OutLayer fetched and hash-checked the bytes). Production hosting is open decision D28.
+- **What happened:** the earlier gas-1 upload's probe URL returned 404 for about 20 minutes. On 2026-11-06 a separately authorized production upload worked: public GET returned exact bytes while HEAD returned 404. The CLI still omitted its tx hash on expected action failure; access-key nonce/block changes located tx `3XbgZYVddhofieFctrvz154P1zUY5TbsDFkLVgEF6bru`, and final transaction RPC established its cost.
+- **Root cause:** the historical probe failure remains unknown [U]; the later method discrepancy is observed, not a diagnosis of the old failure. Intentional upload action failure alone does not establish availability.
+- **Rule:** verify downloaded GET bytes and hash, not only HEAD or transaction status. Keep independent Cloudflare/FastFS origins, recover exact receipt evidence before resending, and never repeat an upload merely because the CLI reports its expected gas failure. D28 hosting is now published; real worker execution remains P2.9.
 
 ### 2026-11-04: near CLI wrote THE RULE's key into another project's credentials folder
 

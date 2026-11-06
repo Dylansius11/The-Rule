@@ -100,6 +100,8 @@ Local actual-WASM runs exercised maximum-config/ten-active-round token and payme
 
 B6 remains open for native NEAR withdrawal/platform completion: a failed callback can leave no authenticated outcome, so a timeout refund/resend can duplicate payment. RULE mint/unlock now use durable funded outcomes and same-id replay instead; that does not establish native payment recovery, universal scheduler liveness or production/testnet acceptance. See SMART-CONTRACT and D31.
 
+The targeted 2026-11-06 continuation passed six final sandbox `round`/`guess` tests and 13 native `settle` tests. New evidence covers reversed Correct callback order with exact claims, actual-timestamp begin/open retry/cancel and phase/slot rejection atomicity. The new native payment order property passed 2,048 fixed-seed generated cases with refunds before/after callbacks and six selectable completion permutations. Unchanged full suites/Team 10k gates were not rerun. Local P2.4/P2.8 are accepted by SMART-CONTRACT's finite mapping; founder chose rehearsal and failure receipt evaluation before deciding native recovery, so P3.1/P3.3/B6/freeze remain open.
+
 ### Local live-balance proof recipe
 
 Run `make balance` in WSL. It rebuilds local artifacts and runs the isolated sandbox with MOCK OutLayer; no testnet funds are used. The WSL `curl` binary queries that sandbox's RPC. Solvency snapshots pin contract views and account balances to the same optimistic block, compare individual obligation deltas, and count storage funding/collateral once.

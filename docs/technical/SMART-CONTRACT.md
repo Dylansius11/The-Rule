@@ -542,6 +542,27 @@ Separate Solo sweep fixtures passed in the same completed command, including exa
 
 **Native NEAR unknown-outcome recovery remains unimplemented and unaccepted.** [NEAR documents that callbacks can fail independently and are not retried](https://docs.near.org/smart-contracts/security/cross-contract-calls/callback-failures.md) [V, checked 2026-11-06]. Withdrawal/platform transfer completion has no authenticated historical result in the game ABI. A timeout or current balance cannot distinguish success from failure; blind refund/resend can pay twice. Pending principal therefore remains reserved. The founder authorized the RULE authenticated-outcome redesign on 2026-11-06; token mint/unlock now use the protocol above. This does not silently authorize a different native payout asset, custody intermediary or acceptance of native stuck-operation risk. D31/B6 and freeze remain open for that native boundary and remaining acceptance evidence.
 
+**Founder direction (2026-11-06):** proceed with the key-retaining rehearsal first, recording receipt-defined transfer outcome, callback identity/status, allocated/burnt gas and exact error for evaluation. This is not acceptance of stranded native payments or authorization to change payout asset/custody. A callback failure after transfer success must not be called a failed transfer; pending callback state alone establishes neither outcome.
+
+**Why completion can fail:** a callback is a separate receipt, with independent gas/runtime/storage limits, code and input parsing. NEAR does not retry it automatically. The current bounded callbacks avoid untrusted large-result parsing; earlier maximum-root local samples burnt 2.501/10 Tgas (`on_withdraw`) and 2.301/10 Tgas (`on_platform`). Those samples are not universal upper bounds. No native callback failure has yet been observed on game testnet because the game is not deployed. Rehearsal must preserve actual errors rather than infer a cause. Historical local RULE fault instrumentation deliberately removed callback export names; that is not evidence of a naturally occurring native gas failure.
+
+### Local acceptance mapping (2026-11-06)
+
+This finite native/runtime composition accepts P2.4/P2.8 locally. Actual-WASM tests use **MOCK OutLayer**; none replaces P2.9 or promises every possible receipt schedule.
+
+| Area | Behavioral evidence |
+| --- | --- |
+| T-PLAY / T-CB | Sandbox `round::begin_resolves_via_mock_outlayer`, four `play` tests and `capacity::saturated_plays_preserve_reveals_and_lifecycle_capacity`; native round/capacity/callback-fences/recovery matrices cover duplicate/late ownership and exact expiry |
+| T-GUESS / T-PAY | Native guess/settle matrices; sandbox `guess::reversed_correct_callbacks_award_the_earliest_commit` resolves the later Correct first, then checks the earlier winner and exact seeded-pot/returned-stake claims; existing solved/unsolved/sweep runtimes cover partitions/dust |
+| T-ROUND | Sandbox failed begin/open -> retry -> actual-timestamp cancellation with no-effect forbidden pending calls; native phase-guard and exact Solo/Team slot tests; native recovery covers stale replacements |
+| T-TEAM / T-LOCK / T-TOK | Existing actual-WASM Team/mint/lock suite and `team-storage`, `token-failure`, `token-recovery`, `effect-gas`, `multiround`; permanent token replay fences and replacement custody are documented above |
+| Storage / T-ABI-1 | Actual-Borsh lifetime/root bounds, operator admission/top-up runtime and game/token WASM export allowlists; request-only sizing is not whole-system liveness proof |
+
+Changed runtime targets passed: `cargo test -p sandbox-tests --profile fast --test round --test guess -- --test-threads=1` (**6 passed**) and `cargo test -p game --profile fast --test settle -- --test-threads=1` (**13 passed**). The sandbox cancellation deadlines were configured to 30 seconds, not production ten-minute request expiry. Earlier patched actual-WASM expiry smoke remains accurately labeled; exact clock/replacement fencing is native evidence. Season aggregation and keeper remain Phase 6.
+
+`PROPTEST_CASES=2048 cargo test -p game --profile fast --test invariants seeded_native_payment_refund_order_and_owner_reservations -- --exact --test-threads=1` passed. It selects all six three-payment completion permutations, success/failure/refund timing and independent owners, including withheld/duplicate/wrong callbacks, while reconciling receipt/input-derived principal and operator reservations. It complements, rather than reruns or expands the claim of, prior 10k Solo/two-round/mint/Team gates. Native unknown-outcome recovery remains open.
+
+
 
 ## Test matrix
 

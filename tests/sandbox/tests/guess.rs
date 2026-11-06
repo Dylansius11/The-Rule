@@ -215,3 +215,114 @@ async fn solved_round_opens_settles_and_pays_through_the_mock_referee() -> Res<(
     assert!(format!("{again:?}").contains("E56"), "{again:?}");
     Ok(())
 }
+
+#[tokio::test]
+async fn reversed_correct_callbacks_award_the_earliest_commit() -> Res<()> {
+    let worker = near_workspaces::sandbox().await?;
+    let (rule, _) = rule_core::sample(b"sandbox-reversed-guesses");
+    let round_salt = [5u8; 32];
+    let commitment = serde_json::to_value(protocol::round_commitment(&rule, &round_salt))?;
+    let Env { mock, game, .. } = start_seeded(
+        &worker,
+        commitment.as_str().unwrap(),
+        3_000_000_000,
+        NearToken::from_near(1),
+    )
+    .await?;
+    let alice = worker.dev_create_account().await?;
+    let bob = worker.dev_create_account().await?;
+    for (index, actor) in [&alice, &bob].into_iter().enumerate() {
+        actor
+            .call(game.id(), "deposit_credit")
+            .deposit(NearToken::from_near(1))
+            .max_gas()
+            .transact()
+            .await?
+            .into_result()?;
+        let hash = protocol::commit_hash(&protocol::CommitPreimage {
+            chain: "testnet",
+            game: game.id().as_str(),
+            mode: protocol::Mode::Solo,
+            round: 0,
+            actor: actor.id().as_str(),
+            entity: protocol::Entity::Solo(index as u32),
+            guess: &rule,
+            salt: &[9u8; 32],
+        });
+        let ack: Value = actor
+            .call(game.id(), "commit_guess")
+            .args_json(json!({"mode":0,"hash":hash}))
+            .max_gas()
+            .transact()
+            .await?
+            .json()?;
+        assert_eq!(ack["commit_seq"], index as u64);
+    }
+    worker.fast_forward(5).await?;
+    let guess = serde_json::to_value(RuleHex(rule.clone()))?;
+    let first = alice
+        .call(game.id(), "reveal_guess")
+        .args_json(json!({"mode":0,"commit_seq":0,"guess":guess,"salt":"09".repeat(32)}))
+        .gas(Gas::from_tgas(300))
+        .transact_async()
+        .await?;
+    wait_requests(&mock, 2).await?;
+    let second = bob
+        .call(game.id(), "reveal_guess")
+        .args_json(json!({"mode":0,"commit_seq":1,"guess":guess,"salt":"09".repeat(32)}))
+        .gas(Gas::from_tgas(300))
+        .transact_async()
+        .await?;
+    wait_requests(&mock, 3).await?;
+    resolve(&mock, 2, json!({"correct":true}), false).await?;
+    second.await?.into_result()?;
+    wait_status(&game, 1, "Correct").await?;
+    assert_eq!(commits(&game).await?[0]["status"], "Checking");
+    resolve(&mock, 1, json!({"correct":true}), false).await?;
+    first.await?.into_result()?;
+    wait_status(&game, 0, "Correct").await?;
+    let opened = json!({"rule":serde_json::to_value(&rule)?,"salt":"05".repeat(32)});
+    finalize_with_open(&worker, &alice, &game, &mock, 0, 3, opened).await?;
+    let mut settled = false;
+    for _ in 0..50 {
+        let round: Value = game
+            .view("get_round")
+            .args_json(json!({"mode":0,"id":0}))
+            .await?
+            .json()?;
+        if round["phase"] == "Settled" {
+            assert_eq!(round["outcome"]["account"], alice.id().as_str());
+            assert_eq!(round["outcome"]["entity_id"], 0);
+            settled = true;
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+    assert!(settled, "round never settled after opening");
+    // One NEAR seeded pot: winner receives 40%, both correct stakes return.
+    for (actor, expected) in [
+        (&alice, 500_000_000_000_000_000_000_000u128),
+        (&bob, 100_000_000_000_000_000_000_000u128),
+    ] {
+        let claimable: String = game
+            .view("get_claimable")
+            .args_json(json!({"mode":0,"round_id":0,"account":actor.id()}))
+            .await?
+            .json()?;
+        assert_eq!(claimable.parse::<u128>()?, expected);
+        let before = credit(&game, actor).await?;
+        let paid: String = actor
+            .call(game.id(), "claim")
+            .args_json(json!({"mode":0,"round_id":0}))
+            .max_gas()
+            .transact()
+            .await?
+            .json()?;
+        assert_eq!(paid.parse::<u128>()?, expected);
+        assert_eq!(credit(&game, actor).await? - before, expected);
+    }
+    let ledger: Value = game.view("get_ledger").await?.json()?;
+    assert_eq!(ledger["open_stakes"], "0");
+    assert_eq!(ledger["claimable"], "0");
+    Ok(())
+}

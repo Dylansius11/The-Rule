@@ -691,6 +691,47 @@ Actual `EXPERIMENTAL_receipt` actions verified both native recipients and exact 
 
 These finite samples do not establish worst-case gas or recovery after an unknown native effect. Raw transactions, full action receipts, final export, verifier output and economic audit remain in gitignored `scratch/referee-publication/rehearsal/`; public transaction ids above are the durable retrieval anchors. P2.9 remains open for 50 real plays and a correct-guess/winner run; P3.1/P3.3/B6 and freeze remain gated by D31. The founder-authorized 35-attempt/four-guess limits were not exceeded.
 
+### D33 paused-round closure (testnet, 2026-11-06; keys retained)
+
+The founder authorized normal closure of the already-expired Solo 1 within D33's original cumulative limits, not another round or deployment. After `advance` and the configured reveal window, real OutLayer `open` returned `{"v":"g1","form":0,"lits":[[0,0]]}` and the matching salt. The ordinary ending was **Settled, Unsolved**, with 33 plays (17 YES / 16 NO), 11 shares per player and zero guesses. The interrupted final play was reconciled read-only before closure and never resent.
+
+| Action | Observed transaction |
+| --- | --- |
+| Start original Solo 1 | `83fb3fJT5Wyoz5b6mPUNHoFZaX4iWZCQgoguHQFEX5JT` |
+| Previously interrupted play, recovered as log row 32 | `A9QSwVQYyJp45FMj7AoGmE1uufAuSJ9VgZouePaXxCyx` |
+| Advance expired Investigation | `Faorbpzh1GCeirzGDY9pNgrXhaKpTzxw7fj739SosVF6` |
+| Finalize and open Unsolved | `6QvXK6XfbzxVLjEu96KEF6RenhTFqeJpHdHUiP6tAV6m` |
+| Parent claim | `C4r9ZaPf9N9qvH2UMYCpxie2J2uVzDPHjiuCNm7ZJy2` |
+| Parent native withdrawal | `GVrWnem3LBj1rFXgAYUbDH5yLoVVtAmU2YtSwuGPpgnr` |
+| Other claim | `Lnx4dHTumbRjcMSVicJg6ciY6JLh7pHPcyhkBUEAxsp` |
+| Other native withdrawal | `2BKbhy4DHx3ewFnoV46Fi9u2jkAfGiCjdHy4UkZLtRVC` |
+| Spare claim | `6SxYktDbLV1jvSr7H3B8zMSXXP9SPxrvyrFhVqPEPVku` |
+| Spare native withdrawal | `CtPZWBPymtUmYM6q9anF5F71VH6SmCLNGoDEkLAye6at` |
+| Platform payment | `7ZJmg7DDkf3P4mZPjt5KNdTM2n2xXHJYqkdJEDFaUmBP` |
+
+The actual `make verify ROUND=solo/1 GAME_ACCOUNT=game-r1.therule.testnet NEAR_RPC_URL=https://test.rpc.fastnear.com` printed **`PASS: 33 of 33 verdicts match`**. An independent read-only audit pinned all account, ledger, log, claim, supply and funding views to final block **276522837**. It reconciled all 48 reserved actions to distinct FINAL transactions and checked 35 real OutLayer completions plus 17 token mint events against the log.
+
+| Audited quantity | Observed |
+| --- | --- |
+| Round pot before distribution | 0.577000000000000000000018 NEAR |
+| Contributor claim, each of three 11-share players | 0.076933333333333333333334 NEAR |
+| Carry, including rounding dust | 0.288500000000000000000015 NEAR |
+| Platform payment, fees plus terminal share | 0.074200000000000000000001 NEAR |
+| Parent withdrawal, remaining credit plus claim | 1.041653333333333333333334 NEAR |
+| Other withdrawal | 0.641653333333333333333334 NEAR |
+| Spare withdrawal | 0.636533333333333333333334 NEAR |
+| New logged mints | 849.320339881030933810 RULE |
+| Total supply, both rounds = player balances | 1224.189118314265777984 RULE |
+| Retained token outcomes / remaining funding | 32 / 0.17408 NEAR |
+| Parent cumulative D33 gross debit / ceiling | 1.324567753473102700000001 / 3 testnet NEAR |
+| Other cumulative D33 gross debit / ceiling | 0.919316862877311800000001 / 1.25 testnet NEAR |
+| Spare cumulative D33 gross debit / ceiling | 0.920437599897492500000001 / 1.25 testnet NEAR |
+| Credit, vault, pot, stake, claimable, platform, pending play/payment/referee liabilities | All zero; carry, compute and storage remain funded |
+
+Each native transfer's actual receipt recipient/amount and promise-data-linked completion were checked with the read-only incident reporter. All three withdrawals and the platform transfer/callback succeeded; no naturally failed native callback was observed. The conservative journal charges deposits plus all recorded transaction-tree burn to the initiating signer for cap enforcement; that is not a claim that every receipt's gas was paid by that signer or that allocated funds were burnt.
+
+Public tx ids above are durable retrieval anchors; raw responses, export, verifier, payment diagnostics and audit are in ignored `scratch/p29/`. P2.9 remains unmet: this single round had neither 50 plays nor a Correct guess. No new account, deployment, asset, public referee, key deletion or source push occurred. D35 separately proposes fresh hardened r2 state; current Docker availability, funding, approval, artifact/URL verification and final preflight remain prerequisites. D31/B6 still gate native recovery and freeze.
+
 ### Phase 0 probe evidence (testnet, 2026-11-04, probe contract and probe referee, not the game)
 
 Operator: lead through a worker using `near-rule`. Full raw logs are in the gitignored `scratch/probe/`; the callback bytes are committed in `tests/vectors/outlayer-callback.json`.

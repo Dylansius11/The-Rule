@@ -39,11 +39,32 @@ The restored Linux audit-tool release archive matched SHA-256 `b6ad301b8ac65e283
 
 `scripts/referee/publish.sh FILE.wasm` prints SHA-256 and size and rejects files of 10 MiB or more. Optionally add `--verify-url https://...` to fetch the URL with HTTPS-only redirects (at most three) and check its hash. It never uploads. A matching local fetch does not prove availability to the deployed OutLayer worker. OutLayer requires public HTTPS on port 443, at most three redirects and a maximum of 10 MiB, and checks the supplied hash.
 
-- FastFS testnet: the earlier uploaded probe returned HTTP 404; cause unknown.
-- Cloudflare quick tunnel: temporary, only while the local tunnel process runs; used for the probe, not durable hosting.
-- Commit-pinned GitHub raw or release asset: candidate only; the founder authorized the source remote/push on 2026-11-05 (D22), but GitHub reported the repository PRIVATE. A public referee endpoint and asset publication still require authorization and verification (D28); source push alone does not host the wasm.
+### Published referee evidence (2026-11-06)
 
-No upload or URL verification for this referee was performed. P2.2 remains open until the chosen hosting and both matching URLs are exercised. Older INTEGRATIONS and BUILD-PLAN text describes automatic FastFS upload and a GitHub mirror; it conflicts with D28's current blocked status and this no-upload helper.
+Founder authorized Cloudflare primary, FastFS mirror and one upload costing at most 0.002 testnet NEAR, replacing the earlier raw-GitHub mirror (D28). No public GitHub repository was created; source visibility is unchanged.
+
+| Source | Public URL |
+| --- | --- |
+| Cloudflare deployment-pinned primary | `https://0ba1bf92.the-rule-referee.pages.dev/67ca482631d80efc80ef12d230ebf51f813326c9d54984ccbdc4f2de72749c60.wasm` |
+| FastFS testnet mirror | `https://test.fastfs.io/therule.testnet/outlayer.testnet/67ca482631d80efc80ef12d230ebf51f813326c9d54984ccbdc4f2de72749c60.wasm` |
+
+Both public GETs returned the exact **228,161 bytes**, SHA-256 `67ca482631d80efc80ef12d230ebf51f813326c9d54984ccbdc4f2de72749c60`. Before publication, the retained independent `ba3d23f` build pair passed `cmp`, pinned component validation and exact WIT comparison again. Its sole manifest admits `game-r1.therule.testnet`, and no `RULE_DEMO` string is present. Referee and rule-core source have not changed since that build; subsequent protocol additions concern token outcomes. This is publication of that explicitly identified reproducible artifact, not a fresh current-source contract build or freeze.
+
+Cloudflare Direct Upload created `the-rule-referee` using the founder-authorized relay; no card or paid service was activated. The primary returns `Content-Type: application/wasm`, `Cache-Control: public, max-age=31536000, immutable` and `X-Content-Type-Options: nosniff`. The project alias is `https://the-rule-referee.pages.dev`; deployment `0ba1bf92` identifies the verified upload.
+
+FastFS transaction [`3XbgZYVddhofieFctrvz154P1zUY5TbsDFkLVgEF6bru`](https://testnet.nearblocks.io/txns/3XbgZYVddhofieFctrvz154P1zUY5TbsDFkLVgEF6bru) was included at block `276477344`. Its `__fastdata_fastfs` call attached 0 NEAR and gas 1; `Exceeded the prepaid gas` is deliberate in the vendor upload protocol. Summed observed transaction/receipt burn was **0.0012591626714774 NEAR**, below the authorization ceiling. CLI did not print the transaction hash; read-only access-key nonce history located its transaction-processing change, then final `tx` RPC confirmed identity, arguments and cost. No upload was repeated.
+
+FastFS GET returned 200 with `application/wasm`; HEAD returned 404. The old probe URL still returned 404; its historical cause is unknown, not proof that the new upload failed. Receipt and byte-check details are in gitignored `scratch/referee-publication/`.
+
+Repeat the actual byte checks in WSL:
+
+```sh
+bash scripts/referee/publish.sh scratch/repro/referee-committed-1.wasm --verify-url https://0ba1bf92.the-rule-referee.pages.dev/67ca482631d80efc80ef12d230ebf51f813326c9d54984ccbdc4f2de72749c60.wasm
+bash scripts/referee/publish.sh scratch/repro/referee-committed-1.wasm --verify-url https://test.fastfs.io/therule.testnet/outlayer.testnet/67ca482631d80efc80ef12d230ebf51f813326c9d54984ccbdc4f2de72749c60.wasm
+```
+
+These two commands passed. P2.2 is satisfied under D28; real worker fetch and execution remain P2.9. Historical quick tunnels are not hosting dependencies.
+
 
 ## Contract build entrypoint and dry-run limits
 

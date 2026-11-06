@@ -112,7 +112,7 @@ For a begin/verdict/guess/open callback or read-only registration check that nev
 | JS runtime | Node LTS; pnpm | 26.13.0; 12.16.1 | [Node releases](https://nodejs.org/en/about/previous-releases), `npm view pnpm` | near-api-js requires Node >= 22.22.2 |
 | NEAR JS | near-api-js | 7.4.0 | `npm view near-api-js` | Views, keeper signing, web |
 | Frontend (D2, proposed) | React, Vite, TypeScript, Motion, TanStack, NEAR Connect | 19.3.1, 8.3.5, 6.0.3, 14.9.1, Query 5.105.3 / Table 9.3.1 / Virtual 3.14.26, 0.12.0 | npm registry, 2026-11-04 | Visual direction open (B1) |
-| Hosting | Cloudflare Pages (web); FastFS testnet + raw GitHub mirror (referee bytes) | managed | [Pages limits](https://developers.cloudflare.com/pages/platform/limits/), [OutLayer dev guide](https://app.outlayer.ai/docs/dev-guide) | OutLayer source follows up to 3 HTTPS redirects and caps wasm at 10 MiB [V] |
+| Hosting | Cloudflare Pages deployment-pinned primary + FastFS testnet mirror (referee); Pages web planned | managed | [Direct Upload](https://developers.cloudflare.com/pages/get-started/direct-upload/), [OutLayer dev guide](https://app.outlayer.ai/docs/dev-guide) | Both exact referee GETs verified 2026-11-06 (D28); no card/paid plan. OutLayer follows up to 3 HTTPS redirects and caps wasm at 10 MiB [V] |
 | Keeper (D20, proposed) | Cloudflare Workers Cron; fallback GitHub Actions schedule | managed | [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) | 10 ms CPU per invocation; signing qualification B5 |
 | Monitor | Healthchecks.io Hobbyist | managed | [pricing](https://healthchecks.io/pricing/) | Missed-heartbeat alert |
 

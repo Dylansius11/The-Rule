@@ -3,8 +3,8 @@
 ## TL;DR
 
 - **Exercised (2026-11-04):** testnet accounts and funding, the deployed Phase 0 probe, OutLayer T1 to T3 and failure/latency probes, temporary HTTPS hosting; receipts are in SMART-CONTRACT. Local sandbox game/token tests use MOCK OutLayer and are not testnet evidence.
-- **Not yet exercised:** the real game/referee rehearsal, durable referee hosting, deployed keeper, web wallet and static hosting, NEAR Auth (P1).
-- **Founder actions:** additional rehearsal funding (B2), design references (B1), durable hosting/publication decision (D28), then publish and submit at P8.6/P8.7. Build authorization B3 is resolved.
+- **Referee hosting exercised (2026-11-06):** founder-authorized Cloudflare Pages primary and FastFS testnet mirror serve identical reviewed production bytes; no card, paid plan or public GitHub repository. Full URLs/hash and upload receipt: REPRODUCIBLE-BUILDS.
+- **Not yet exercised / founder gates:** real game/referee rehearsal, deployed keeper, web wallet and NEAR Auth; authorize the quoted rehearsal accounts/deployment/funding (B2), share design references (B1), then publish source and submit at P8.6/P8.7. Founder restored Docker 28.5.1 in Windows and WSL on 2026-11-06; current contract builds remain separate evidence.
 - **Skills:** five project skills installed into `.claude/skills/` with `skills-lock.json`; two skipped. Restore recipe below.
 
 ## Integration inventory
@@ -14,9 +14,9 @@
 | OutLayer (`outlayer.testnet`) | TEE referee execution | Lead | Automatic (contract calls) | Testnet NEAR per execution, paid by the game's compute float | Phase 0 probe exercised [V] 2026-11-04; real referee remains P2.9 |
 | NEAR testnet RPC | Views, transactions | Lead | Automatic | Free public endpoints; rate limits unpublished | Views and probe transactions exercised [V] 2026-11-04 |
 | Testnet accounts + faucet | Parent and sub-accounts, funding | Lead creates, founder funds | Manual funding | Faucet availability | Accounts created [V] 2026-11-04; additional funding B2 |
-| FastFS testnet + raw GitHub mirror | Host the referee bytes for `WasmUrl` | Lead | Script | Upload gas; publication authorization | FastFS upload returned 404; temporary tunnel exercised; durable hosting D28 open |
+| Cloudflare Pages + FastFS testnet mirror | Public hash-pinned referee bytes for `WasmUrl` | Lead | Pages Direct Upload + NEAR upload | Founder authorized publication; FastFS ceiling 0.002 testnet NEAR | Both public GETs matched on 2026-11-06; D28/P2.2 satisfied, real worker execution P2.9 |
 | NEAR Connect wallet | P0 sign-in and signing in the web app | Lead (Phase 7) | Automatic | None | Documented [V] |
-| Cloudflare Pages | Static web hosting | Founder account, lead deploys | Manual account, scripted deploy | Free tier | Documented [V]; no account |
+| Cloudflare Pages | Referee asset hosting now; static game web later | Founder account, lead deploys | Direct Upload | Free static hosting; no card/paid service activated | Referee project `the-rule-referee` deployed 2026-11-06; web remains Phase 7 |
 | Keeper runtime (Cloudflare Workers Cron, fallback GitHub Actions) | Permissionless transitions | Lead | Automatic | Free tier; signing qualification B5 | Local workerd signing qualified (B5); deployed/runtime rehearsal still P6.2 |
 | Healthchecks.io | Keeper heartbeat alert | Founder account | Manual account | Free Hobbyist | Documented [V] |
 | GitHub | Source repo, CI, candidate public artifact mirror | Founder | Source remote/push authorized 2026-11-05; work on `dev`, PR into `main` | None | `Dylansius11/The-Rule` exists and reports PRIVATE; visibility and artifact publication remain separate D28/P8.6 work |
@@ -135,10 +135,13 @@ Observed 2026-11-05: all script targets passed with wasmtime 50.0.1, wasm-bindge
 
 ### 3. Referee hosting (P0.4, P2.2)
 
-1. **Docs [V]:** WasmUrl must be HTTPS on port 443 and a public address; the worker hashes the bytes and refuses a mismatch ([near-integration](https://app.outlayer.ai/docs/near-integration)). OutLayer source at commit `aaf60a26` follows at most 3 redirects, re-validates HTTPS, and caps wasm at 10 MiB ([compiler/mod.rs](https://raw.githubusercontent.com/out-layer/outlayer/aaf60a26855e30bc3318126382903df92dea7d3d/worker/src/compiler/mod.rs)). The [dev guide](https://app.outlayer.ai/docs/dev-guide) shows `outlayer upload <file>` returning `https://test.fastfs.io/<account>/outlayer.testnet/<sha256>.wasm`.
-2. **[U]** The `outlayer` CLI install source was not found in the docs on 2026-11-04 (npm `outlayer` is an unrelated package). Next action in P0.4: locate it in the [out-layer/outlayer](https://github.com/out-layer/outlayer) repo. If it is unavailable, use the primary fallback: a commit-pinned `https://raw.githubusercontent.com/Dylansius11/the-rule/<commit>/artifacts/referee.wasm`, which requires the repo to be public, so rehearsals use FastFS.
-3. **Agent steps:** `scripts/referee/publish.sh` builds, uploads to FastFS, writes the mirror file, and prints both URLs and the sha256.
-4. **Verification:** `curl -sL <url> | sha256sum` equals `REFEREE_SHA256` for both URLs.
+Founder chose **Cloudflare Pages primary and FastFS testnet mirror** on 2026-11-06 (D28), replacing the raw-GitHub mirror. Main source visibility did not change and no separate public repository was created.
+
+1. **Validate exact bytes.** Use the two independently reproduced non-demo artifacts recorded in REPRODUCIBLE-BUILDS. Check `cmp`, SHA-256, pinned `wasm-tools validate`, extracted imports, sole caller-bound manifest and absence of `RULE_DEMO`. The published referee is source `ba3d23f`, not a newly built current game/token pair.
+2. **Cloudflare Pages.** The founder authenticated Chrome and authorized the relay. Direct Upload created `the-rule-referee` without a card or paid-plan activation. Only the hash-named WASM, `SHA256SUMS`, a public artifact description and `_headers` were uploaded; no repo, credentials or round answer. Use the deployment-pinned URL, not only the mutable project alias, in game init.
+3. **FastFS testnet.** The official [uploader source](https://github.com/out-layer/outlayer-cli/blob/e8057527ca15a3f8bc8f1d0b4412c04ac9439533/src/commands/upload.rs) encodes Borsh `Simple` variant 0: relative path, `Some` MIME/content. Our 228,161-byte WASM fits one payload; MIME is `application/wasm`, path is `<sha256>.wasm`. The isolated `near-rule` keychain sent `__fastdata_fastfs` to `outlayer.testnet` with gas 1 and deposit 0, within the explicitly approved 0.002-NEAR ceiling. **Its expected action failure is not publication proof**: verify the public GET bytes separately.
+4. **Observed.** Upload tx `3XbgZYVddhofieFctrvz154P1zUY5TbsDFkLVgEF6bru`, block `276477344`, burnt 0.0012591626714774 testnet NEAR. Both hosts returned matching GET bytes. FastFS HEAD returned 404 while GET returned 200; do not substitute HEAD for the worker's byte fetch. The old probe's 404 root cause remains unknown.
+5. **Verification helper.** `scripts/referee/publish.sh FILE.wasm --verify-url https://...` checks size and downloaded hash with at most three HTTPS-only redirects. It **does not build, upload or configure hosting**. Exact URLs and repeatable verification commands are in REPRODUCIBLE-BUILDS; availability to the real OutLayer worker is checked in P2.9.
 
 ### 4. Web wallet and hosting (Phase 7, blocked on B1)
 

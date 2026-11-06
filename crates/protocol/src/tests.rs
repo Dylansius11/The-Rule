@@ -75,3 +75,46 @@ fn referee_context_and_grammar_golden_vector() {
         vector["begin_response"]["header"]["grammar"]
     );
 }
+
+#[test]
+fn token_outcomes_reject_ambiguous_or_extended_wire_data() {
+    use crate::token::TokenOutcome;
+    let valid = json!({
+        "operation": {
+            "operation_id": 42, "kind": "mint",
+            "account_id": "player.testnet", "amount": "100"
+        },
+        "status": "applied"
+    });
+    let mut malformed = Vec::new();
+    let mut extra = valid.clone();
+    extra["extra"] = json!(true);
+    malformed.push(extra);
+    let mut extra = valid.clone();
+    extra["operation"]["extra"] = json!(true);
+    malformed.push(extra);
+    for amount in [
+        json!(100),
+        json!("0100"),
+        json!("-1"),
+        json!("1e2"),
+        json!(""),
+    ] {
+        let mut wrong = valid.clone();
+        wrong["operation"]["amount"] = amount;
+        malformed.push(wrong);
+    }
+    let mut wrong = valid.clone();
+    wrong["operation"]["kind"] = json!("transfer");
+    malformed.push(wrong);
+    let mut wrong = valid.clone();
+    wrong["status"] = json!("unknown");
+    malformed.push(wrong);
+    malformed.push(Value::Null);
+    for value in malformed {
+        assert!(serde_json::from_value::<TokenOutcome>(value).is_err());
+    }
+    assert!(serde_json::from_str::<TokenOutcome>(
+        r#"{"operation":{"operation_id":42,"kind":"mint","account_id":"p.testnet","amount":"1"},"status":"applied","status":"cap_exceeded"}"#
+    ).is_err());
+}

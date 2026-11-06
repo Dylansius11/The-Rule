@@ -110,3 +110,18 @@ All rows use source `ba3d23f0a50784e66a1a62476a35db8aee71502b`. Both contracts w
 Both reproducible contract artifacts also passed their existing ABI export allowlists. The five added admission/play sandbox runtimes were then exercised again against this exact reproducible pair: saturation/lifecycle/retry, settled duplicate, five verdict failure shapes, delayed YES after freeze, low compute and private-callback rejection all passed. Those runtimes still use MOCK OutLayer, not a deployed TEE referee.
 
 Artifacts live in gitignored `scratch/repro/admission-{1,2}/` and `scratch/repro/referee-committed-{1,2}.wasm`. During that build run, no bytes were uploaded, no remote was added, and no testnet transaction was signed. The founder subsequently authorized the private source remote/push (D22), not referee asset publication or deployment. The repository identifier in metadata does not mean that revision is publicly retrievable. Contract changes or another frozen revision require rebuilding and rechecking.
+
+### Current recovery-layout rehearsal artifacts (2026-11-06)
+
+Source `e546b82caef3a9b8848a4863f322a7e7c3419f57`, same pinned builder and locked no-ABI recipe:
+
+| Artifact | Bytes | SHA-256 |
+| --- | --- | --- |
+| Game | 483,078 | `83a3a39fa12ec9132ca73ffde665df65e0a4815179373375756b4cc7e642073c` |
+| Token | 183,152 | `5faf278b5c3de6dc8c1f5527731b1809952d7369fb9c116d4042d7ca0ba4f8c7` |
+
+These are **one fresh reproducible build per current contract**, not a second current pair or freeze. The actual make command built game, then failed closed on Docker Hub DNS during token setup. An explicit pinned image pull succeeded; token-only `cargo near build reproducible-wasm` then completed at the same source. Logs: `scratch/referee-publication/current-contract-build.log` and `current-token-build.log`. Do not describe the partially failed make invocation as passing.
+
+With `GAME_WASM`/`TOKEN_WASM` pointing to these exact artifacts and `EXPECTED_SOURCE_REV` set to the full source id, actual sandbox metadata views matched revision/image/path/command. Both ABI allowlists passed. The reversed-Correct-callback runtime and complete `token-recovery` executable passed against this pair, including real local callback failures after token effects, overlapping replay and exact supply/funding. All use local MOCK OutLayer, not testnet. Logs: `repro-artifact-smoke.log` and `rehearsal-token-quote.log` under that scratch directory.
+
+The exact token's local quote returned registration min/max `1250000000000000000000` yoctoNEAR, per-outcome cost `2560000000000000000000`, and initialized account storage 183,536 bytes. The live testnet byte price is checked separately and the deployed token must confirm the quote before registration. The real offline planner accepted these artifacts and the D28 referee, and five boundary regressions passed. The authorized D32 run retains keys, compresses scheduling, uses production economic/storage floors and the non-demo referee, and stops at 35 play attempts/four guesses; it is not P2.9's 50-play acceptance or production timing evidence.

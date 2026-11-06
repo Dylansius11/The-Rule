@@ -416,3 +416,154 @@ fn solo_cash_and_pot_partition_seeded_sequences() {
         solved.map(|n| n.get())
     );
 }
+
+/// The VM does not execute native transfers. Model both admissible refund/callback
+/// orders, and keep unrelated payments pending until their own authenticated callbacks.
+#[test]
+fn seeded_native_payment_refund_order_and_owner_reservations() {
+    const COLLATERAL: u128 = 10u128.pow(27);
+    const ORDERS: [[usize; 3]; 6] = [
+        [0, 1, 2],
+        [0, 2, 1],
+        [1, 0, 2],
+        [1, 2, 0],
+        [2, 0, 1],
+        [2, 1, 0],
+    ];
+    let config = Config {
+        failure_persistence: None,
+        ..Config::default()
+    };
+    let mut runner = TestRunner::new_with_rng(
+        config,
+        TestRng::from_seed(RngAlgorithm::ChaCha, &[0xa4; 32]),
+    );
+    runner
+        .run(
+            &(1u128..50_000, 1u128..50_000, any::<u8>(), 0usize..6),
+            |(bob_amount, carol_amount, bits, order)| {
+                let mut fx = fixture(params());
+                fx.actor(NAMES[1]);
+                fx.actor(NAMES[0]);
+                let play = fx.play(1, "otter");
+                fx.verdict(play, 0);
+                let mut cash = Cash::default();
+                cash.incoming(2 * DEPOSIT);
+                let mut credits = [DEPOSIT - 10_200, DEPOSIT - 100];
+                let mut platform = 500u128;
+                // One NO play contributes 8,000 pot + 1,500 compute; two account
+                // registrations and the play contribute 300 storage reserve.
+                // Locked storage is not an additional liability in storage.rs.
+                let other = 8_000 + 1_500 + 300;
+                let amounts = [bob_amount, carol_amount, platform];
+                let mut ids = [0u64; 3];
+                let mut reserved = 0u128;
+                for i in 0..3 {
+                    fx.actor(NAMES[i.min(1)]);
+                    fx.ctx
+                        .attached_deposit(NearToken::from_yoctonear(u128::from(i < 2)));
+                    reset(&fx);
+                    if i < 2 {
+                        fx.game.withdraw_credit(U128(amounts[i]));
+                        cash.incoming(1);
+                        cash.surplus += 1;
+                        credits[i] -= amounts[i];
+                        ids[i] = callback_id("on_withdraw");
+                    } else {
+                        ids[i] = fx.game.claim_platform();
+                        platform = 0;
+                    }
+                    let receipts = near_sdk::test_utils::get_created_receipts();
+                    let transfer = receipts
+                        .iter()
+                        .find(|r| {
+                            r.actions
+                                .iter()
+                                .any(|a| matches!(a, MockAction::Transfer { .. }))
+                        })
+                        .unwrap();
+                    let receiver = if i < 2 { NAMES[i] } else { "platform.testnet" };
+                    assert_eq!(transfer.receiver_id.as_str(), receiver);
+                    assert_eq!(cash.outbound(), amounts[i]);
+                    reserved += amounts[i];
+                }
+                let check = |fx: &mut Fx,
+                             cash: &Cash,
+                             credits: [u128; 2],
+                             platform: u128,
+                             reserved: u128| {
+                    fx.ctx
+                        .account_balance(NearToken::from_yoctonear(COLLATERAL + cash.balance))
+                        .attached_deposit(NearToken::from_yoctonear(0));
+                    reset(fx);
+                    let ledger = fx.ledger();
+                    assert_eq!(credit_of(&fx.game, NAMES[0]), credits[0]);
+                    assert_eq!(credit_of(&fx.game, NAMES[1]), credits[1]);
+                    assert_eq!(num(&ledger["credit"]), credits.iter().sum::<u128>());
+                    assert_eq!(num(&ledger["platform_accrued"]), platform);
+                    assert_eq!(num(&ledger["pending_native_payments"]), reserved);
+                    assert_eq!(
+                        num(&ledger["operator_storage_available"]),
+                        (COLLATERAL + cash.balance).saturating_sub(
+                            other + credits.iter().sum::<u128>() + platform + reserved
+                        )
+                    );
+                    assert_eq!(cash.inputs, cash.balance + cash.escrow + cash.paid);
+                };
+                check(&mut fx, &cash, credits, platform, reserved);
+                for name in &NAMES[..2] {
+                    fx.actor(name);
+                    fx.ctx.attached_deposit(NearToken::from_yoctonear(1));
+                    reset(&fx);
+                    assert!(panic_text(|| fx.game.withdraw_credit(U128(1))).contains("E21"));
+                    assert!(near_sdk::test_utils::get_created_receipts().is_empty());
+                    check(&mut fx, &cash, credits, platform, reserved);
+                }
+                deliver_env(&fx.ctx, response(true));
+                fx.game.on_platform(ids[0]);
+                fx.game.on_withdraw(ids[2]);
+                check(&mut fx, &cash, credits, platform, reserved);
+                // Elapsed time does not establish an outcome or release a payment reservation.
+                fx.at(50, OPEN_TIMEOUT * 2);
+                for id in ids {
+                    assert!(!fx.game.expire_request(id));
+                }
+                check(&mut fx, &cash, credits, platform, reserved);
+                for i in ORDERS[order] {
+                    let failed = bits & (1 << i) != 0;
+                    let refund_first = bits & (1 << (i + 3)) != 0;
+                    if !failed || refund_first {
+                        cash.complete(amounts[i], failed);
+                        check(&mut fx, &cash, credits, platform, reserved);
+                    }
+                    deliver_env(&fx.ctx, response(failed));
+                    if i < 2 {
+                        fx.game.on_withdraw(ids[i]);
+                        if failed {
+                            credits[i] += amounts[i];
+                        }
+                    } else {
+                        fx.game.on_platform(ids[i]);
+                        if failed {
+                            platform += amounts[i];
+                        }
+                    }
+                    reserved -= amounts[i];
+                    check(&mut fx, &cash, credits, platform, reserved);
+                    if failed && !refund_first {
+                        cash.complete(amounts[i], true);
+                        check(&mut fx, &cash, credits, platform, reserved);
+                    }
+                    deliver_env(&fx.ctx, response(!failed));
+                    if i < 2 {
+                        fx.game.on_withdraw(ids[i]);
+                    } else {
+                        fx.game.on_platform(ids[i]);
+                    }
+                    check(&mut fx, &cash, credits, platform, reserved);
+                }
+                Ok(())
+            },
+        )
+        .unwrap();
+}

@@ -315,3 +315,53 @@ impl Game {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::proportional;
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(proptest::test_runner::Config {
+            rng_seed: proptest::test_runner::RngSeed::Fixed(0x5445_414d),
+            failure_persistence: None,
+            ..proptest::test_runner::Config::default()
+        })]
+
+        #[test]
+        fn pro_rata_matches_direct_division_when_the_product_fits(
+            amount in 0u128..1 << 63,
+            weight in 0u128..1 << 63,
+            extra in 0u128..1 << 63,
+        ) {
+            let total = weight + extra + 1;
+            prop_assert_eq!(proportional(amount, weight, total), amount * weight / total);
+        }
+
+        #[test]
+        fn full_width_complementary_weights_conserve_principal(
+            amount in any::<u128>(),
+            raw_weight in any::<u128>(),
+            total in 1u128..=u128::MAX,
+        ) {
+            let weight = raw_weight % total;
+            let left = proportional(amount, weight, total);
+            let right = proportional(amount, total - weight, total);
+            let allocated = left.checked_add(right).expect("allocation exceeded u128");
+            prop_assert!(allocated <= amount);
+            prop_assert!(amount - allocated <= 1);
+            prop_assert_eq!(proportional(amount, total, total), amount);
+            prop_assert_eq!(proportional(total, weight, total), weight);
+        }
+    }
+
+    #[test]
+    fn maximum_weights_preserve_exact_cancellation_and_rounding() {
+        let max = u128::MAX;
+        assert_eq!(proportional(max, max, max), max);
+        assert_eq!(proportional(max, max - 1, max), max - 1);
+        assert_eq!(proportional(max - 1, max / 2, max), max / 2 - 1);
+        assert_eq!(proportional(max, 1, 2), max / 2);
+        assert_eq!(proportional(max, 0, max), 0);
+    }
+}

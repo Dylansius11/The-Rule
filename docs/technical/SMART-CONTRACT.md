@@ -490,6 +490,8 @@ Each charged account/action/Team pays for its own bounded retained and token/pay
 
 The actual `team-storage` executable passed five distinct 64-character accounts, five weighted depositors, a 24-byte name, fully refunded first play, a contextual second play, actual YES mint, actor-bound correct guess, exact equal reward/dust splits, stake return to vault, pro-rata exits and historical claims after roster deletion. Account records grew 135 bytes each; the full team/membership/depositor setup grew 1,516 bytes and two retained plays including the roster snapshot grew 1,135 bytes in the recorded sample. A failing-before/passing-after native regression and the actual runtime reject new capital entering an impaired vault with unchanged state.
 
+The 2026-11-06 rerun passed the same Team custody path; its two retained plays grew 1,132 bytes in that sample. Separate fixed-seed arithmetic properties ran 10,000 cases each over direct-product-safe and full-width `u128` inputs, checking quotient agreement, complementary-weight conservation with at most one yocto of dust, exact cancellation and whole-vault withdrawal. Maximum-weight boundary cases passed too (`scratch/b6-team-full-width.log`). These arithmetic properties are not 10,000 on-chain Team rounds.
+
 `operator-storage` exercised E24 on actual local WASM despite separately funded player credit and pot, proved no OutLayer request or liability mutation, then admitted the round after an unallocated operator top-up. Its explicitly key-retaining sandbox fixture removes only operator surplus after deployment gas refunds; it is not a production withdrawal/recovery path. Exact one-yocto budget boundaries, same-round retry and ten-round admission/cancel are native regressions.
 
 **Native refund-order regression (2026-11-06):** a native receipt-context model reproduced admission borrowing a withdrawal's returned principal before its failed callback. The conservative `pending_native_payments` reservation now rejects that ordering with E24 for both withdrawal and platform payments, preserves state, restores the original obligation and fences duplicate completion. This is a modeled refund-first ordering, not an observed sandbox scheduling failure. Logs: `scratch/b6-native-reserve-before.log` and `scratch/b6-native-reserve-after.log`.
@@ -505,6 +507,13 @@ The 2026-11-06 rerun after native-principal reservation passed the maximum-root 
 | `on_unlock`, failed transfer lock restoration | 60 | 2.447 |
 | `on_withdraw`, successful payment | 10 | 2.474 |
 | `on_platform`, failed payment accrual restoration | 10 | 2.279 |
+
+Separate Solo sweep fixtures passed again on 2026-11-06 after the same source change, including exact owner refunds, Correct-stake preservation, one open, terminal partitions and one-yocto dust. These are not maximum-root fixtures. Evidence: `scratch/b6-final-runtime.log`.
+
+| Final full-batch action | Allocated Tgas | Observed burnt Tgas |
+| --- | --- | --- |
+| `finalize`, 20 unrevealed refunds plus open scheduling | 300 | 10.187 |
+| Its separate `on_open` settlement callback | 60 | 2.468 |
 
 **Unconditional unknown-outcome recovery is not implemented or accepted.** [NEAR documents that callbacks run but can fail independently and are not retried](https://docs.near.org/smart-contracts/security/cross-contract-calls/callback-failures.md) [V, checked 2026-11-06]. If an external transfer/mint completes but its callback fails, the same pending state is compatible with external success or failure. No public input, timeout or current token balance authenticates that historical outcome. Restoring credit/locks/allowance or blindly retrying could pay or mint twice. The current ABI has no authenticated historical receipt-result lookup. The pending request therefore remains rather than fabricating an outcome. Read-only registration/referee expiry remains safe under its existing fencing policy. Closing this requirement needs explicit founder acceptance of successful bounded callbacks under the stated NEAR runtime assumptions, or a separately approved authenticated-result architecture. Neither is implied by these local proofs; D31/B6 remain open and freeze is not accepted.
 

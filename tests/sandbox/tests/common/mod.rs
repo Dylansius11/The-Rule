@@ -145,6 +145,34 @@ pub async fn finalize_with_open(
 /// Deploy mock, token and game, wire them together, run `start_round` and deliver a begin result
 /// sealed with `commit`; the round ends in Investigation with a `reveal_window_ns` of `window_ns`.
 pub async fn start(worker: &Worker<Sandbox>, commit: &str, window_ns: u64) -> Res<Env> {
+    start_with_open_timeout(worker, commit, window_ns, None).await
+}
+
+pub async fn start_with_open_timeout(
+    worker: &Worker<Sandbox>,
+    commit: &str,
+    window_ns: u64,
+    open_timeout_ns: Option<u64>,
+) -> Res<Env> {
+    start_configured(worker, commit, window_ns, open_timeout_ns, 0).await
+}
+
+pub async fn start_seeded(
+    worker: &Worker<Sandbox>,
+    commit: &str,
+    window_ns: u64,
+    seed: near_workspaces::types::NearToken,
+) -> Res<Env> {
+    start_configured(worker, commit, window_ns, None, seed.as_yoctonear()).await
+}
+
+async fn start_configured(
+    worker: &Worker<Sandbox>,
+    commit: &str,
+    window_ns: u64,
+    open_timeout_ns: Option<u64>,
+    seed: u128,
+) -> Res<Env> {
     let mock = worker
         .dev_deploy(&std::fs::read(artifact("mock_outlayer"))?)
         .await?;
@@ -166,12 +194,24 @@ pub async fn start(worker: &Worker<Sandbox>, commit: &str, window_ns: u64) -> Re
     fund_token_operations(&token).await?;
     let mut config = params(mock.id().as_str());
     config["reveal_window_ns"] = json!(window_ns);
+    if let Some(timeout) = open_timeout_ns {
+        config["open_timeout_ns"] = json!(timeout);
+    }
     config["token"] = json!(token.id());
     game.call("new")
         .args_json(json!({"params":config,"demo":true}))
         .transact()
         .await?
         .into_result()?;
+    if seed != 0 {
+        game.call("seed_pot")
+            .args_json(json!({"mode":0}))
+            .deposit(near_workspaces::types::NearToken::from_yoctonear(seed))
+            .max_gas()
+            .transact()
+            .await?
+            .into_result()?;
+    }
     let begin = game
         .call("start_round")
         .args_json(json!({"mode":0}))

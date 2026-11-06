@@ -590,7 +590,7 @@ No formal verification is claimed. The equivalence checker is tested by differen
 
 ## Deployment and measured costs
 
-**Real game/token contracts: none deployed yet.** Phase 0 probe contracts are deployed (evidence below). Initial account creation was observed on NEAR testnet, 2026-11-04 (operator: lead, via near-cli-rs 0.30.1):
+**Real game/token rehearsal contracts deployed on NEAR testnet, 2026-11-06:** `game-r1.therule.testnet` and `token-r1.therule.testnet`. Keys remain present; D32 authorizes compressed scheduling with production economic/storage floors and the published non-demo referee. This is not a keyless launch, preselected-rule demo or contract freeze. Initial Phase 0 account creation was observed on 2026-11-04 (operator: lead, near-cli-rs 0.30.1):
 
 | Account | Created by | Funding | Transaction |
 | --- | --- | --- | --- |
@@ -602,6 +602,25 @@ No formal verification is claimed. The equivalence checker is tested by differen
 Balances read right after creation: parent 4.978655 NEAR, probe-game 3.5, probe-other 0.5, keeper 1. Further entries record network, account, transaction hash, block, wasm sha256, gas burnt, OutLayer charge and refund, each with date. Expected next entries: Phase 0 probe contract and referee probe (BUILD-PLAN P0.4 to P0.8).
 
 **Funding observation [V], 2026-11-05:** read-only `view_account` at final block `276301560` (`HpVtq3HosG5kZNLZqbUaHUMeb4fCtxYGVRBLHs55dt8V`) returned parent balance `19978655031387500000000000` yoctoNEAR (**19.9786550313875 NEAR**), locked balance `0`, storage usage `182` bytes and no deployed code. This is 15 NEAR above the prior balance at block `276300202`. The incoming transaction was not inspected; this is a balance observation, not a transfer receipt or authorization to spend. Rehearsal budget still needs final artifacts and live compute estimates (B2).
+
+### D32 deployment and initial real-referee execution (testnet, 2026-11-06)
+
+| Action | Observed transaction |
+| --- | --- |
+| Create game with 7 NEAR | `DHudmQaw9eW7XojSCHc32Wp8airfGFAe5dG6ND3Fcp6S` |
+| Create token with 3 NEAR | `DfYfL4eYhDS4KEm6vsn6DDhgxDXuMiMGRiY9RiXUMAt4` |
+| Atomic token deploy/init | `FvwCc8iw1XSd8Z7VQrsWm7GuECCbnFCUFmLBdodANz6s` |
+| Fund 100 permanent token outcomes (0.256 NEAR) | `4ep1CdGeLfKXY8AHUbHjDYzMqwYMLZA4NfMvMa6jyp64` |
+| Atomic game deploy/init | `2TH4gvFLPxVa5wHpRCCbxwyGjyhMBf6iMGdNH8U91EqR` |
+| Start Solo round 0; real OutLayer `begin` | `FdohupWBtF8eWmDynXPeMCjmWUo7VdjSiqxg2d3uA7wX` |
+| First real YES, 25 RULE minted | `7wMwKytpTCzBjh8UPxSSNrwqTteoAHHdEhAWPYfAwBEz` |
+| Known-wrong guess checked Wrong | `AsgjnBMbnehWpGQT9LhZFfS84RTkMNWNGE6zyeFN8H5Y` |
+
+Public `view_code` at final blocks 276482336/276482341 matched the exact game/token SHA-256 values in REPRODUCIBLE-BUILDS. Live game params matched every reviewed field, including total/user referee admission limits 10/8; live token registration minimum and per-outcome cost matched the exact-artifact quote.
+
+The real worker fetched the pinned Cloudflare WASM and returned the round commitment `49349dc2c16778f9212b3ba1248695ed633e5ea5ef3ff0e112c21fc20c16016c`; the game entered Investigation with rule/salt null. `on_begin` burnt 2,273,908,246,051 of 60,000,000,000,000 allocated gas. OutLayer reported 7,093,804 instructions, 406 ms execution, 751 ms fresh compilation, charge 0.0011157007 NEAR and refund 0.0012844193 NEAR. These are observed samples, not upper bounds.
+
+The operator's first commit-status read timed out after submission; read-only final receipts recovered commit tx `Cf3aEZYJ1iCcA9kumvq4xRnk1dCD3pW66YcFt6aNGNpv` without repeating it. A later official-RPC view returned HTTP 429 before another play was sent. The operator switched reads to the project's configured `https://test.rpc.fastnear.com`, confirmed chain `testnet` and not syncing. These are operator/RPC failures, not observed contract callback failures. Full bounded lifecycle evidence is recorded separately when completed; P2.9's 50-play and D31 recovery gates remain open.
 
 ### Phase 0 probe evidence (testnet, 2026-11-04, probe contract and probe referee, not the game)
 

@@ -202,7 +202,7 @@ Each new outcome, including a business rejection, consumes `256 * storage_byte_c
 
 The old token `mint` export is removed; ordinary NEP-141 transfer APIs remain standard. Token registration for the fixed minter cannot be unregistered, preserving custody. A failed callback is recovered by resending the same token operation, not by trusting a caller-supplied outcome, current token balance or elapsed time. Successful callback execution still depends on NEAR runtime availability; permissionless replay removes the single-callback liveness dependency, not the chain dependency.
 
-This pre-freeze cutover changes game/token Borsh layouts and targets **freshly initialized rehearsal contracts**. It includes no state migration, old-ABI compatibility layer or upgrade path for keyless production accounts. Real game/token deployment remains unexercised; rebuilding the old layout is not a migration strategy.
+This pre-freeze cutover changes game/token Borsh layouts and targets **freshly initialized rehearsal contracts**. It includes no state migration, old-ABI compatibility layer or upgrade path for keyless production accounts. D32 deployed the new layout to fresh rehearsal accounts and exercised ordinary real-testnet minting and payments; failed-callback token recovery remains separately local evidence. Rebuilding the old layout is not a migration strategy.
 
 **Local recovery proof (2026-11-06):** actual game/token WASM with MOCK OutLayer passed `token-recovery`. An empty outcome budget produced E24 before minting; explicit funding plus two overlapping third-party replays applied one mint and one storage charge. Masking only the game's `on_mint`/`on_unlock` export names caused real `MethodNotFound` callback failures after successful token effects. Restoring the original local artifact and replaying the same ids reconciled once, preserved a later paid replacement lock, and kept supply/custody/funding exact. A recorded registration rejection stayed rejected after re-registration, Void and the next round; its old allowance/log restoration occurred once.
 
@@ -546,7 +546,7 @@ Separate Solo sweep fixtures passed in the same completed command, including exa
 
 **Founder direction (2026-11-06):** proceed with the key-retaining rehearsal first, recording receipt-defined transfer outcome, callback identity/status, allocated/burnt gas and exact error for evaluation. This is not acceptance of stranded native payments or authorization to change payout asset/custody. A callback failure after transfer success must not be called a failed transfer; pending callback state alone establishes neither outcome.
 
-**Why completion can fail:** a callback is a separate receipt, with independent gas/runtime/storage limits, code and input parsing. NEAR does not retry it automatically. The current bounded callbacks avoid untrusted large-result parsing; earlier maximum-root local samples burnt 2.501/10 Tgas (`on_withdraw`) and 2.301/10 Tgas (`on_platform`). Those samples are not universal upper bounds. No native callback failure has yet been observed on game testnet because the game is not deployed. Rehearsal must preserve actual errors rather than infer a cause. Historical local RULE fault instrumentation deliberately removed callback export names; that is not evidence of a naturally occurring native gas failure.
+**Why completion can fail:** a callback is a separate receipt, with independent gas/runtime/storage limits, code and input parsing. NEAR does not retry it automatically. The current bounded callbacks avoid untrusted large-result parsing; earlier maximum-root local samples burnt 2.501/10 Tgas (`on_withdraw`) and 2.301/10 Tgas (`on_platform`). Those samples are not universal upper bounds. D32 subsequently completed both native withdrawals and the platform payment on real game testnet with no failed callback observed; selected success costs are recorded below. Actual errors must be preserved rather than inferred from pending state. Historical local RULE fault instrumentation deliberately removed callback export names; that is not evidence of a naturally occurring native gas failure.
 
 ### Local acceptance mapping (2026-11-06)
 
@@ -603,7 +603,7 @@ Balances read right after creation: parent 4.978655 NEAR, probe-game 3.5, probe-
 
 **Funding observation [V], 2026-11-05:** read-only `view_account` at final block `276301560` (`HpVtq3HosG5kZNLZqbUaHUMeb4fCtxYGVRBLHs55dt8V`) returned parent balance `19978655031387500000000000` yoctoNEAR (**19.9786550313875 NEAR**), locked balance `0`, storage usage `182` bytes and no deployed code. This is 15 NEAR above the prior balance at block `276300202`. The incoming transaction was not inspected; this is a balance observation, not a transfer receipt or authorization to spend. Rehearsal budget still needs final artifacts and live compute estimates (B2).
 
-### D32 deployment and initial real-referee execution (testnet, 2026-11-06)
+### D32 real-referee rehearsal (testnet, 2026-11-06; keys retained)
 
 | Action | Observed transaction |
 | --- | --- |
@@ -615,12 +615,52 @@ Balances read right after creation: parent 4.978655 NEAR, probe-game 3.5, probe-
 | Start Solo round 0; real OutLayer `begin` | `FdohupWBtF8eWmDynXPeMCjmWUo7VdjSiqxg2d3uA7wX` |
 | First real YES, 25 RULE minted | `7wMwKytpTCzBjh8UPxSSNrwqTteoAHHdEhAWPYfAwBEz` |
 | Known-wrong guess checked Wrong | `AsgjnBMbnehWpGQT9LhZFfS84RTkMNWNGE6zyeFN8H5Y` |
+| Advance expired Investigation | `9hso4XnkVgzn8cMkXbM914qgkGvfzcACdfbSAB1k7Qrs` |
+| Finalize and open; Settled, Unsolved | `AN9k4MR5TvcA6sh4i6yaVtLNZqqBLAETT6mAjzz9XVak` |
+| Parent contributor claim | `8spBvxoQTeZCHDppxi7ZUoeWwHm7QLBH28tAQzyu3YYS` |
+| Parent native withdrawal | `DBjJ4Qxnk9Xy1SzMi31rNfYksc7WbDuRs5ohrCnzKXoB` |
+| Other contributor claim | `AH13KULfcEMPV76cbvX4bPyo5hoNRwKqSzFZLf1gKM9B` |
+| Other native withdrawal | `C7zBsHrbQwDNjws3dSfRHQMhv8c4qqMrQPzxhY7Rz59z` |
+| Native platform payment | `8aqVisXs6vGTgBeNVW2XaY14DmoXKhEL7626BfoD7FoY` |
 
 Public `view_code` at final blocks 276482336/276482341 matched the exact game/token SHA-256 values in REPRODUCIBLE-BUILDS. Live game params matched every reviewed field, including total/user referee admission limits 10/8; live token registration minimum and per-outcome cost matched the exact-artifact quote.
 
 The real worker fetched the pinned Cloudflare WASM and returned the round commitment `49349dc2c16778f9212b3ba1248695ed633e5ea5ef3ff0e112c21fc20c16016c`; the game entered Investigation with rule/salt null. `on_begin` burnt 2,273,908,246,051 of 60,000,000,000,000 allocated gas. OutLayer reported 7,093,804 instructions, 406 ms execution, 751 ms fresh compilation, charge 0.0011157007 NEAR and refund 0.0012844193 NEAR. These are observed samples, not upper bounds.
 
-The operator's first commit-status read timed out after submission; read-only final receipts recovered commit tx `Cf3aEZYJ1iCcA9kumvq4xRnk1dCD3pW66YcFt6aNGNpv` without repeating it. A later official-RPC view returned HTTP 429 before another play was sent. The operator switched reads to the project's configured `https://test.rpc.fastnear.com`, confirmed chain `testnet` and not syncing. These are operator/RPC failures, not observed contract callback failures. Full bounded lifecycle evidence is recorded separately when completed; P2.9's 50-play and D31 recovery gates remain open.
+The operator's first commit-status read timed out after submission; read-only final receipts recovered commit tx `Cf3aEZYJ1iCcA9kumvq4xRnk1dCD3pW66YcFt6aNGNpv` without repeating it. A later official-RPC view returned HTTP 429 before another play was sent. Reads switched to configured `https://test.rpc.fastnear.com`, confirmed chain `testnet` and not syncing; its block read later timed out after play 22. A local solver also lost 120 seconds comparing already-contradicted rejected rules for equivalence; filtering those through shared `rule-core` evaluation reduced the same selection to 4.777 s without changing its candidates/play. These operator/RPC failures consumed the configured 20-minute Investigation window; they are not observed contract callback failures.
+
+**Observed ending:** 22 paid plays (15 YES / seven NO), four guesses all Wrong, then the ordinary Unsolved advance/open path. The revealed rule is `AND(NOT atom 46, NOT atom 70)`: the number's three digits are not strictly decreasing, and the word is outside word-list group 13 (ids 104–111). The operator still had multiple consistent equivalence classes before guessing; a consistent hypothesis was not a proven correct rule. No extra guess, answer injection, preselected referee, key deletion or second round was used to manufacture a Solved result.
+
+The actual `make verify ROUND=solo/0 GAME_ACCOUNT=game-r1.therule.testnet NEAR_RPC_URL=https://test.rpc.fastnear.com` printed **`PASS: 22 of 22 verdicts match`**. This checks the disclosed commitment and complete log, not enclave secrecy. A read-only audit pinned every view/account to final block **276485015** and independently calculated fees, storage, pot partitions, per-owner credit/claims/withdrawals, token supply/allowance and outcome funding from inputs/logs.
+
+| Audited quantity | Observed |
+| --- | --- |
+| Final pot before distribution | 0.626 NEAR |
+| Contributor claim, each of two 11-share players | 0.125199999999999999999991 NEAR |
+| Carry including 18 yoctoNEAR rounding dust | 0.313000000000000000000018 NEAR |
+| Platform payment, play fees plus terminal share | 0.0736 NEAR |
+| Native withdrawals, unused credit plus claims | 2.487679999999999999999982 NEAR total |
+| RULE supply = logged mint = player balances | 374.868778433234844174 RULE |
+| Permanent token outcomes | 15; remaining dedicated budget 0.2176 NEAR |
+| Pending referee requests, play debits and native payments | All zero |
+| Remaining credit, vault, pot, stake, claimable and platform liabilities | All zero; carry/storage/compute remain explicitly reserved |
+| Parent gross debit, including allocations and gas | 14.056080852157131900000001 NEAR, below 15; this is **not** all burnt fees |
+| Parent balance at the audited block | 7.497795016558890699999990 NEAR |
+| OutLayer actual charge / refund over 28 successful executions | 0.0292778195 / 0.0343255405 NEAR; transaction gas excluded |
+
+Actual `EXPERIMENTAL_receipt` actions verified both native recipients and exact withdrawal amounts, the platform transfer and matching callbacks. All recorded rehearsal transaction/receipt statuses succeeded; **no naturally failed callback was observed**. The four Wrong guesses are successful game outcomes, not failures.
+
+| Selected actual callback branch | Allocated Tgas | Observed burnt Tgas, truncated |
+| --- | --- | --- |
+| `on_begin` | 60 | 2.273 |
+| `on_verdict`, sampled YES | 60 | 4.301 |
+| `on_mint`, sampled applied mint | 10 | 2.005 |
+| `on_guess`, maximum of four Wrong samples | 60 | 2.974 |
+| `on_open`, Unsolved | 60 | 2.519 |
+| `on_withdraw`, maximum of two success samples | 10 | 2.189 |
+| `on_platform`, success | 10 | 1.984 |
+
+These finite samples do not establish worst-case gas or recovery after an unknown native effect. Raw transactions, full action receipts, final export, verifier output and economic audit remain in gitignored `scratch/referee-publication/rehearsal/`; public transaction ids above are the durable retrieval anchors. P2.9 remains open for 50 real plays and a correct-guess/winner run; P3.1/P3.3/B6 and freeze remain gated by D31. The founder-authorized 35-attempt/four-guess limits were not exceeded.
 
 ### Phase 0 probe evidence (testnet, 2026-11-04, probe contract and probe referee, not the game)
 

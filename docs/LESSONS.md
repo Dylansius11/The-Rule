@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-06: a consistent hypothesis is not a correct rule
+
+- **What happened:** the real D32 rehearsal reached 22 plays, then four guesses all checked Wrong. The operator still reported 37 consistent canonical candidates before the first inferred guess. The actual opened rule was `AND(NOT atom 46, NOT atom 70)`; dropping the word-group exclusion fit those observations but was not equivalent. The ordinary Unsolved round then opened and replayed PASS 22/22; both native withdrawals and platform payout completed.
+- **Root cause:** a limited adaptive sample did not identify one semantic equivalence class. RPC timeout/429 and redundant local equivalence work consumed the compressed investigation window; these are distinct from contract callback failures, of which none was observed.
+- **Rule:** qualify inference/observation tooling before the paid run, reserve enough real schedule headroom, and do not treat “fits the log” as “equivalent”. Respect authorized guess ceilings even when no solve is obtained. Preserve a truthful Unsolved outcome and leave correct-winner acceptance open rather than inject an answer, silently extend limits or claim callback recovery from successful receipts.
+
 ### 2026-11-06: offline command generation does not qualify CLI units
 
 - **What happened:** the first token deploy command was rejected by near-cli-rs 0.30.1 with `Incorrect unit: 100000000000000 gas`, before signing or broadcast. Both newly created accounts remained funded; the token still had no code at final block 276482085.

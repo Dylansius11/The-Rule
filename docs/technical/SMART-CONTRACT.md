@@ -496,6 +496,16 @@ The actual `team-storage` executable passed five distinct 64-character accounts,
 
 `effect-gas` exercised two maximum-length URLs, three lock tiers, ten actual nonterminal rounds, a 64-character actor and allowance `(2^127)-1`. Genuine token registration/mint/unlock failures and successes, successful native withdrawal, failed/restored/retried native platform transfer, log/supply/allowance and exact principal passed. Receipts prove action identity/status/allocation, not universal gas or scheduler liveness. `multiround` exercised an old Opening round alongside the next Investigation, claims/carry, separate allowances and actual token/lock failure paths. Logs: `scratch/b6-operator-storage-runtime.log`, `scratch/b6-max-root-runtime.log`, `scratch/b6-remaining-runtime.log`.
 
+The 2026-11-06 rerun after native-principal reservation passed the maximum-root `effect-gas` scenario. Selected actual callback receipts are below (Tgas truncated to 0.001); these are observed costs, not universal upper bounds. Evidence: the completed effect-gas portion of `scratch/b6-final-integration.log`, before that composite command's later historical-RPC failure.
+
+| Maximum-root callback branch | Allocated Tgas | Observed burnt Tgas |
+| --- | --- | --- |
+| `on_register`, null registration | 60 | 2.478 |
+| `on_mint`, failed mint allowance restoration | 10 | 2.921 |
+| `on_unlock`, failed transfer lock restoration | 60 | 2.447 |
+| `on_withdraw`, successful payment | 10 | 2.474 |
+| `on_platform`, failed payment accrual restoration | 10 | 2.279 |
+
 **Unconditional unknown-outcome recovery is not implemented or accepted.** [NEAR documents that callbacks run but can fail independently and are not retried](https://docs.near.org/smart-contracts/security/cross-contract-calls/callback-failures.md) [V, checked 2026-11-06]. If an external transfer/mint completes but its callback fails, the same pending state is compatible with external success or failure. No public input, timeout or current token balance authenticates that historical outcome. Restoring credit/locks/allowance or blindly retrying could pay or mint twice. The current ABI has no authenticated historical receipt-result lookup. The pending request therefore remains rather than fabricating an outcome. Read-only registration/referee expiry remains safe under its existing fencing policy. Closing this requirement needs explicit founder acceptance of successful bounded callbacks under the stated NEAR runtime assumptions, or a separately approved authenticated-result architecture. Neither is implied by these local proofs; D31/B6 remain open and freeze is not accepted.
 
 

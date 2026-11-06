@@ -138,19 +138,6 @@ fn accept_mints_a_decaying_amount_and_no_verdict_mints_nothing() {
     let mut fx = fixture(params());
     register(&mut fx);
     let request = accept(&mut fx, 2);
-    let mint: Vec<_> = calls()
-        .into_iter()
-        .filter(|c| c.0 == "token.testnet")
-        .collect();
-    assert_eq!(
-        mint,
-        vec![(
-            "token.testnet".to_owned(),
-            "mint".to_owned(),
-            json!({"account_id":"bob.near","amount":"100"}),
-            0
-        )]
-    );
     assert_eq!(minted_of_row(&fx, 0), "100");
     assert_eq!(fx.round()["allowance_left"], "499900");
     // A NO mints nothing.
@@ -163,7 +150,7 @@ fn accept_mints_a_decaying_amount_and_no_verdict_mints_nothing() {
     assert_eq!(minted_of_row(&fx, 2), "99");
     assert_eq!(fx.round()["allowance_left"], "499801");
     // A mint that went through stays; its callback changes nothing.
-    deliver_env(&fx.ctx, PromiseResult::Successful(Vec::new()));
+    deliver_env(&fx.ctx, token_ack(&fx.game, request + 1, "applied"));
     fx.game.on_mint(request + 1);
     assert_eq!(minted_of_row(&fx, 0), "100");
     assert_eq!(fx.round()["allowance_left"], "499801");
@@ -185,7 +172,7 @@ fn a_failed_mint_restores_the_allowance_and_zeroes_the_row_once() {
     register(&mut fx);
     let request = accept(&mut fx, 2);
     assert_eq!(fx.round()["allowance_left"], "499900");
-    deliver_env(&fx.ctx, PromiseResult::Failed);
+    deliver_env(&fx.ctx, token_ack(&fx.game, request + 1, "cap_exceeded"));
     fx.game.on_mint(request + 1);
     assert_eq!(fx.round()["allowance_left"], "500000");
     assert_eq!(minted_of_row(&fx, 0), "0");

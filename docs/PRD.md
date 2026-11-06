@@ -3,7 +3,7 @@
 ## TL;DR
 
 - **One-liner:** A memecoin with a secret law that nobody knows, not even its creators. Find the rule, win the pot.
-- **Status (2026-11-05):** build authorized (B3); shared core, referee/verifier, Solo game/token and bounded Team custody paths are implemented and locally tested with MOCK OutLayer. Team snapshots, exact splits and historical claims have local runtime evidence, not testnet acceptance. Phase 0 probe gates passed on testnet; the real game/referee rehearsal remains open. Frontend visuals are blocked on founder design references (B1). B6 still requires a decision on unconditional unknown-outcome recovery; BUILD-PLAN tracks unaccepted work.
+- **Status (2026-11-06):** build authorized (B3); core, referee/verifier, Solo/token and bounded Team custody are implemented with local MOCK OutLayer evidence, not real-game testnet acceptance. Founder-authorized RULE recovery uses funded durable token outcomes and permissionless same-id reconciliation, exercised with actual local callback failures and overlapping retries (BUILD-PLAN). Native NEAR unknown-outcome payment recovery remains the explicit D31/B6 boundary. Frontend visuals wait for founder references (B1); durable referee hosting and the real game/referee rehearsal remain open.
 - **Event:** NEAR HACKATHON 2026, memecoins track primary, games secondary. Submission closes **2026-11-14T23:59:00Z** ([V](https://nearhackathon.com/HACKATHON.md), captured 2026-10-22). THE RULE is the founder's second, independent entry. The first is CONSTITUTION, and each README must name the other.
 - **Primary success condition:** one real sealed round on NEAR testnet goes end to end. Plays get enclave verdicts, YES mints RULE, a correct commit-reveal guess wins the pot, the rule and salt open, and the browser replays every verdict against the day-1 commitment. One labeled Demo Mode round is recorded for the video.
 - **Kill rule:** if Phase 0 gates T1, T2 or T3 fail (BUILD-PLAN), THE RULE is dropped. It is never downgraded to a plain commit-reveal quiz.
@@ -99,7 +99,7 @@ Priorities follow the founder's MVP build order (D23): cut from the bottom, and 
 | Id | Feature | Contract | Acceptance |
 | --- | --- | --- | --- |
 | F17 | RULE NEP-141 | NEP-141, NEP-145, NEP-148 metadata; only `game` can mint; hard cap; no pause, tax, blacklist or transfer hook | T-TOK; transfer during an open round |
-| F18 | Mint on YES | `m = 100 * allowance_left / allowance * bucket`; allowance expires at round end; failed mint restores the allowance | T-INV-3; supply equals the sum of logged mints |
+| F18 | Mint on YES | `m = 100 * allowance_left / allowance * bucket`; allowance expires at round end. An authenticated token rejection restores it; unknown transport retains a permissionlessly replayable reservation | T-INV-3; after reconciliation, supply equals logged mints minus standard resolver burns |
 | F19 | RULE lock for attempts | `ft_transfer_call` locks RULE for a Scheduled round; tiers add attempts up to a hard cap; extra attempts still pay the fee; returned after the round; never forfeited | T-LOCK |
 
 ### Order 5: Demo Mode and schedule
@@ -133,7 +133,7 @@ Visual design is blocked on founder references (B1). These contracts fix only wh
 | S3 Guess | Build a guess from the published atoms; check it against the log locally (wasm); commit; reveal; see the result | Stake quote locked at commit; commit hash; reveal deadline; status Committed, Checking, Correct, Wrong, Refunded | `get_round`, `commit_guess`, `reveal_guess`, `get_commits` |
 | S4 Reveal and verify | Watch the reveal; run browser replay; copy the `make verify` command; download the log | Rule in English, DSL and canonical JSON; salt; commitment check; N of N verdicts match; winner; payouts | `get_round`, `get_log`, wasm `verify_round` |
 | S5 Team | Create, invite, join, leave; deposit to and withdraw from the vault; lock RULE | Roster, lock state, vault balance and depositor weights, team attempts | team methods, `team_deposit`, `team_withdraw`, `ft_transfer_call` |
-| S6 Wallet and claims | Connect wallet; deposit and withdraw credit; lock and unlock RULE; claim payouts | Credit, RULE balance, locks, claimable per round | `deposit_credit`, `withdraw_credit`, `claim`, `unlock` |
+| S6 Wallet and claims | Connect; deposit/withdraw credit; lock/unlock RULE; claim payouts; retry pending RULE operations | Credit, RULE balance, locks, claimable, distinct pending/applied/rejected token operation status and recovery action | `deposit_credit`, `withdraw_credit`, `claim`, `unlock`, `get_token_operation`, `retry_token_operation`, token `get_operation` |
 | S7 Season | Browse Solo and Team boards | Rounds won, shares, earnings per entity | `get_season` |
 | S8 Demo toggle | Switch between the real sealed round and Demo Mode | A permanent "Demo Mode - preselected rule" label in demo; Reset Demo for the operator | Points the client at the demo contracts |
 
@@ -141,11 +141,11 @@ Visual design is blocked on founder references (B1). These contracts fix only wh
 
 All numbers are params fixed at deployment (SMART-CONTRACT, Params). They are illustrative testnet settings, not forecasts. Pot conservation holds in every branch: `pot = winner + contributors + rollover + platform`, with dust going to rollover. Compute float, storage charges, stakes and credit are separate ledgers.
 
-- **Per play:** 0.01 NEAR fee (0.008 pot, 0.0015 compute float, 0.0005 platform), plus the existing provisional 0.00768 NEAR storage allowance (768 bytes), not the earlier 0.0013 estimate. Local P2.4 samples fit this allowance; worst-case/concurrency sizing is still B6. This is not a finalized deploy quote.
+- **Per play:** 0.01 NEAR fee (0.008 pot, 0.0015 compute float, 0.0005 platform), plus the production action-storage floor of 0.02048 NEAR (2,048 bytes). Account and Team floors are 512 and 2,048 bytes. These local bounds are not a final deploy quote. A separate nonrefundable token budget funds each permanent mint/unlock outcome at a 256-byte live storage quote (currently 0.00256 NEAR); it is not taken from player credit, registration deposits, pot or compute. Deployment must explicitly budget this lifetime cost and monitor available funding.
 - **Compute check [V, live views 2026-11-04]:** OutLayer base 0.001 NEAR + 0.0000001 NEAR per requested ms, so a 5 s verdict limit attaches about 0.0015 NEAR before refunds. The 15% compute share is tight. If T4 shows actual cost above about 0.0012 NEAR per verdict, the split moves to 80/10/10 or the limit drops (D3).
 - **Who earns:** the solver (40% + its own shares), every unique play (40% shared), the next round (10% or 50%), the platform (5% of fees + 10% of the pot).
 - **Spam does not pay:** each share costs at least 0.01 NEAR, of which 0.008 goes to the pot. A share pays at most `0.4 * pot / shares`. Contributing is profitable only when a large rollover is shared by few plays, which is the intended jackpot incentive and is public.
-- **Issuance:** at most `round_allowance` per mode per round, and the unminted remainder expires. Supply equals the sum of logged mints.
+- **Issuance:** at most `round_allowance` per mode per round; unused allowance expires. Log mint amounts reserve intended issuance while a token operation is pending. After reconciliation, logged issuance equals token supply plus any standard resolver burns; a YES verdict never masquerades as a confirmed mint.
 
 ## Non-goals and scope cuts
 

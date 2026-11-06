@@ -13,14 +13,21 @@ fn callback_id(method: &str) -> u64 {
 }
 
 fn deliver(fx: &mut Fx, id: u64, success: bool, callback: fn(&mut game::Game, u64)) {
-    deliver_env(
-        &fx.ctx,
-        if success {
-            PromiseResult::Successful(Vec::new())
+    let response = if let Some(operation) = fx.game.get_token_operation(id) {
+        let status = if success {
+            "applied"
+        } else if operation.kind == protocol::token::TokenOperationKind::Mint {
+            "cap_exceeded"
         } else {
-            PromiseResult::Failed
-        },
-    );
+            "insufficient_balance"
+        };
+        token_ack(&fx.game, id, status)
+    } else if success {
+        PromiseResult::Successful(Vec::new())
+    } else {
+        PromiseResult::Failed
+    };
+    deliver_env(&fx.ctx, response);
     callback(&mut fx.game, id);
 }
 

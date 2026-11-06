@@ -243,9 +243,27 @@ fn non_referee_requests_survive_every_wrong_callback() {
                 } else {
                     assert!(!fx.game.expire_request(id));
                 }
-                deliver(&mut fx, wrong, id, PromiseResult::Failed);
+                let wrong_response = if matches!(target, Callback::Mint | Callback::Unlock) {
+                    token_ack(&fx.game, id, "applied")
+                } else {
+                    PromiseResult::Failed
+                };
+                deliver(&mut fx, wrong, id, wrong_response);
                 assert_eq!(ledger(&fx), pending, "{target:?} hit by {wrong:?}");
-                let response = if failed {
+                let old_operation = fx.game.get_token_operation(id);
+                let response = if matches!(target, Callback::Mint | Callback::Unlock) {
+                    token_ack(
+                        &fx.game,
+                        id,
+                        if !failed {
+                            "applied"
+                        } else if target == Callback::Mint {
+                            "cap_exceeded"
+                        } else {
+                            "insufficient_balance"
+                        },
+                    )
+                } else if failed {
                     PromiseResult::Failed
                 } else if target == Callback::Register {
                     PromiseResult::Successful(REGISTERED.to_vec())
@@ -308,7 +326,17 @@ fn non_referee_requests_survive_every_wrong_callback() {
                 };
                 let state = ledger(&fx);
                 let round = fx.round();
-                deliver(&mut fx, target, id, PromiseResult::Failed);
+                let late = if let Some(operation) = old_operation {
+                    PromiseResult::Successful(
+                        near_sdk::serde_json::to_vec(
+                            &json!({"operation":operation,"status":"applied"}),
+                        )
+                        .unwrap(),
+                    )
+                } else {
+                    PromiseResult::Failed
+                };
+                deliver(&mut fx, target, id, late);
                 assert_eq!(ledger(&fx), state);
                 assert_eq!(fx.round(), round);
                 let replacement_kind = if target == Callback::Platform && !failed {
@@ -316,12 +344,20 @@ fn non_referee_requests_survive_every_wrong_callback() {
                 } else {
                     target
                 };
-                deliver(
-                    &mut fx,
-                    replacement_kind,
-                    replacement,
-                    PromiseResult::Failed,
-                );
+                let response = if matches!(replacement_kind, Callback::Mint | Callback::Unlock) {
+                    token_ack(
+                        &fx.game,
+                        replacement,
+                        if replacement_kind == Callback::Mint {
+                            "cap_exceeded"
+                        } else {
+                            "insufficient_balance"
+                        },
+                    )
+                } else {
+                    PromiseResult::Failed
+                };
+                deliver(&mut fx, replacement_kind, replacement, response);
                 assert_eq!(fx.ledger()["pending_referee_requests"], 1);
                 match replacement_kind {
                     Callback::Withdraw => {

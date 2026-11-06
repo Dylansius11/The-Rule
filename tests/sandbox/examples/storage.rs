@@ -35,6 +35,7 @@ async fn start_storage(
         .transact()
         .await?
         .into_result()?;
+    fund_token_operations(&token).await?;
     let mut config = sandbox_tests::params(mock.id().as_str());
     config["base_attempts"][0] = json!(10);
     config["token"] = json!(token.id());

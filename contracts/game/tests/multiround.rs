@@ -253,11 +253,11 @@ fn seeded_mint_receipts_match_log_and_allowance() {
                     let created = calls();
                     let mint = created
                         .iter()
-                        .find(|(_, method, _, _)| method == "mint")
+                        .find(|(_, method, _, _)| method == "execute_operation")
                         .unwrap();
                     let amount = 100 * allowance / 500_000;
-                    assert_eq!(mint.2["account_id"], PLAYERS[owner]);
-                    assert_eq!(num(&mint.2["amount"]), amount);
+                    assert_eq!(mint.2["operation"]["account_id"], PLAYERS[owner]);
+                    assert_eq!(num(&mint.2["operation"]["amount"]), amount);
                     let callback = created
                         .iter()
                         .find(|(_, method, _, _)| method == "on_mint")
@@ -265,14 +265,12 @@ fn seeded_mint_receipts_match_log_and_allowance() {
                         .2["request_id"]
                         .as_u64()
                         .unwrap();
-                    deliver_env(
-                        &fx.ctx,
-                        if success {
-                            PromiseResult::Successful(Vec::new())
-                        } else {
-                            PromiseResult::Failed
-                        },
+                    let response = token_ack(
+                        &fx.game,
+                        callback,
+                        if success { "applied" } else { "cap_exceeded" },
                     );
+                    deliver_env(&fx.ctx, response);
                     fx.game.on_mint(callback);
                     if success {
                         allowance -= amount;

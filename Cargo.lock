@@ -3309,11 +3309,13 @@ dependencies = [
 name = "sandbox-tests"
 version = "0.0.0"
 dependencies = [
+ "base64 0.22.1",
  "near-workspaces",
  "protocol",
  "rule-core",
  "serde_json",
  "tokio",
+ "wasmparser 0.240.0",
 ]
 
 [[package]]
@@ -3964,6 +3966,7 @@ dependencies = [
  "near-contract-standards",
  "near-sdk",
  "near-workspaces",
+ "protocol",
  "serde_json",
  "tokio",
  "wasmparser 0.240.0",

@@ -91,6 +91,7 @@ async fn main() -> Res<()> {
         .dev_deploy(&std::fs::read(sandbox_tests::artifact("token"))?)
         .await?;
     token.call("new").args_json(json!({"minter":game.id(),"cap":(100_000_000u128 * NEAR).to_string(),"metadata":{"spec":"ft-1.0.0","name":"THE RULE","symbol":"RULE","decimals":18}})).transact().await?.into_result()?;
+    fund_token_operations(&token).await?;
     let mut config = sandbox_tests::params(mock.id().as_str());
     config["token"] = json!(token.id());
     config["storage_charge_account"] = json!((512 * BYTE).to_string());

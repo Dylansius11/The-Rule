@@ -110,7 +110,7 @@ async fn callbacks(
                 let Some(method) = call["method_name"].as_str() else {
                     continue;
                 };
-                let expected_receiver = if method == "mint" {
+                let expected_receiver = if method == "execute_operation" {
                     token.id().as_str()
                 } else {
                     game.id().as_str()
@@ -126,20 +126,17 @@ async fn callbacks(
                 let status = &outcome["outcome"]["status"];
                 let success = status.get("SuccessValue").is_some()
                     || status.get("SuccessReceiptId").is_some();
-                let expected_success = !(method == "mint" && methods.contains(&"mint_failure"));
-                if success != expected_success {
+                if !success {
                     return Err(format!("unexpected {method} receipt {id} status: {status}").into());
                 }
-                if !success
-                    && (status.get("Failure").is_none() || !status.to_string().contains("E52"))
-                {
-                    return Err(format!("mint failed for an unexpected reason: {status}").into());
+                if method == "execute_operation" {
+                    check_token_outcome(call, status, "mint", !methods.contains(&"mint_failure"))?;
                 }
                 let allocated = call["gas"].as_u64().ok_or("missing action gas")?;
                 let burnt = outcome["outcome"]["gas_burnt"]
                     .as_u64()
                     .ok_or("missing burnt gas")?;
-                let budget = if method == "mint" || method == "on_mint" {
+                let budget = if method == "execute_operation" || method == "on_mint" {
                     10
                 } else {
                     60
@@ -335,6 +332,7 @@ async fn sweep_fixture(
         .dev_deploy(&std::fs::read(sandbox_tests::artifact("token"))?)
         .await?;
     token.call("new").args_json(json!({"minter":game.id(),"cap":"1000000000000000000000000000","metadata":{"spec":"ft-1.0.0","name":"THE RULE","symbol":"RULE","decimals":18}})).transact().await?.into_result()?;
+    fund_token_operations(&token).await?;
     let mut config = sandbox_tests::params(mock.id().as_str());
     config["reveal_window_ns"] = json!(3_000_000_000u64);
     config["token"] = json!(token.id());
@@ -729,6 +727,7 @@ async fn main() -> Res<()> {
         .dev_deploy(&std::fs::read(sandbox_tests::artifact("token"))?)
         .await?;
     token.call("new").args_json(json!({"minter":game.id(),"cap":"1000000000000000000000000000","metadata":{"spec":"ft-1.0.0","name":"THE RULE","symbol":"RULE","decimals":18}})).transact().await?.into_result()?;
+    fund_token_operations(&token).await?;
     let mut config = sandbox_tests::params(mock.id().as_str());
     config["reveal_window_ns"] = json!(3_000_000_000u64);
     config["base_attempts"] = json!([2, 50]);
@@ -867,8 +866,8 @@ async fn main() -> Res<()> {
         resolve_checked(&mock, id, value, error).await?;
         let result = tokio::time::timeout(Duration::from_secs(30), play).await??;
         let methods: &[&str] = match id {
-            3 => &["on_verdict", "mint", "on_mint", "mint_failure"],
-            4 => &["on_verdict", "mint", "on_mint"],
+            3 => &["on_verdict", "execute_operation", "on_mint", "mint_failure"],
+            4 => &["on_verdict", "execute_operation", "on_mint"],
             _ => &["on_verdict"],
         };
         trace(

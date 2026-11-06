@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-06: an unknown external effect needs an atomic replay fence
+
+- **What happened:** actual local token mint/unlock effects succeeded while deliberately masked game callback exports failed `MethodNotFound`. Restoring the local artifact and overlapping same-id replays reconciled once without duplicate supply, custody release or storage charge (`scratch/recovery-runtime.log`).
+- **Root cause:** failed callback transport does not reveal whether its preceding effect committed. Timeout restoration would mistake a completed effect for failure.
+- **Rule:** atomically persist an immutable operation outcome with the effect, fund its permanent storage explicitly, and accept only a bounded exact acknowledgement. Reuse the same id for recovery; never infer failure from time or current balance. Native NEAR transfer recovery remains separate because it has no such outcome interface.
+
 ### 2026-11-06: returned transfer principal is not free operator collateral
 
 - **What happened:** the native `refunded_native_principal_is_not_operator_collateral_before_callback` model admitted another round using returned withdrawal principal before its failed callback (`scratch/b6-native-reserve-before.log`). This modeled refund-first ordering is not an observed sandbox scheduling failure.
@@ -40,9 +46,9 @@ Read the headlines before work. Record actual surprises from this project only, 
 
 ### 2026-11-05: resolve yielded dependencies before awaiting transaction completion
 
-- **What happened:** the first extended storage run reached finalize and was cancelled while waiting before the mock open was resolved. The corrected executable completed settlement and the next round.
-- **Root cause [I]:** awaiting transaction completion before supplying a yielded descendant's result can block the harness. `TransactionStatus` implements `IntoFuture`, not `Future`, so it must be converted before use with `tokio::select!`.
-- **Rule:** race the completion future with the expected mock request, resolve the observed request once, then await completion. Only the expected pre-deadline E50 rejection permits another finalize attempt; do not call a cancelled run passing evidence.
+- **What happened:** the first extended storage run reached finalize and was cancelled while waiting before the mock open was resolved. The corrected executable completed settlement and the next round. On 2026-11-06, the full workspace run exposed the same ordering in the solved Solo test; the corresponding Team path had the same pattern. Both now use one dependency-first helper, and all six guess/Team runtime tests passed (`scratch/recovery-lifecycle.log`).
+- **Root cause:** awaiting transaction completion before supplying a yielded descendant's result blocks the harness. `TransactionStatus` implements `IntoFuture`, not `Future`, so it must be converted before use with `tokio::select!`.
+- **Rule:** race the completion future with the expected mock request, resolve that observed request once, then await completion. Only the expected pre-deadline E50 rejection permits another finalize attempt; check every sibling harness and never call a cancelled run passing evidence.
 
 ### 2026-11-05: balance observations need one block and receipt-defined principal
 

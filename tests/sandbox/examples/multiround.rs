@@ -98,10 +98,7 @@ async fn trace(
                     let status = &outcome["outcome"]["status"];
                     let success = status.get("SuccessValue").is_some()
                         || status.get("SuccessReceiptId").is_some();
-                    if (is_external && success != external_success)
-                        || (is_callback && !success)
-                        || (!success && status.get("Failure").is_none())
-                    {
+                    if !success {
                         return Err(format!("unexpected receipt status {id}: {status}").into());
                     }
                     let allocated = if is_callback && callback != "on_mint" {
@@ -116,12 +113,17 @@ async fn trace(
                         )
                         .into());
                     }
-                    if is_external
-                        && !success
-                        && method == "mint"
-                        && !status.to_string().contains("E52")
-                    {
-                        return Err(format!("mint failed for the wrong reason: {status}").into());
+                    if is_external && method == "execute_operation" {
+                        check_token_outcome(
+                            call,
+                            status,
+                            if callback == "on_mint" {
+                                "mint"
+                            } else {
+                                "unlock"
+                            },
+                            external_success,
+                        )?;
                     }
                     if is_external {
                         if let Some(value) = expected_return
@@ -259,6 +261,7 @@ async fn main() -> Res<()> {
         .await?
         .into_result()?;
     let mut config = sandbox_tests::params(mock.id().as_str());
+    fund_token_operations(&token).await?;
     config["token"] = json!(token.id());
     config["base_attempts"] = json!([3, 50]);
     config["investigation_max_ns"] = json!(1_000_000_000u64);
@@ -378,7 +381,7 @@ async fn main() -> Res<()> {
             alice.id().as_str(),
             &game,
             &token,
-            ("mint", success, "on_mint", None),
+            ("execute_operation", success, "on_mint", None),
         )
         .await?;
         if success {
@@ -421,7 +424,7 @@ async fn main() -> Res<()> {
         alice.id().as_str(),
         &game,
         &token,
-        ("ft_transfer", false, "on_unlock", None),
+        ("execute_operation", false, "on_unlock", None),
     )
     .await?;
     assert_eq!(locked(&game, &alice).await?, amount);
@@ -441,7 +444,7 @@ async fn main() -> Res<()> {
         alice.id().as_str(),
         &game,
         &token,
-        ("ft_transfer", true, "on_unlock", None),
+        ("execute_operation", true, "on_unlock", None),
     )
     .await?;
     assert_eq!(locked(&game, &alice).await?, 0);
@@ -544,7 +547,7 @@ async fn main() -> Res<()> {
         alice.id().as_str(),
         &game,
         &token,
-        ("mint", true, "on_mint", None),
+        ("execute_operation", true, "on_mint", None),
     )
     .await?;
     let rows: Vec<Value> = game
@@ -610,7 +613,7 @@ async fn main() -> Res<()> {
     assert_eq!(ledger["carry"], (p0 * 5 / 10 + p0 / 2 * 5 / 10).to_string());
     assert_eq!(ledger["claimable"], "0");
     println!(
-        "Stalled token callbacks remain unresolved: never infer external failure from a timeout. Receipt gas above is sampled, not a worst-case bound."
+        "Unknown token transport stays pending for authenticated same-id replay; native payments have no such recovery. Receipt gas above is sampled, not a worst-case bound."
     );
     Ok(())
 }

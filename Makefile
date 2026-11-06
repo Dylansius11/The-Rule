@@ -1,5 +1,5 @@
 # THE RULE targets. Run inside WSL from the repo root.
-.PHONY: vectors sandbox gas storage balance token-failure b6 verify build-contracts build-referee
+.PHONY: vectors sandbox gas storage balance token-failure token-recovery b6 verify build-contracts build-referee
 GAME_ACCOUNT ?= game-r1.therule.testnet
 NEAR_RPC_URL ?= https://rpc.testnet.near.org
 CONTRACTS_OUT ?= scratch/repro/contracts
@@ -23,10 +23,14 @@ balance:
 token-failure:
 	scripts/build/sandbox-artifacts.sh
 	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p sandbox-tests --profile fast --example token-failure
-# Local B6 evidence only; the unknown-outcome recovery decision remains a separate gate.
+token-recovery:
+	scripts/build/sandbox-artifacts.sh
+	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p sandbox-tests --profile fast --example token-recovery
+# Local B6 evidence only; native NEAR unknown-outcome recovery remains a separate gate.
 b6:
 	scripts/build/sandbox-artifacts.sh
 	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo test --workspace --profile fast -- --test-threads=1
+	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p sandbox-tests --profile fast --example token-recovery
 	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p sandbox-tests --profile fast --example effect-gas
 	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p sandbox-tests --profile fast --example multiround
 	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p sandbox-tests --profile fast --example team-storage

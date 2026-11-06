@@ -14,6 +14,7 @@ mod storage;
 #[cfg(test)]
 mod storage_proof;
 mod team;
+mod token_operation;
 mod views;
 use borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::U128;
@@ -200,6 +201,7 @@ pub enum Request {
         mode: u8,
         round: u32,
         log_idx: u32,
+        actor: AccountId,
         amount: u128,
     },
     Unlock {

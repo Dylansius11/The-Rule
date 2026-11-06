@@ -165,27 +165,10 @@ async fn solved_round_opens_settles_and_pays_through_the_mock_referee() -> Res<(
         .into_result()
         .expect_err("window still open");
     assert!(format!("{early:?}").contains("E50"), "{early:?}");
-    let mut request = None;
-    for _ in 0..30 {
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        worker.fast_forward(2).await?;
-        let attempt = alice
-            .call(game.id(), "finalize")
-            .args_json(json!({"mode":0}))
-            .gas(Gas::from_tgas(300))
-            .transact_async()
-            .await?
-            .await?;
-        if let Ok(done) = attempt.into_result() {
-            request = done.json::<Option<u64>>()?;
-            break;
-        }
-    }
-    assert_eq!(request.expect("finalize never completed"), 2);
     // The mock numbers its requests in arrival order: begin 0, guess 1, open 2.
-    wait_requests(&mock, 3).await?;
     let opened = json!({"rule":serde_json::to_value(&rule)?,"salt":"05".repeat(32)});
-    resolve(&mock, 2, opened, false).await?;
+    let request = finalize_with_open(&worker, &alice, &game, &mock, 0, 2, opened).await?;
+    assert_eq!(request, 2);
     let mut round = Value::Null;
     for _ in 0..30 {
         round = game

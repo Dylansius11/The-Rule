@@ -445,6 +445,7 @@ async fn main() -> Res<()> {
         .dev_deploy(&std::fs::read(sandbox_tests::artifact("token"))?)
         .await?;
     token.call("new").args_json(json!({"minter":game.id(),"cap":"1000000000000000000000000000","metadata":{"spec":"ft-1.0.0","name":"THE RULE","symbol":"RULE","decimals":18}})).transact().await?.into_result()?;
+    fund_token_operations(&token).await?;
     let mut params = sandbox_tests::params(mock.id().as_str());
     params["token"] = json!(token.id());
     params["platform"] = json!(platform_id);

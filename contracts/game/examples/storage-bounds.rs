@@ -91,6 +91,7 @@ fn main() {
                 mode: u8::MAX,
                 round: u32::MAX,
                 log_idx: u32::MAX,
+                actor: actor.clone(),
                 amount: u128::MAX,
             },
         ),

@@ -307,32 +307,10 @@ async fn team_terminal_refunds_or_pays(valid_open: bool) -> Res<()> {
         }
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
-    let mut opened = false;
-    for _ in 0..30 {
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        worker.fast_forward(2).await?;
-        let result = captain
-            .call(game.id(), "finalize")
-            .args_json(json!({"mode":1}))
-            .gas(Gas::from_tgas(300))
-            .transact_async()
-            .await?
-            .await?;
-        if result.into_result().is_ok() {
-            opened = true;
-            break;
-        }
-    }
-    assert!(opened, "team round did not enter Opening");
-    wait_requests(&mock, 4).await?;
     let salt_byte = if valid_open { "05" } else { "06" };
-    resolve(
-        &mock,
-        3,
-        json!({"rule":rule,"salt":salt_byte.repeat(32)}),
-        false,
-    )
-    .await?;
+    let opened = json!({"rule":rule,"salt":salt_byte.repeat(32)});
+    let request = finalize_with_open(&worker, &captain, &game, &mock, 1, 3, opened).await?;
+    assert_eq!(request, 3);
     for _ in 0..50 {
         let round: Value = game
             .view("get_round")

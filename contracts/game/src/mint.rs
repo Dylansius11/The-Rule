@@ -49,12 +49,11 @@ pub(crate) fn accept_mint(p: &Params, header: Option<&str>, allowance_left: u128
     bps(scaled, bucket).min(allowance_left)
 }
 
-/// Gas given to `on_mint`; it only restores the allowance on failure.
+/// Gas given to `on_mint` for authenticated acknowledgement and allowance restoration.
 const MINT_CALLBACK_GAS: Gas = Gas::from_tgas(10);
 
-/// Whether the running callback still has the gas to schedule a mint and its callback with a
-/// margin. A callback must never run out of gas (its request would stay pending forever), so a
-/// verdict that cannot afford the mint simply mints nothing and keeps the allowance.
+/// Keep enough gas to persist and schedule the operation and its callback.
+/// If scheduling cannot be afforded, mint nothing and preserve the allowance.
 pub(crate) fn mint_gas_available(p: &Params) -> bool {
     let left = env::prepaid_gas()
         .as_gas()
@@ -180,7 +179,6 @@ impl Game {
         actor: &AccountId,
         amount: u128,
     ) {
-        let p = self.params();
         let id = self.next_request_id;
         self.next_request_id = id.checked_add(1).unwrap_or_else(|| env::panic_str("E50"));
         self.pending.insert(
@@ -189,30 +187,23 @@ impl Game {
                 mode,
                 round,
                 log_idx,
+                actor: actor.clone(),
                 amount,
             },
         );
-        let token: AccountId = p.token.parse().expect("validated at init");
-        Promise::new(token)
-            .function_call(
-                "mint",
-                serde_json::to_vec(&json!({"account_id":actor,"amount":U128(amount)}))
-                    .expect("arguments serialization"),
-                NearToken::from_yoctonear(0),
-                Gas::from_gas(p.gas_mint),
-            )
-            .then(Promise::new(env::current_account_id()).function_call(
-                "on_mint",
-                serde_json::to_vec(&json!({"request_id":id})).expect("callback serialization"),
-                NearToken::from_yoctonear(0),
-                MINT_CALLBACK_GAS,
-            ))
-            .detach();
+        if let Some(operation) = self.get_token_operation(id) {
+            self.schedule_token_operation(operation);
+        }
     }
 
-    /// A failed mint restores the round allowance and zeroes the row; the verdict stands.
+    /// Only a matching terminal token acknowledgement settles the reservation.
     fn on_mint_inner(&mut self, request_id: u64) {
-        if !matches!(self.pending.get(&request_id), Some(Request::Mint { .. })) {
+        use protocol::token::{TokenOperationKind, TokenOperationStatus};
+        let Some(status) = self.token_outcome(request_id, TokenOperationKind::Mint) else {
+            return;
+        };
+        if status == TokenOperationStatus::Applied {
+            self.pending.remove(&request_id);
             return;
         }
         let Some(Request::Mint {
@@ -220,22 +211,40 @@ impl Game {
             round,
             log_idx,
             amount,
-        }) = self.pending.remove(&request_id)
+            ..
+        }) = self.pending.get(&request_id)
         else {
             return;
         };
-        if env::promise_result_checked(0, 0).is_ok() {
+        let (mode, round, log_idx, amount) = (*mode, *round, *log_idx, *amount);
+        let Some(restored) = self
+            .rounds
+            .get(&(mode, round))
+            .and_then(|r| r.allowance_left.checked_add(amount))
+        else {
+            return;
+        };
+        let Some(mut value) = self
+            .log
+            .get(&(mode, round, log_idx))
+            .and_then(|row| serde_json::from_str::<Value>(row).ok())
+        else {
+            return;
+        };
+        let Some(object) = value.as_object_mut() else {
+            return;
+        };
+        if object.get("minted") != Some(&json!(U128(amount))) {
             return;
         }
+        object.insert("minted".into(), json!(U128(0)));
         if let Some(r) = self.rounds.get_mut(&(mode, round)) {
-            r.allowance_left += amount;
+            r.allowance_left = restored;
+        } else {
+            return;
         }
-        if let Some(row) = self.log.get(&(mode, round, log_idx))
-            && let Ok(mut value) = serde_json::from_str::<Value>(row)
-        {
-            value["minted"] = json!(U128(0));
-            self.log.insert((mode, round, log_idx), value.to_string());
-        }
+        self.log.insert((mode, round, log_idx), value.to_string());
+        self.pending.remove(&request_id);
         event(
             "mint_failed",
             &json!({"mode":mode,"round_id":round,"log_idx":log_idx,"amount":U128(amount)}),

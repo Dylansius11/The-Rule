@@ -86,5 +86,9 @@ fn completed_registration_wins_expiry_race_and_expiring_refresh_requires_a_new_c
     assert_eq!(row["verdict"], true);
     assert_eq!(row["minted"], "0");
     assert_eq!(fx.round()["allowance_left"], "500000");
-    assert!(calls().iter().all(|(_, method, _, _)| method != "mint"));
+    assert!(
+        calls()
+            .iter()
+            .all(|(_, method, _, _)| method != "execute_operation")
+    );
 }

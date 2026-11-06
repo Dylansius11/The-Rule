@@ -61,6 +61,8 @@ fn t_abi_1_export_allowlist() {
         "ft_on_transfer",
         "unlock",
         "on_unlock",
+        "retry_token_operation",
+        "get_token_operation",
         "get_lock",
         "get_player",
         "get_entity",

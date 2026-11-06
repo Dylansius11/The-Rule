@@ -62,7 +62,7 @@ The game account name is compiled into the referee manifest (`callers.contract.o
 | `referee` | `{outlayer: outlayer.testnet, urls: [primary, mirror], hash, build_target: "wasm32-wasip2"}` | demo referee | All URLs serve identical bytes |
 | `resource_limits` per op | begin 10 s, verdict 5 s, guess 30 s, open 10 s; instructions/memory set from T4 | same | Always passed; `None` means compile-only [V](https://raw.githubusercontent.com/out-layer/outlayer/main/contract/src/execution.rs) |
 | `outlayer_deposit` per op | `estimate_execution_cost` for those limits plus 20% margin, measured in Phase 0 | same | Paid from the compute float |
-| `gas` | OutLayer call 100 Tgas, callback 60 Tgas, mint 10 Tgas | same | Starting values; measured in P2.9. The verdict callback must schedule `mint` (10) and `on_mint` (10) with a 5 Tgas margin; when `prepaid - used` is below that it mints nothing and keeps the allowance, because a callback that runs out of gas would strand its request |
+| `gas` | OutLayer call 100 Tgas, callback 60 Tgas, token operation 10 Tgas | same | Starting values; measured in P2.9. The verdict callback schedules token `execute_operation` (10) and `on_mint` (10) with a 5 Tgas margin. Below that remaining budget it schedules no mint and keeps the allowance. Permissionless replay separately guards operation + completion + 5 Tgas before scheduling |
 | `token`, `platform`, `chain_id` | accounts above, `"testnet"` | demo accounts | |
 
 `new(params, demo: bool)`: `demo` is stored immutably, returned by `get_params` and in every `RoundView`, so the permanent "Demo Mode - preselected rule" label comes from chain data. A production deployment (`demo=false`) requires `genesis_ns >= now + 2 h` (blindness ordering) and production bounds on the schedule (`round_period_ns >= 1 h`, `reveal_window_ns >= 10 min`, begin and open timeouts `>= 10 min`); `demo=true` skips them. Decided 2026-11-04 and tested (1 h 59 m rejected, exactly 2 h accepted, short demo schedule accepted).
@@ -157,7 +157,9 @@ stateDiagram-v2
 | `claim_team(mode, round_id, team_id)` | member of the stored round snapshot | Credits that historical member's equal winner/contributor payout once. Works after leaving or deleting the current roster; `claim(Team, round_id)` resolves current membership only |
 | `register_token()` | any depositor | Calls token `storage_balance_of(account)` with zero attached NEAR and never debits credit. Players first pay the standard NEP-145 storage deposit directly to the token. A valid non-null `{total, available}` response marks Registered; malformed/null/failed responses reset None. Pending checks reject E57; completed checks may be refreshed. A stalled read-only check can be expired after ten minutes, resetting None so the player can retry; late responses cannot overwrite the replacement. Until confirmed, ACCEPT mints nothing and consumes no allowance (D29) |
 | `ft_on_transfer(sender, amount, msg)` | `token` only (E40) | `msg = {"lock":{"mode":0,"round_id":r}}` locks RULE for the sealing or next round. Each new `(mode, round, account)` lock requires a game player and debits `storage_charge_per_play` from personal credit; top-ups reuse their entry. Insufficient credit, malformed/zero input or wrong round returns all tokens without accepting the lock. Team locks require membership; attempt tiers sum the current locked roster's member-owned entries. Every locker retains their own return right |
-| `unlock(mode, round_id)` `1y` | locker | After the round is Settled, Cancelled or Void, or one full `round_period_ns` after the slot of a round that never started: transfers the caller's locked RULE back with `ft_transfer`. A failed transfer restores the lock, so locked RULE is never forfeited (D16) |
+| `unlock(mode, round_id)` `1y` | locker | After a terminal round, or one full period after the slot of a never-started round: reserves/removes the lock and sends a uniquely identified token `execute_operation` of kind `unlock`. Applied completion releases it; authenticated terminal rejection restores it once. Unknown transport leaves a permissionlessly replayable pending operation. The user's one yocto remains in the game; the fixed-minter token call attaches zero |
+| `get_token_operation(request_id)` | anyone, view | Returns the immutable pending mint/unlock payload, or `null` for consumed/other request kinds |
+| `retry_token_operation(request_id)` `[fck]` | anyone | Resends that exact id/payload to the configured token, with no fresh id, credit debit or native deposit. No timeout is needed. Overlapping retries are safe because the token retains its outcome. E50 rejects absent/wrong-kind requests or insufficient scheduling gas |
 
 The withdrawal guard counts every Checking guess belonging to the player, independently of the pending play/withdrawal flag. One completed or duplicate callback cannot release another live check. Correct, wrong and system-failure outcomes each release only their own check. The player record stores this count as a `u32`; storage measurements must include it.
 
@@ -181,7 +183,28 @@ A team snapshots at most five members on its first accepted play/commit. A fully
 - Parse the promise result strictly as `{"v":0|1}`. Anything else, JSON `null` (OutLayer's failure encoding [V](https://raw.githubusercontent.com/out-layer/outlayer/main/contract/src/execution.rs)), a promise error, a wrong round, or a round that has left Investigation leads to **refund**: credit back fee + storage charge, attempt restored, `seen` entry removed, pending cleared, event `play_refunded{reason}`.
 - Refund cleanup removes an otherwise empty entity only if it has no open/correct commits, pot contribution or prior claim. A play and a guess may overlap; restoring a play attempt must not erase another operation's stake, refund entitlement or three-open-commit limit.
 - On a valid verdict: pot += 80% of fee, compute_float += 15%, platform_accrued += 5%. Append the `LogRow`. Set `seen[play_key] = log_idx`. Shares += 1 if under `share_cap`, and `total_shares` += 1 likewise. If ACCEPT, advance the line and mint (below). Clear pending. Event `play_settled`.
-- Mint on ACCEPT: `m = mint_base * allowance_left / round_allowance * bucket_bps / 10_000` (exact integer math with a 128-bit mul-div), with bucket 10000 Rare, 5000 Mid, 2500 Common. Initialization rejects `mint_base > round_allowance`; the computed amount is also capped at the remaining allowance. If the player is Registered and `m > 0`: `allowance_left -= m`, log `minted = m`, then `token.mint(player, m)`. A failed mint restores the allowance and records `minted = 0` with event `mint_failed`; the verdict stands. Registration is direct user-paid NEP-145 storage plus the game's zero-deposit check (D29), never an implicit charge on the first ACCEPT. If the player unregisters from the token, subsequent mints can fail until direct registration is restored.
+- Mint on ACCEPT: `m = mint_base * allowance_left / round_allowance * bucket_bps / 10_000` (exact integer math with a 128-bit mul-div), with bucket 10000 Rare, 5000 Mid, 2500 Common. Initialization rejects `mint_base > round_allowance`; the result is capped at remaining allowance. For a Registered player and positive `m`, reserve allowance and log `minted = m`, then send token `execute_operation` of kind `mint` using the immutable game request id and original actor. Only a matching terminal rejection restores allowance and zeros the row (`mint_failed`); the YES stands. Unknown transport retains the reservation, including after settlement or a later round starts. Pending intended mint amounts are not confirmed supply. Direct user-paid NEP-145 registration and the game's zero-deposit check remain separate (D29).
+
+### Authenticated RULE operation outcomes
+
+`crates/protocol/src/token.rs` defines strict wire schemas. `TokenOperation` contains `operation_id: u64`, `kind: mint|unlock`, `account_id` and canonical decimal-string `amount`. `TokenOutcome` returns that entire operation plus `status: applied|receiver_unregistered|insufficient_balance|cap_exceeded|invalid_amount`. Both objects reject unknown/duplicate fields. A game callback reads at most 1,024 bytes and accepts only an exact id/kind/recipient/amount match and a status valid for that kind. Failed, oversized, malformed, null or mismatched results leave pending state untouched. The callback consumes a matching terminal result once; duplicates and late responses cannot mutate a replacement.
+
+| Token method | Authority and semantics |
+| --- | --- |
+| `execute_operation(operation)` | Immutable minter only, zero deposit. Atomically applies the mint or minter-custody unlock and retains a terminal outcome. Expected balance, registration, cap and zero-amount failures are recorded rejections, not failed receipts. Exact replay returns the original outcome without changing supply, balances, funding or events. Conflicting payload under the same id rejects E11; unauthorized calls reject E54 before lookup |
+| `get_operation(operation_id)` | Public historical outcome view; absence is not proof that an in-flight call failed |
+| `fund_operations()` payable | Anyone may contribute positive, **nonrefundable** NEAR to the dedicated retained-outcome budget. No withdrawal/admin path. This is separate from NEP-145 registration, game storage charges, compute and game operator collateral |
+| `get_operation_funding()` | Returns available budget, live cost per new terminal outcome and completed count |
+
+Each new outcome, including a business rejection, consumes `256 * storage_byte_cost` from the dedicated budget. At the current byte price this is 0.00256 NEAR; deployment must obtain the live quote and explicitly fund the expected lifetime operation count. Insufficient funding rejects E24 **before effects or allocation**; the game request remains pending and can replay after a contribution. Token account surplus and registration deposits never implicitly refill this budget. Root/code collateral remains separately operator-funded. Records are retained permanently to fence arbitrarily delayed original/replayed calls; storage grows only with funded new operations and each lookup is O(1). This is funded lifetime growth, not bounded total history or free unlimited operator subsidy.
+
+The old token `mint` export is removed; ordinary NEP-141 transfer APIs remain standard. Token registration for the fixed minter cannot be unregistered, preserving custody. A failed callback is recovered by resending the same token operation, not by trusting a caller-supplied outcome, current token balance or elapsed time. Successful callback execution still depends on NEAR runtime availability; permissionless replay removes the single-callback liveness dependency, not the chain dependency.
+
+This pre-freeze cutover changes game/token Borsh layouts and targets **freshly initialized rehearsal contracts**. It includes no state migration, old-ABI compatibility layer or upgrade path for keyless production accounts. Real game/token deployment remains unexercised; rebuilding the old layout is not a migration strategy.
+
+**Local recovery proof (2026-11-06):** actual game/token WASM with MOCK OutLayer passed `token-recovery`. An empty outcome budget produced E24 before minting; explicit funding plus two overlapping third-party replays applied one mint and one storage charge. Masking only the game's `on_mint`/`on_unlock` export names caused real `MethodNotFound` callback failures after successful token effects. Restoring the original local artifact and replaying the same ids reconciled once, preserved a later paid replacement lock, and kept supply/custody/funding exact. A recorded registration rejection stayed rejected after re-registration, Void and the next round; its old allowance/log restoration occurred once.
+
+The export masking and redeployment are **sandbox-only fault injection on a key-retaining account**, not a production upgrade or recovery requirement, gas-starvation proof, universal scheduler guarantee or testnet evidence. Ordinary failure/re-registration, maximum-root callback, multi-round, five-member Team, retained-storage, historical native-payment balance and settlement-sweep executables also passed in the same completed command. Evidence: `scratch/recovery-runtime.log`. Native NEAR payment recovery remains the boundary below.
 
 ### Guesses
 
@@ -217,7 +240,7 @@ A team snapshots at most five members on its first accepted play/commit. A fully
 
 Every begin/verdict/guess/open and read-only token registration request stores `expires_at_ns = initiation_timestamp + 600_000_000_000` (saturating `u64`). If its callback never finishes, anyone with the request id from the initiating receipt can call `expire_request`; no key or owner privilege is required. Recovery consumes that exact id before the shared failure handler completes. A later callback is a no-op and cannot affect a replacement request. If a valid callback executes first, expiry returns false, including at or after the deadline. The ten-minute policy remains independent of round retry/cancel timeouts. Registration expiry changes no referee admission count.
 
-Expiry never restores compute already spent at OutLayer. Withdraw, platform payment, mint and unlock are not covered: blindly refunding a transfer or restoring mint allowance after an unknown external outcome could pay twice. Their callback liveness/reconciliation remains B6. Registration is different because its only external call is a zero-deposit read; expiry resets confirmation, never token storage or money.
+Expiry never restores compute already spent at OutLayer. Withdraw/platform payments remain ineligible: unknown native transfers cannot safely be refunded or resent. Mint/unlock use authenticated idempotent replay above, not timeout restoration. Registration remains a zero-deposit read whose expiry resets confirmation without changing token storage or money.
 
 **Local recovery evidence (2026-11-05):** five native recovery tests passed for the exact ten-minute boundary, permissionless refund, duplicate/late callback fencing, callback-versus-expiry ordering, begin retry/cancel, guess refund/finalization and open retry/cancel; transfer requests remain ineligible. A throwaway sandbox smoke deliberately bypassed init validation to allocate only 1 Tgas to a verdict callback, observed a stranded pending play and E50 before expiry, then patched only that request's deadline to exercise recovery. Full credit/attempts returned once and withdrawal succeeded. The smoke did not wait ten real minutes; the exact clock boundary was covered natively. Its fault-injection source was removed after the run. Zero gas was unsuitable fault injection: the sandbox rejected the initiating receipt with `FunctionCallZeroAttachedGas`, rather than stranding a callback.
 
@@ -292,7 +315,7 @@ All byte layouts live in `crates/rule-core` (grammar) and `crates/protocol` (wir
 | --- | --- | --- | --- |
 | I1 | At quiescence, `balance >= Σcredit + Σvault + Σround pots + Σcarry + Σopen stakes + Σclaimable + compute_float + platform_accrued + max(storage_reserve, locked_storage)` | `storage_reserve` already backs collateral. `pending_credit` holds unsettled play fee/storage debits, not outgoing transfers | 10k native Solo principal sequences and sampled same-block sandbox snapshots pass; actual unknown-outcome payment reconciliation and worst-case reserves remain B6 |
 | I2 | Per round `P == W + C_paid + R + L` (or the exact refund sum when Cancelled) | Payout code, dust to R | T-INV-2 |
-| I3 | `token.ft_total_supply == Σ minted on LogRows − Σ burned <= cap`; the only burn is the standard NEP-141 resolver burn when a refund target unregistered; per round `minted <= round_allowance` | Mint and mint-failure callback | T-INV-3 sandbox, T-TOK-3 |
+| I3 | After all mint requests reconcile, `token.ft_total_supply == Σ minted on LogRows − Σ burned <= cap`; pending rows contain reserved intended amounts, not proof of confirmed issuance. The only burn is the standard NEP-141 resolver burn when a refund target unregistered; each round reserves at most its allowance | Durable token outcome + exact game acknowledgement; replay never applies a second effect | T-INV-3 sandbox, T-TOK-3 |
 | I4 | Referee output cannot name an account or an amount | Strict schema parse | T-REF-4 fuzz the parsers |
 | I5 | Winner = min `seq` among Correct commits | `best` update in `on_guess` | T-GUESS-3 out-of-order callbacks |
 | I6 | Each `request_id` is applied at most once; pending stale-round results refund, consumed ids are no-ops | `pending.remove` first in shared callback/expiry handlers | T-CB-2 duplicate/late callback and expiry races |
@@ -394,7 +417,9 @@ Two isolated deployments exercise the sweep boundary with actual local game/toke
 
 Both deployments check every commit's status and owner, exact per-owner credit, aggregate credit/stakes/pot conservation before opening, one open request, the winning account and revealed rule, exact winner/platform/carry partitions, zero-share rollover, exactly one yocto of split dust, returned winning stake and E56 on a duplicate claim. Actual initiating action receipts are traced separately from `on_open`. These are normal-budget local runtime proofs, not a numeric-maximum gas bound, whole-system live-balance proof or testnet evidence. No production contract logic, gas configuration or economic defaults changed.
 
-### Local token failure report (2026-11-05)
+### Historical token failure report (2026-11-05, before authenticated outcomes)
+
+The following receipt-failure evidence predates the `execute_operation` cutover. Current business rejections are successful token receipts with durable rejected outcomes, not E52 receipt failures; the executable has been migrated accordingly.
 
 `make token-failure` runs the real local game/token wasm with MOCK OutLayer. The executable passed a null registration check followed by direct registration and a successful retry, with unchanged game credit for both checks. A player then unregistered while holding zero tokens after the game's check: token `mint` failed with E52, `on_mint` restored the full allowance and zeroed only the minted amount, and the YES verdict remained. Re-registration allowed the next YES to mint 100 RULE. Token supply equaled the sum of logged mints.
 
@@ -439,10 +464,10 @@ Operator collateral must cover `byte_cost * max(0, total stored bytes - funded s
 | Open | 63 |
 | Platform | 66 |
 | Register | 126 |
-| Mint | 75 |
+| Mint | 143 |
 | Unlock | 139 |
 
-The exercised sandbox read the admission limits from `get_params`: total tracked referee cap 10 and user admission below 8. Multiplying the largest referee record by the total cap bounds only those pending-map records at 2,600 bytes; it excludes `seen`, entity and callback growth, code/base state, token/payment concurrency and retained rounds. All sampled retained-storage checks passed again, including concurrent verdict/guess records and the next retained round. Evidence: `scratch/b6-storage-bounds-runtime.log`. No full operator reserve quote or Team bound is accepted.
+The exercised sandbox read the admission limits from `get_params`: total tracked referee cap 10 and user admission below 8. Multiplying the largest referee record by the total cap bounds only those pending-map records at 2,600 bytes; it excludes `seen`, entity and callback growth, code/base state, token/payment concurrency and retained rounds. The 2026-11-06 authenticated-outcome rerun confirmed the table above, including the Mint recipient now retained in pending state; sampled storage/concurrency/next-round checks passed (`scratch/recovery-runtime.log`). These sizes alone are not a full operator reserve quote.
 
 Local no-ABI artifact sizes below are non-reproducible sandbox observations, not freeze hashes or evidence of a deployment.
 
@@ -471,7 +496,7 @@ Before transfer execution, outgoing principal is an escrow asset with a matching
 
 Signer balance changes are not gross transfer principal: the initial net-bound check failed because outstanding refunds from earlier transactions arrived too. Principal is checked on the successful transfer receipt, separately from signer net and gas. The earlier attempt also mixed optimistic contract views with final account queries; same-block pinning fixes that observation error.
 
-This is a sampled Solo sequence, not 10k on-chain sequences, a worst-case reserve proof, real OutLayer or testnet evidence. Historical snapshots now cover in-flight payments, but permanently stalled token/payment callback recovery remains B6.
+This is a sampled Solo sequence, not 10k on-chain sequences, a worst-case reserve proof, real OutLayer or testnet evidence. Historical snapshots cover in-flight payments; permanently stalled native-payment callbacks remain the D31/B6 boundary. RULE token callbacks use the authenticated recovery protocol above.
 
 ### B6 state bounds and recovery boundary (2026-11-05)
 
@@ -480,7 +505,7 @@ Actual-Borsh tests combine maximum-width account ids, amounts, rule/play JSON an
 | Lifetime allocation | Calculated combined record bytes | Funded byte ceiling |
 | --- | --- | --- |
 | Player, one withdrawal and one registration | 395 | 512 |
-| First Team play: five-member entity, log, seen, verdict, mint and one platform request | 1,350 | 2,048 |
+| First Team play: five-member entity, log, seen, verdict, mint and one platform request | 1,418 | 2,048 |
 | First Team commit: five-member entity, commit, guess check and one platform request | 770 | 2,048 |
 | Team record plus five membership indexes | 1,860 | 2,048 |
 | Lock plus its pending unlock | 269 | 2,048 |
@@ -490,7 +515,7 @@ Each charged account/action/Team pays for its own bounded retained and token/pay
 
 The actual `team-storage` executable passed five distinct 64-character accounts, five weighted depositors, a 24-byte name, fully refunded first play, a contextual second play, actual YES mint, actor-bound correct guess, exact equal reward/dust splits, stake return to vault, pro-rata exits and historical claims after roster deletion. Account records grew 135 bytes each; the full team/membership/depositor setup grew 1,516 bytes and two retained plays including the roster snapshot grew 1,135 bytes in the recorded sample. A failing-before/passing-after native regression and the actual runtime reject new capital entering an impaired vault with unchanged state.
 
-The 2026-11-06 rerun passed the same Team custody path; its two retained plays grew 1,132 bytes in that sample. Separate fixed-seed arithmetic properties ran 10,000 cases each over direct-product-safe and full-width `u128` inputs, checking quotient agreement, complementary-weight conservation with at most one yocto of dust, exact cancellation and whole-vault withdrawal. Maximum-weight boundary cases passed too (`scratch/b6-team-full-width.log`). These arithmetic properties are not 10,000 on-chain Team rounds.
+The authenticated-outcome rerun on 2026-11-06 passed the same Team custody path; its two retained plays grew 1,135 bytes in that sample (`scratch/recovery-runtime.log`). Separate fixed-seed arithmetic properties ran 10,000 cases each over direct-product-safe and full-width `u128` inputs, checking quotient agreement, complementary-weight conservation with at most one yocto of dust, exact cancellation and whole-vault withdrawal. Maximum-weight boundary cases passed too (`scratch/b6-team-full-width.log`). These arithmetic properties are not 10,000 on-chain Team rounds.
 
 `operator-storage` exercised E24 on actual local WASM despite separately funded player credit and pot, proved no OutLayer request or liability mutation, then admitted the round after an unallocated operator top-up. Its explicitly key-retaining sandbox fixture removes only operator surplus after deployment gas refunds; it is not a production withdrawal/recovery path. Exact one-yocto budget boundaries, same-round retry and ten-round admission/cancel are native regressions.
 
@@ -498,24 +523,24 @@ The 2026-11-06 rerun passed the same Team custody path; its two retained plays g
 
 `effect-gas` exercised two maximum-length URLs, three lock tiers, ten actual nonterminal rounds, a 64-character actor and allowance `(2^127)-1`. Genuine token registration/mint/unlock failures and successes, successful native withdrawal, failed/restored/retried native platform transfer, log/supply/allowance and exact principal passed. Receipts prove action identity/status/allocation, not universal gas or scheduler liveness. `multiround` exercised an old Opening round alongside the next Investigation, claims/carry, separate allowances and actual token/lock failure paths. Logs: `scratch/b6-operator-storage-runtime.log`, `scratch/b6-max-root-runtime.log`, `scratch/b6-remaining-runtime.log`.
 
-The 2026-11-06 rerun after native-principal reservation passed the maximum-root `effect-gas` scenario. Selected actual callback receipts are below (Tgas truncated to 0.001); these are observed costs, not universal upper bounds. Evidence: the completed effect-gas portion of `scratch/b6-final-integration.log`, before that composite command's later historical-RPC failure.
+The authenticated-outcome rerun on 2026-11-06 passed the maximum-root `effect-gas` scenario. Selected actual callback receipts are below (Tgas truncated to 0.001); these are observed costs, not universal upper bounds. Token business rejection now returns a successful receipt with a durable rejected outcome. Evidence: the completed `scratch/recovery-runtime.log`.
 
 | Maximum-root callback branch | Allocated Tgas | Observed burnt Tgas |
 | --- | --- | --- |
-| `on_register`, null registration | 60 | 2.478 |
-| `on_mint`, failed mint allowance restoration | 10 | 2.921 |
-| `on_unlock`, failed transfer lock restoration | 60 | 2.447 |
-| `on_withdraw`, successful payment | 10 | 2.474 |
-| `on_platform`, failed payment accrual restoration | 10 | 2.279 |
+| `on_register`, null registration | 60 | 2.505 |
+| `on_mint`, rejected mint allowance restoration | 10 | 2.996 |
+| `on_unlock`, rejected unlock lock restoration | 60 | 2.509 |
+| `on_withdraw`, successful payment | 10 | 2.501 |
+| `on_platform`, failed payment accrual restoration | 10 | 2.301 |
 
-Separate Solo sweep fixtures passed again on 2026-11-06 after the same source change, including exact owner refunds, Correct-stake preservation, one open, terminal partitions and one-yocto dust. These are not maximum-root fixtures. Evidence: `scratch/b6-final-runtime.log`.
+Separate Solo sweep fixtures passed in the same completed command, including exact owner refunds, Correct-stake preservation, one open, terminal partitions and one-yocto dust. These are not maximum-root fixtures. Evidence: `scratch/recovery-runtime.log`.
 
 | Final full-batch action | Allocated Tgas | Observed burnt Tgas |
 | --- | --- | --- |
-| `finalize`, 20 unrevealed refunds plus open scheduling | 300 | 10.187 |
-| Its separate `on_open` settlement callback | 60 | 2.468 |
+| `finalize`, 20 unrevealed refunds plus open scheduling | 300 | 10.031 |
+| Its separate `on_open` settlement callback | 60 | 2.467 |
 
-**Unconditional unknown-outcome recovery is not implemented or accepted.** [NEAR documents that callbacks run but can fail independently and are not retried](https://docs.near.org/smart-contracts/security/cross-contract-calls/callback-failures.md) [V, checked 2026-11-06]. If an external transfer/mint completes but its callback fails, the same pending state is compatible with external success or failure. No public input, timeout or current token balance authenticates that historical outcome. Restoring credit/locks/allowance or blindly retrying could pay or mint twice. The current ABI has no authenticated historical receipt-result lookup. The pending request therefore remains rather than fabricating an outcome. Read-only registration/referee expiry remains safe under its existing fencing policy. Closing this requirement needs explicit founder acceptance of successful bounded callbacks under the stated NEAR runtime assumptions, or a separately approved authenticated-result architecture. Neither is implied by these local proofs; D31/B6 remain open and freeze is not accepted.
+**Native NEAR unknown-outcome recovery remains unimplemented and unaccepted.** [NEAR documents that callbacks can fail independently and are not retried](https://docs.near.org/smart-contracts/security/cross-contract-calls/callback-failures.md) [V, checked 2026-11-06]. Withdrawal/platform transfer completion has no authenticated historical result in the game ABI. A timeout or current balance cannot distinguish success from failure; blind refund/resend can pay twice. Pending principal therefore remains reserved. The founder authorized the RULE authenticated-outcome redesign on 2026-11-06; token mint/unlock now use the protocol above. This does not silently authorize a different native payout asset, custody intermediary or acceptance of native stuck-operation risk. D31/B6 and freeze remain open for that native boundary and remaining acceptance evidence.
 
 
 ## Test matrix
@@ -531,8 +556,8 @@ Commands below are acceptance recipes, not blanket claims of completion; BUILD-P
 | T-ROUND | Every transition in the state diagram and every forbidden transition; begin and open timeouts lead to Cancelled; mismatch leads to Void; schedule slot enforcement | unit + sandbox |
 | T-PAY | Solved/unsolved splits; zero shares roll over; dust to rollover; team equal split; cancel refunds exactly per-entity pot shares | unit + property |
 | T-TEAM | Size 5 cap E31; roster locked during a round E30; shared attempt limit; vault pro-rata withdraw (I12) | unit + property |
-| T-TOK | Only the minter can mint; cap; NEP-141/145/148 conformance; transfer works during an open round (I8); mint failure restores the allowance (I3) | `cargo test -p token`, sandbox |
-| T-LOCK | Lock only for a Scheduled round; tier to attempt limit; unlock after every terminal phase (I11); non-token caller E40 | unit + sandbox |
+| T-TOK | Fixed-minter authority before replay lookup; cap and NEP-141/145/148 behavior; immutable exact replay and conflicting-payload rejection; independently funded permanent outcomes; no effects when budget is exhausted; only authenticated rejection restores allowance; unknown transport stays pending | `cargo test -p token`, native game recovery tests, `make token-recovery` |
+| T-LOCK | Lock only before Investigation; tier to attempt limit; terminal/never-started release; exact durable unlock acknowledgement; unknown/replayed completion preserves replacement custody; non-token caller E40 | unit + sandbox |
 | T-INV | Target: all public calls/callbacks preserve I1, I2, I3. Current bounded Solo principal/I2 model passes 10k cases; full cross-layer coverage remains P3.3/B6 | `PROPTEST_CASES=10000 cargo test -p game --test invariants --profile fast` |
 | T-ABI-1 | Exported method list equals the table in this file; no deploy/add-key/delete paths | unit |
 | T-REF | Referee: deterministic outputs for fixed MAC stub; commitment mismatch aborts; strict parsers fuzzed (cargo-fuzz on WSL) | `cargo test -p referee`, `cargo fuzz run parse_output` |

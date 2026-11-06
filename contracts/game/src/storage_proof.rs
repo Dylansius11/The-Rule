@@ -99,6 +99,7 @@ fn maximum_retained_records_and_callback_headroom() {
             mode: 1,
             round: u32::MAX,
             log_idx: u32::MAX,
+            actor: actor.clone(),
             amount: u128::MAX,
         },
     );

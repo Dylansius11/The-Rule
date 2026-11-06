@@ -1,5 +1,5 @@
 # THE RULE targets. Run inside WSL from the repo root.
-.PHONY: vectors sandbox gas storage balance token-failure verify build-contracts build-referee
+.PHONY: vectors sandbox gas storage balance token-failure b6 verify build-contracts build-referee
 GAME_ACCOUNT ?= game-r1.therule.testnet
 NEAR_RPC_URL ?= https://rpc.testnet.near.org
 CONTRACTS_OUT ?= scratch/repro/contracts
@@ -23,6 +23,21 @@ balance:
 token-failure:
 	scripts/build/sandbox-artifacts.sh
 	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p sandbox-tests --profile fast --example token-failure
+# Local B6 evidence only; the unknown-outcome recovery decision remains a separate gate.
+b6:
+	scripts/build/sandbox-artifacts.sh
+	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo test --workspace --profile fast -- --test-threads=1
+	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p sandbox-tests --profile fast --example effect-gas
+	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p sandbox-tests --profile fast --example multiround
+	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p sandbox-tests --profile fast --example team-storage
+	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p sandbox-tests --profile fast --example operator-storage
+	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p sandbox-tests --profile fast --example storage
+	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p sandbox-tests --profile fast --example balance
+	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p sandbox-tests --profile fast --example gas
+	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} PROPTEST_CASES=10000 cargo test -p game --test invariants --test multiround --profile fast -- --test-threads=1
+	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo clippy --workspace --all-targets -- -D warnings
+	cargo fmt --all --check
+	python3 -B -m unittest discover -s scripts/deploy -p test_rehearsal.py -v
 verify:
 	@case "$$ROUND" in solo/*|team/*) ;; *) echo "Usage: make verify ROUND=solo/<id> (or team/<id>)" >&2; exit 1;; esac
 	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p verifier-cli --profile fast -- verify --network testnet --game "$$GAME_ACCOUNT" --mode "$${ROUND%%/*}" --round "$${ROUND#*/}" --rpc-url "$$NEAR_RPC_URL"

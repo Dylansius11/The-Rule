@@ -14,6 +14,9 @@
   "token_storage_deposit": "1250000000000000000000",
   "registration_payer": "therule.testnet",
   "registration_gas": 30000000000000,
+  "token_operation_funding": "1000000000000000000000000",
+  "operation_funding_payer": "therule.testnet",
+  "operation_funding_gas": 30000000000000,
   "params": {
     "play_fee": "10000000000000000000000",
     "fee_split_bps": [8000, 1500, 500],

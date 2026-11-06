@@ -94,7 +94,7 @@ def referee_manifest(data):
 
 
 def prepare(config):
-    obj(config, ("network", "game_account", "token_account", "game_wasm", "token_wasm", "referee_wasm", "referee_sha256", "referee_build_log", "token_cap", "token_metadata", "demo", "params", "init_gas", "token_storage_deposit", "registration_payer", "registration_gas"), 'config')
+    obj(config, ("network", "game_account", "token_account", "game_wasm", "token_wasm", "referee_wasm", "referee_sha256", "referee_build_log", "token_cap", "token_metadata", "demo", "params", "init_gas", "token_storage_deposit", "registration_payer", "registration_gas", "token_operation_funding", "operation_funding_payer", "operation_funding_gas"), 'config')
     require(config['network'] == 'testnet', 'network must be testnet')
     game, token = config['game_account'], config['token_account']
     account(game, 'game_account'); account(token, 'token_account')
@@ -102,6 +102,10 @@ def prepare(config):
     account(config['registration_payer'], 'registration_payer')
     amount(config['token_storage_deposit'], 'token_storage_deposit', True)
     uint(config['registration_gas'], 64, 'registration_gas', True)
+    account(config['operation_funding_payer'], 'operation_funding_payer')
+    amount(config['token_operation_funding'], 'token_operation_funding', True)
+    uint(config['operation_funding_gas'], 64, 'operation_funding_gas', True)
+    require(config['operation_funding_gas'] <= 300_000_000_000_000, 'operation_funding_gas exceeds 300 Tgas')
     require(config['registration_gas'] <= 300_000_000_000_000, 'registration_gas exceeds 300 Tgas')
     paths, blobs = {}, {}
     for name in ('game', 'token', 'referee'):
@@ -170,13 +174,14 @@ def prepare(config):
         return ['near-rule', 'contract', 'deploy', config[name + '_account'], 'use-file', str(paths[name]), 'with-init-call', 'new', 'json-args', json.dumps(args, separators=(',', ':')), 'prepaid-gas', str(config['init_gas']) + ' gas', 'attached-deposit', '0 NEAR', 'network-config', 'testnet', 'sign-with-legacy-keychain', 'send']
     registration_args = {'account_id': game, 'registration_only': True}
     registration = ['near-rule', 'contract', 'call-function', 'as-transaction', token, 'storage_deposit', 'json-args', json.dumps(registration_args, separators=(',', ':')), 'prepaid-gas', str(config['registration_gas']) + ' gas', 'attached-deposit', config['token_storage_deposit'] + ' yoctoNEAR', 'sign-as', config['registration_payer'], 'network-config', 'testnet', 'sign-with-legacy-keychain', 'send']
-    return {'label': 'TESTNET REHEARSAL — KEYS RETAINED' + ('; Demo Mode - preselected rule schedule flag (referee is non-demo)' if config['demo'] else '; non-demo schedule'), 'sha256': {name: hashlib.sha256(data).hexdigest() for name, data in blobs.items()}, 'token_init': token_args, 'game_init': game_args, 'game_token_registration': {'args': registration_args, 'deposit': config['token_storage_deposit'], 'payer': config['registration_payer']}, 'commands': [command('token', token_args), command('game', game_args), registration]}
+    funding = ['near-rule', 'contract', 'call-function', 'as-transaction', token, 'fund_operations', 'json-args', '{}', 'prepaid-gas', str(config['operation_funding_gas']) + ' gas', 'attached-deposit', config['token_operation_funding'] + ' yoctoNEAR', 'sign-as', config['operation_funding_payer'], 'network-config', 'testnet', 'sign-with-legacy-keychain', 'send']
+    return {'label': 'TESTNET REHEARSAL — KEYS RETAINED' + ('; Demo Mode - preselected rule schedule flag (referee is non-demo)' if config['demo'] else '; non-demo schedule'), 'sha256': {name: hashlib.sha256(data).hexdigest() for name, data in blobs.items()}, 'token_init': token_args, 'game_init': game_args, 'game_token_registration': {'args': registration_args, 'deposit': config['token_storage_deposit'], 'payer': config['registration_payer']}, 'token_operation_funding': {'deposit': config['token_operation_funding'], 'payer': config['operation_funding_payer'], 'nonrefundable': True}, 'commands': [command('token', token_args), funding, command('game', game_args), registration]}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('config', help='explicit JSON configuration; never include secrets')
-    parser.add_argument('--execute', action='store_true', help='after founder authorization, send the testnet deployments and game token registration')
+    parser.add_argument('--execute', action='store_true', help='after founder authorization, send testnet deployments, token operation funding and game token registration')
     args = parser.parse_args()
     config = json.loads(Path(args.config).read_text(encoding='utf-8'))
     plan = prepare(config)
@@ -189,7 +194,7 @@ def main():
     if not args.execute:
         print('OFFLINE: no network, signature or transaction. Review prerequisites before authorized execution.')
         return
-    print('Executing token, game, then game token registration; stop on failure. Keys are retained.', flush=True)
+    print('Executing token, operation funding, game, then game token registration; stop on failure. Keys are retained.', flush=True)
     for command in plan['commands']:
         subprocess.run(command, check=True)
 

@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-06: offline command generation does not qualify CLI units
+
+- **What happened:** the first token deploy command was rejected by near-cli-rs 0.30.1 with `Incorrect unit: 100000000000000 gas`, before signing or broadcast. Both newly created accounts remained funded; the token still had no code at final block 276482085.
+- **Root cause:** the planner emitted raw gas with an unsupported unit. Offline generation and boundary tests did not execute the real CLI parser.
+- **Rule:** convert gas exactly to decimal Tgas, preserve integer precision and smoke the actual command path. Corrected token/game deployments succeeded without repeating account creation; deployed bytes and live parameters matched the reviewed plan. An unsigned parser rejection is distinct from an unknown on-chain outcome.
+
 ### 2026-11-06: an unknown external effect needs an atomic replay fence
 
 - **What happened:** actual local token mint/unlock effects succeeded while deliberately masked game callback exports failed `MethodNotFound`. Restoring the local artifact and overlapping same-id replays reconciled once without duplicate supply, custody release or storage charge (`scratch/recovery-runtime.log`).

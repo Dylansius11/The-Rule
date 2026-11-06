@@ -41,6 +41,11 @@ def account(value, name):
     require(isinstance(value, str) and 2 <= len(value) <= 64 and value.endswith('.testnet') and re.fullmatch(r'[a-z0-9]+(?:[._-][a-z0-9]+)*', value) is not None, f"{name}: expected testnet account ID")
 
 
+def cli_gas(value):
+    whole, fraction = divmod(value, 1_000_000_000_000)
+    return f"{whole}.{fraction:012d}".rstrip('0').rstrip('.') + ' Tgas'
+
+
 def artifact(value, name):
     require(isinstance(value, str) and value, f"{name}: missing path")
     path = Path(value).resolve(strict=True)
@@ -171,10 +176,10 @@ def prepare(config):
     token_args = {'minter': game, 'cap': config['token_cap'], 'metadata': metadata}
     game_args = {'params': p, 'demo': config['demo']}
     def command(name, args):
-        return ['near-rule', 'contract', 'deploy', config[name + '_account'], 'use-file', str(paths[name]), 'with-init-call', 'new', 'json-args', json.dumps(args, separators=(',', ':')), 'prepaid-gas', str(config['init_gas']) + ' gas', 'attached-deposit', '0 NEAR', 'network-config', 'testnet', 'sign-with-legacy-keychain', 'send']
+        return ['near-rule', 'contract', 'deploy', config[name + '_account'], 'use-file', str(paths[name]), 'with-init-call', 'new', 'json-args', json.dumps(args, separators=(',', ':')), 'prepaid-gas', cli_gas(config['init_gas']), 'attached-deposit', '0 NEAR', 'network-config', 'testnet', 'sign-with-legacy-keychain', 'send']
     registration_args = {'account_id': game, 'registration_only': True}
-    registration = ['near-rule', 'contract', 'call-function', 'as-transaction', token, 'storage_deposit', 'json-args', json.dumps(registration_args, separators=(',', ':')), 'prepaid-gas', str(config['registration_gas']) + ' gas', 'attached-deposit', config['token_storage_deposit'] + ' yoctoNEAR', 'sign-as', config['registration_payer'], 'network-config', 'testnet', 'sign-with-legacy-keychain', 'send']
-    funding = ['near-rule', 'contract', 'call-function', 'as-transaction', token, 'fund_operations', 'json-args', '{}', 'prepaid-gas', str(config['operation_funding_gas']) + ' gas', 'attached-deposit', config['token_operation_funding'] + ' yoctoNEAR', 'sign-as', config['operation_funding_payer'], 'network-config', 'testnet', 'sign-with-legacy-keychain', 'send']
+    registration = ['near-rule', 'contract', 'call-function', 'as-transaction', token, 'storage_deposit', 'json-args', json.dumps(registration_args, separators=(',', ':')), 'prepaid-gas', cli_gas(config['registration_gas']), 'attached-deposit', config['token_storage_deposit'] + ' yoctoNEAR', 'sign-as', config['registration_payer'], 'network-config', 'testnet', 'sign-with-legacy-keychain', 'send']
+    funding = ['near-rule', 'contract', 'call-function', 'as-transaction', token, 'fund_operations', 'json-args', '{}', 'prepaid-gas', cli_gas(config['operation_funding_gas']), 'attached-deposit', config['token_operation_funding'] + ' yoctoNEAR', 'sign-as', config['operation_funding_payer'], 'network-config', 'testnet', 'sign-with-legacy-keychain', 'send']
     return {'label': 'TESTNET REHEARSAL — KEYS RETAINED' + ('; compressed schedule; non-demo referee; no preselected rule' if config['demo'] else '; non-demo schedule'), 'sha256': {name: hashlib.sha256(data).hexdigest() for name, data in blobs.items()}, 'token_init': token_args, 'game_init': game_args, 'game_token_registration': {'args': registration_args, 'deposit': config['token_storage_deposit'], 'payer': config['registration_payer']}, 'token_operation_funding': {'deposit': config['token_operation_funding'], 'payer': config['operation_funding_payer'], 'nonrefundable': True}, 'commands': [command('token', token_args), funding, command('game', game_args), registration]}
 
 

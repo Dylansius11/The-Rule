@@ -2,6 +2,18 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-06: returned transfer principal is not free operator collateral
+
+- **What happened:** the native `refunded_native_principal_is_not_operator_collateral_before_callback` model admitted another round using returned withdrawal principal before its failed callback (`scratch/b6-native-reserve-before.log`). This modeled refund-first ordering is not an observed sandbox scheduling failure.
+- **Root cause:** withdrawal/platform initiation removes the original obligation, but a failure refund can return before the matching callback restores it. Subtracting only current ledger obligations overstates operator availability in that interval.
+- **Rule:** reserve pending native principal until matching completion, fence duplicates, and accept conservative admission rejection while principal is escrowed or paid. Native withdrawal/platform ordering regressions now pass; this reservation is not unknown-outcome recovery.
+
+### 2026-11-05: do not mix new Team capital with impaired depositor weights
+
+- **What happened:** the local regression `new_capital_cannot_subsidize_previous_round_losses` failed before the fix because a new deposit was accepted instead of E30 after a Team vault loss (`scratch/b6-team-dilution-before.log`). The fixture's 40,000-yocto original position had a 29,900-yocto vault after settlement.
+- **Root cause:** vault withdrawals use nominal depositor weights to divide the remaining vault pro rata. Adding fresh capital at nominal weight while the vault is below total weight makes the new depositor share prior losses.
+- **Rule:** reject new deposits with E30 while `vault != total_weight`; close old positions to credit before a fresh deposit epoch. The local native regression subsequently passed, and the actual-WASM Team runtime exercised the policy with MOCK OutLayer; this is not testnet evidence.
+
 ### 2026-11-05: match callback ownership before consuming a shared request
 
 - **What happened:** native dispatch regressions reproduced a wrong private callback deleting another request: referee admission remained stuck at one and an expected platform restoration stayed zero. The corrected matrix passes for referee completion/expiry and all five token/payment request kinds.

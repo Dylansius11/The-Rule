@@ -19,9 +19,9 @@ pub struct Commit {
     pub(crate) seq: u64,
     pub(crate) entity: Entity,
     pub(crate) actor: AccountId,
-    hash: [u8; 32],
+    pub(crate) hash: [u8; 32],
     pub(crate) stake: u128,
-    block: u64,
+    pub(crate) block: u64,
     pub(crate) status: CommitStatus,
 }
 
@@ -96,8 +96,7 @@ impl Game {
 impl Game {
     pub(crate) fn commit_guess_inner(&mut self, mode: Mode, hash: [u8; 32]) -> CommitAck {
         let m = mode as u8;
-        near_sdk::require!(m == 0, "E32");
-        let id = self.current[0].unwrap_or_else(|| env::panic_str("E10"));
+        let id = self.current[m as usize].unwrap_or_else(|| env::panic_str("E10"));
         let p = self.params();
         let pot = {
             let round = self
@@ -108,12 +107,9 @@ impl Game {
             round.pot
         };
         let actor = env::predecessor_account_id();
-        let player = self
-            .players
-            .get(&actor)
+        let entity = self
+            .resolve_entity(m, &actor)
             .unwrap_or_else(|| env::panic_str("E20"));
-        let (index, credit) = (player.index, player.credit);
-        let entity = Entity::Solo(index);
         let entity_key = (m, id, entity);
         let open = self.entities.get(&entity_key).map_or(0, |e| e.open_commits);
         near_sdk::require!(open < 3, "E15");
@@ -123,13 +119,18 @@ impl Game {
         let charge = stake
             .checked_add(storage)
             .unwrap_or_else(|| env::panic_str("E20"));
-        near_sdk::require!(credit >= charge, "E20");
+        near_sdk::require!(self.payer_balance(entity, &actor) >= charge, "E20");
+        if let Entity::Team(team_id) = entity {
+            let t = self.teams.get(&team_id).expect("team missing");
+            near_sdk::require!(
+                t.active_round.is_none() || t.active_round == Some(id),
+                "E30"
+            );
+        }
 
         let seq = self.next_seq;
         self.next_seq = seq.checked_add(1).unwrap_or_else(|| env::panic_str("E50"));
-        let player = self.players.get_mut(&actor).expect("player vanished");
-        player.credit -= charge;
-        self.total_credit -= charge;
+        self.debit_payer(entity, &actor, charge);
         self.total_stakes += stake;
         self.storage_reserve += storage;
         let round = self.rounds.get_mut(&(m, id)).expect("round vanished");
@@ -138,12 +139,17 @@ impl Game {
             .checked_add(1)
             .unwrap_or_else(|| env::panic_str("E50"));
         if !self.entities.contains_key(&entity_key) {
-            self.entities.insert(entity_key, EntityRound::default());
+            let mut entry = EntityRound::default();
+            if let Entity::Team(team_id) = entity {
+                entry.team_members = self.team_snapshot(team_id, id);
+            }
+            self.entities.insert(entity_key, entry);
         }
-        self.entities
-            .get_mut(&entity_key)
-            .expect("entity vanished")
-            .open_commits += 1;
+        let entry = self.entities.get_mut(&entity_key).expect("entity vanished");
+        entry.open_commits += 1;
+        if m == 1 {
+            entry.team_committed = true;
+        }
         let block = env::block_height();
         self.commits.insert(
             (m, id, commit_seq),
@@ -173,8 +179,7 @@ impl Game {
         salt: [u8; 32],
     ) -> u64 {
         let m = mode as u8;
-        near_sdk::require!(m == 0, "E32");
-        let id = self.current[0].unwrap_or_else(|| env::panic_str("E10"));
+        let id = self.current[m as usize].unwrap_or_else(|| env::panic_str("E10"));
         let p = self.params();
         let now = env::block_timestamp();
         let (round_seed, round_commit) = {
@@ -349,7 +354,7 @@ impl Game {
                 // System failure (D7): the full stake returns and the commit cannot be revealed again.
                 commit.status = CommitStatus::Refunded;
                 self.total_stakes -= commit.stake;
-                self.credit_back(&commit.actor, commit.stake);
+                self.refund_payer(commit.entity, &commit.actor, commit.stake);
                 self.close_commit(mode, round, commit.entity);
                 "refunded"
             }

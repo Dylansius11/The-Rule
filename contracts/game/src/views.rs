@@ -83,17 +83,16 @@ impl Game {
     pub(crate) fn get_player_inner(&self, account: AccountId) -> Option<Value> {
         self.players
             .get(&account)
-            .map(|p| json!({"index":p.index,"credit":U128(p.credit),"pending":p.pending}))
+            .map(|p| json!({"index":p.index,"credit":U128(p.credit),"pending":p.pending,"team_id":self.team_membership.get(&account)}))
     }
 
     pub(crate) fn get_entity_inner(&self, mode: Mode, id: u32, account: AccountId) -> EntityView {
         let m = mode as u8;
-        near_sdk::require!(m == 0, "E32");
+        if m == 1 {
+            self.team_id(&account);
+        }
         let limit = self.attempt_limit(&self.params(), m, id, &account);
-        let entity = self
-            .players
-            .get(&account)
-            .map(|player| Entity::Solo(player.index));
+        let entity = self.resolve_entity(m, &account);
         let state = entity.and_then(|entity| self.entities.get(&(m, id, entity)));
         match state {
             Some(e) => EntityView {

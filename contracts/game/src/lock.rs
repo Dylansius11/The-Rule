@@ -61,11 +61,27 @@ impl Game {
         round: u32,
         account: &AccountId,
     ) -> u16 {
-        let locked = self
-            .locks
-            .get(&(mode, round, account.clone()))
-            .copied()
-            .unwrap_or(0);
+        let locked = if mode == 0 {
+            self.locks
+                .get(&(mode, round, account.clone()))
+                .copied()
+                .unwrap_or(0)
+        } else {
+            self.team_membership
+                .get(account)
+                .and_then(|id| self.teams.get(id))
+                .map_or(0, |team| {
+                    team.members
+                        .iter()
+                        .map(|member| {
+                            self.locks
+                                .get(&(mode, round, member.clone()))
+                                .copied()
+                                .unwrap_or(0)
+                        })
+                        .sum()
+                })
+        };
         let bonus = p
             .lock_tiers
             .iter()
@@ -106,7 +122,7 @@ impl Game {
             return reject("E11");
         };
         let m = lock.mode as u8;
-        if m != 0 {
+        if m == 1 && !self.team_membership.contains_key(&sender) {
             return reject("E32");
         }
         if amount.0 == 0 || lock.round_id != self.lockable_round(m) {

@@ -404,7 +404,7 @@ fn verdict_requires_funded_compute() {
 #[should_panic(expected = "E11")]
 fn production_rejects_genesis_before_two_hours() {
     testing_env!(VMContextBuilder::new().block_timestamp(0).build());
-    let mut p = params();
+    let mut p = game::params::production_defaults(params());
     p.genesis_ns = 119 * 60_000_000_000;
     p.reveal_window_ns = 10 * 60_000_000_000;
     Game::new(p, false);
@@ -413,7 +413,7 @@ fn production_rejects_genesis_before_two_hours() {
 #[test]
 fn production_accepts_two_hours_and_demo_accepts_short_schedule() {
     testing_env!(VMContextBuilder::new().block_timestamp(0).build());
-    let mut p = params();
+    let mut p = game::params::production_defaults(params());
     p.genesis_ns = 120 * 60_000_000_000;
     p.reveal_window_ns = 10 * 60_000_000_000;
     let production = Game::new(p.clone(), false);

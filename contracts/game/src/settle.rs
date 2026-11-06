@@ -91,15 +91,22 @@ impl Game {
 
     pub fn get_claimable(&self, mode: Mode, round_id: u32, account: AccountId) -> U128 {
         let m = mode as u8;
-        let amount = self
-            .players
-            .get(&account)
-            .filter(|_| m == 0)
-            .map_or(0, |player| {
+        let amount = if m == 0 {
+            self.players.get(&account).map_or(0, |player| {
                 let (payout, stakes) = self.claim_parts(m, round_id, Entity::Solo(player.index));
                 payout + stakes
-            });
+            })
+        } else {
+            self.team_membership
+                .get(&account)
+                .map_or(0, |id| self.team_member_claimable(round_id, *id, &account))
+        };
         U128(amount)
+    }
+
+    pub fn claim_team(&mut self, mode: Mode, round_id: u32, team_id: u32) -> U128 {
+        near_sdk::require!(mode as u8 == 1, "E11");
+        U128(self.claim_team_inner(round_id, team_id, &env::predecessor_account_id()))
     }
 
     /// Anyone may send the accrued platform share to the configured platform account.
@@ -125,7 +132,7 @@ impl Game {
         let returned = bps(commit.stake, return_bps);
         let to_pot = commit.stake - returned;
         self.total_stakes -= commit.stake;
-        self.credit_back(&commit.actor, returned);
+        self.refund_payer(commit.entity, &commit.actor, returned);
         if let Some(r) = self.rounds.get_mut(&(mode, round)) {
             r.pot += to_pot;
             self.total_pots += to_pot;
@@ -332,7 +339,30 @@ impl Game {
         };
         let per_share = contributors.checked_div(shares).unwrap_or(0);
         let paid_shares = per_share * shares;
-        let dust = pot - winner - platform - rollover - paid_shares;
+        let mut team_dust = 0u128;
+        if mode == 1 {
+            for k in 1usize..=5 {
+                let base = k * (k - 1) / 2;
+                for residue in 0..k {
+                    team_dust += u128::from(r.team_residues[base + residue])
+                        * ((residue as u128 * (per_share % k as u128)) % k as u128);
+                }
+            }
+            if let Some(Outcome::Solved {
+                winner: Entity::Team(id),
+                ..
+            }) = &r.outcome
+            {
+                let k = self
+                    .entities
+                    .get(&(mode, round, Entity::Team(*id)))
+                    .expect("winner entity missing")
+                    .team_members
+                    .len() as u128;
+                team_dust += winner % k;
+            }
+        }
+        let dust = pot - winner - platform - rollover - paid_shares + team_dust;
         let rollover = rollover + dust;
         r.phase = Phase::Settled;
         r.rule = Some(rule);
@@ -341,7 +371,7 @@ impl Game {
         self.total_pots -= pot;
         self.carry[mode as usize] += rollover;
         self.platform_accrued += platform;
-        self.total_claimable += winner + paid_shares;
+        self.total_claimable += winner + paid_shares - team_dust;
         event(
             "round_settled",
             &json!({"mode":mode,"round_id":round,"pot":U128(pot),"winner_amount":U128(winner),"per_share":U128(per_share),"rollover":U128(rollover),"platform":U128(platform),"solved":solved}),
@@ -425,7 +455,11 @@ impl Game {
 
     fn claim_inner(&mut self, mode: Mode, round_id: u32) -> u128 {
         let m = mode as u8;
-        near_sdk::require!(m == 0, "E32");
+        if m == 1 {
+            let actor = env::predecessor_account_id();
+            let team_id = self.team_id(&actor);
+            return self.claim_team_inner(round_id, team_id, &actor);
+        }
         let actor = env::predecessor_account_id();
         let index = self
             .players
@@ -456,11 +490,69 @@ impl Game {
         total
     }
 
+    fn team_member_claimable(&self, round: u32, team_id: u32, actor: &AccountId) -> u128 {
+        let Some(r) = self
+            .rounds
+            .get(&(1, round))
+            .filter(|r| r.phase == Phase::Settled)
+        else {
+            return 0;
+        };
+        let Some(e) = self.entities.get(&(1, round, Entity::Team(team_id))) else {
+            return 0;
+        };
+        let Some(index) = e.team_members.iter().position(|member| member == actor) else {
+            return 0;
+        };
+        if e.team_claimed & (1 << index) != 0 {
+            return 0;
+        }
+        let Some(Payout::Settled { winner, per_share }) = r.payout else {
+            return 0;
+        };
+        let k = e.team_members.len() as u128;
+        let won = matches!(&r.outcome, Some(Outcome::Solved { winner: Entity::Team(id), .. }) if *id == team_id);
+        per_share * u128::from(e.shares) / k + if won { winner / k } else { 0 }
+    }
+
+    fn claim_team_inner(&mut self, round: u32, team_id: u32, actor: &AccountId) -> u128 {
+        near_sdk::require!(
+            self.rounds
+                .get(&(1, round))
+                .is_some_and(|r| r.phase.is_terminal()),
+            "E10"
+        );
+        let amount = self.team_member_claimable(round, team_id, actor);
+        near_sdk::require!(amount > 0, "E56");
+        let e = self
+            .entities
+            .get_mut(&(1, round, Entity::Team(team_id)))
+            .expect("entity missing");
+        let index = e
+            .team_members
+            .iter()
+            .position(|member| member == actor)
+            .expect("member missing");
+        e.team_claimed |= 1 << index;
+        self.total_claimable -= amount;
+        self.credit_back(actor, amount);
+        event(
+            "claimed",
+            &json!({"mode":1,"round_id":round,"account":actor,"payout":U128(amount),"stakes":U128(0)}),
+        );
+        amount
+    }
+
     fn claim_platform_inner(&mut self) -> u64 {
         let amount = self.platform_accrued;
         near_sdk::require!(amount > 0, "E56");
         let platform: AccountId = self.params().platform.parse().expect("validated at init");
+        let pending_native = self
+            .pending_native_payments
+            .checked_add(amount)
+            .expect("E11");
         self.platform_accrued = 0;
+        self.pending_native_payments = pending_native;
         let id = self.next_request_id;
         self.next_request_id = id.checked_add(1).unwrap_or_else(|| env::panic_str("E50"));
         self.pending.insert(id, Request::Platform { amount });
@@ -486,6 +578,7 @@ impl Game {
         let Some(Request::Platform { amount }) = self.pending.remove(&request_id) else {
             return;
         };
+        self.pending_native_payments -= amount;
         if env::promise_result_checked(0, 0).is_err() {
             self.platform_accrued += amount;
         }

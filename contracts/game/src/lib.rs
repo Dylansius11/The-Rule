@@ -10,6 +10,10 @@ mod play;
 mod recovery;
 mod round;
 mod settle;
+mod storage;
+#[cfg(test)]
+mod storage_proof;
+mod team;
 mod views;
 use borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::U128;
@@ -69,6 +73,10 @@ pub struct EntityRound {
     claimed: bool,
     /// Commit ids of this entity that ended Correct; their stakes return on `claim`.
     correct_commits: Vec<u32>,
+    team_members: Vec<AccountId>,
+    team_claimed: u8,
+    vault_claimed: bool,
+    team_committed: bool,
 }
 
 #[derive(Serialize)]
@@ -145,6 +153,7 @@ pub struct Round {
     /// Commits before this index are final (`finalize` sweeps Committed ones to Unrevealed in batches).
     sweep_cursor: u32,
     payout: Option<settle::Payout>,
+    team_residues: [u64; 15],
 }
 
 #[derive(BorshSerialize, BorshDeserialize)]
@@ -253,6 +262,10 @@ pub struct Game {
     next_request_id: u64,
     compute_float: u128,
     players: LookupMap<AccountId, Player>,
+    teams: LookupMap<u32, team::Team>,
+    team_membership: LookupMap<AccountId, u32>,
+    next_team: u32,
+    total_vault: u128,
     entities: LookupMap<(u8, u32, Entity), EntityRound>,
     seen: LookupMap<(u8, u32, u64), u32>,
     log: LookupMap<(u8, u32, u32), String>,
@@ -261,7 +274,11 @@ pub struct Game {
     total_credit: u128,
     total_pots: u128,
     pending_credit: u128,
+    /// Native principal reserved until its withdrawal/platform callback completes.
+    pending_native_payments: u128,
     storage_reserve: u128,
+    /// Code, access-key and pre-init account bytes; operator-funded, never player money.
+    base_storage_bytes: u64,
     platform_accrued: u128,
     commits: LookupMap<(u8, u32, u32), guess::Commit>,
     /// Stakes locked by open commits.
@@ -320,6 +337,8 @@ impl Game {
 impl Game {
     #[init]
     pub fn new(params: Params, demo: bool) -> Self {
+        near_sdk::require!(params::bounded_config(&params), "E11");
+        near_sdk::require!((1..=5).contains(&params.max_team_size), "E11");
         near_sdk::require!(
             !params.referee.urls.is_empty() && params.referee.build_target == "wasm32-wasip2",
             "E11"
@@ -394,6 +413,7 @@ impl Game {
             "E11"
         );
         if !demo {
+            near_sdk::require!(params::funded_storage(&params), "E11");
             const HOUR: u64 = 3_600_000_000_000;
             const MINUTE: u64 = 60_000_000_000;
             let earliest = env::block_timestamp()
@@ -420,6 +440,10 @@ impl Game {
             next_request_id: 0,
             compute_float: 0,
             players: LookupMap::new(b"a"),
+            teams: LookupMap::new(b"t"),
+            team_membership: LookupMap::new(&b"tm"[..]),
+            next_team: 0,
+            total_vault: 0,
             entities: LookupMap::new(b"e"),
             seen: LookupMap::new(b"s"),
             log: LookupMap::new(b"l"),
@@ -428,7 +452,9 @@ impl Game {
             total_credit: 0,
             total_pots: 0,
             pending_credit: 0,
+            pending_native_payments: 0,
             storage_reserve: 0,
+            base_storage_bytes: env::storage_usage(),
             platform_accrued: 0,
             commits: LookupMap::new(b"c"),
             total_stakes: 0,

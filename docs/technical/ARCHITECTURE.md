@@ -2,7 +2,7 @@
 
 ## TL;DR and approval
 
-- **Status (2026-11-05):** core stack approved (D1); shared core, referee/verifier and Solo game/token paths implemented and locally tested with mock OutLayer. Phase 0 probe receipts are testnet evidence, not a real-game rehearsal. Frontend platform (D2), visual references (B1), keeper deployment and the remaining BUILD-PLAN acceptances are still open.
+- **Status (2026-11-05):** core stack approved (D1); shared core, referee/verifier, Solo game/token and bounded Team custody paths are implemented and locally tested with MOCK OutLayer. Operator collateral is separately budgeted and new-round admission cannot borrow player/pot/compute money. Unknown-outcome external-effect recovery remains an explicit B6 architecture gate. Phase 0 probe receipts are testnet evidence, not a real-game rehearsal. Frontend platform (D2), visual references (B1), keeper deployment and remaining BUILD-PLAN acceptances are still open.
 - **Shape:** the chain is the backend. Two NEAR contracts hold all money and state. One OutLayer TDX program holds the rule. One Rust crate, `rule-core`, defines the rule, compiled three ways: the enclave (`wasm32-wasip2`), the game contract (`wasm32-unknown-unknown`) and the browser/CLI verifier. A static web app and a permissionless keeper have no authority.
 - **Core invariant:** no component except the pinned referee can compute the rule before the reveal, and no referee output can name an account or an amount.
 

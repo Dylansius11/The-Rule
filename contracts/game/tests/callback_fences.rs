@@ -97,6 +97,10 @@ fn ledger(fx: &Fx) -> near_sdk::serde_json::Value {
     let mut value = fx.ledger();
     value.as_object_mut().unwrap().remove("balance");
     value
+        .as_object_mut()
+        .unwrap()
+        .remove("operator_storage_available");
+    value
 }
 
 // Each wrong dispatcher gets a fresh request: a destructive first dispatcher cannot mask another.

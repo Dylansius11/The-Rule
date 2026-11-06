@@ -41,6 +41,19 @@ impl Game {
             self.pending_referee_requests < MAX_PENDING_REFEREE_REQUESTS,
             "E23"
         );
+        if self.current[i] != Some(id) {
+            let active = self
+                .active_rounds
+                .iter()
+                .filter(|key| {
+                    self.rounds
+                        .get(key)
+                        .is_some_and(|round| !round.phase.is_terminal())
+                })
+                .count();
+            near_sdk::require!(active < 10, "E23");
+        }
+        self.require_operator_storage(u64::from(self.current[i] != Some(id)));
         let seed = if self.current[i] == Some(id) {
             self.rounds.get(&(m, id)).expect("missing round").seed
         } else {
@@ -73,6 +86,7 @@ impl Game {
                     opening_started_ns: None,
                     sweep_cursor: 0,
                     payout: None,
+                    team_residues: [0; 15],
                 },
             );
             self.active_rounds

@@ -52,13 +52,6 @@ fn commit_requires_investigation() {
 }
 
 #[test]
-#[should_panic(expected = "E32")]
-fn team_commit_is_rejected_until_teams_exist() {
-    let mut fx = fixture(params());
-    fx.game.commit_guess(Mode::Team, Hex32([1; 32]));
-}
-
-#[test]
 #[should_panic(expected = "E20")]
 fn commit_needs_credit_for_stake_and_storage() {
     let mut fx = fixture(params());

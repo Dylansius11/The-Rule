@@ -67,6 +67,16 @@ fn t_abi_1_export_allowlist() {
         "get_verdict",
         "get_word_list",
         "get_ledger",
+        "create_team",
+        "invite",
+        "join_team",
+        "leave_team",
+        "remove_member",
+        "team_deposit",
+        "team_withdraw",
+        "get_team",
+        "settle_team",
+        "claim_team",
     ]
     .into_iter()
     .map(str::to_owned)

@@ -567,3 +567,281 @@ fn seeded_native_payment_refund_order_and_owner_reservations() {
         )
         .unwrap();
 }
+
+/// This model tracks the owner's spendable credit separately from transfer escrow.
+/// The mock VM does not execute transfers, so `Cash` accounts for the actual actions.
+struct Overlap {
+    cash: Cash,
+    credit: u128,
+    reserved: u128,
+    returned_unresolved: u128,
+    pending_play: bool,
+    pending_withdrawal: bool,
+    attempts: u64,
+    shares: u64,
+}
+
+impl Overlap {
+    fn check(&self, fx: &Fx) {
+        let player = fx.game.get_player(NAMES[0].parse().unwrap()).unwrap();
+        assert_eq!(num(&player["credit"]), self.credit);
+        assert_eq!(player["pending_play"], self.pending_play);
+        assert_eq!(player["pending_withdrawal"], self.pending_withdrawal);
+        assert_eq!(fx.term("credit"), self.credit);
+        assert_eq!(fx.term("pending_native_payments"), self.reserved);
+        assert_eq!(
+            fx.term("pending_credit"),
+            if self.pending_play { 10_100 } else { 0 }
+        );
+        let entity = near_sdk::serde_json::to_value(fx.game.get_entity(
+            Mode::Solo,
+            0,
+            NAMES[0].parse().unwrap(),
+        ))
+        .unwrap();
+        assert_eq!(entity["pending"], self.pending_play);
+        assert_eq!(entity["attempts"], self.attempts);
+        assert_eq!(entity["shares"], self.shares);
+        let rows = fx.game.get_log(Mode::Solo, 0, 0, 200);
+        assert_eq!(rows.len() as u64, self.shares);
+        assert!(rows.iter().all(|row| !row.verdict));
+        assert_eq!(num(&fx.round()["pot"]), self.shares as u128 * 8_000);
+        // A failed native receipt can have returned its principal before its callback.
+        // It remains outside the ledger until that callback restores the owner's credit.
+        assert_eq!(
+            self.cash.balance,
+            fx.money() + self.cash.surplus + self.returned_unresolved
+        );
+        assert_eq!(
+            self.cash.inputs,
+            self.cash.balance + self.cash.escrow + self.cash.paid + self.cash.compute_spent
+        );
+    }
+}
+
+#[test]
+fn seeded_same_owner_withdrawal_overlaps_solo_plays() {
+    let config = Config {
+        failure_persistence: None,
+        ..Config::default()
+    };
+    let mut runner = TestRunner::new_with_rng(
+        config,
+        TestRng::from_seed(RngAlgorithm::ChaCha, &[0xb7; 32]),
+    );
+    runner
+        .run(
+            &(
+                0u8..3,
+                any::<bool>(),
+                any::<bool>(),
+                any::<bool>(),
+                1u64..500_001,
+                0u8..3,
+            ),
+            |(outcome, withdraw_first, play_fails, below_boundary, topup, withheld_effect)| {
+                let mut fx = fixture(params());
+                let mut model = Overlap {
+                    cash: Cash::default(),
+                    credit: DEPOSIT - 100,
+                    reserved: 0,
+                    returned_unresolved: 0,
+                    pending_play: false,
+                    pending_withdrawal: false,
+                    attempts: 0,
+                    shares: 0,
+                };
+                model.cash.incoming(DEPOSIT);
+                fx.ctx
+                    .attached_deposit(NearToken::from_yoctonear(u128::from(topup)));
+                reset(&fx);
+                fx.game.deposit_credit();
+                model.cash.incoming(u128::from(topup));
+                model.credit += u128::from(topup);
+                fx.at(10, 0);
+                fx.commit();
+                // Commit charges 100 stake and 100 storage; failed checking returns the stake.
+                model.credit -= 200;
+                fx.at(12, 0);
+                let check = fx.reveal(0);
+                fx.ctx.attached_deposit(NearToken::from_yoctonear(1));
+                reset(&fx);
+                assert!(panic_text(|| fx.game.withdraw_credit(U128(1))).contains("E21"));
+                fx.answer(check, PromiseResult::Failed);
+                model.credit += 100;
+                model.check(&fx);
+
+                // Exactly one play remains affordable, or it is short by one yocto.
+                let remaining = if below_boundary { 10_099 } else { 10_100 };
+                let withdrawal = model.credit - remaining;
+                fx.ctx.attached_deposit(NearToken::from_yoctonear(1));
+                reset(&fx);
+                fx.game.withdraw_credit(U128(withdrawal));
+                model.cash.incoming(1);
+                model.cash.surplus += 1;
+                model.credit -= withdrawal;
+                model.pending_withdrawal = true;
+                let withdraw_id = callback_id("on_withdraw");
+                let receipt = near_sdk::test_utils::get_created_receipts()
+                    .into_iter()
+                    .find(|r| {
+                        r.actions
+                            .iter()
+                            .any(|a| matches!(a, MockAction::Transfer { .. }))
+                    })
+                    .unwrap();
+                assert_eq!(receipt.receiver_id.as_str(), NAMES[0]);
+                let sent = model.cash.outbound();
+                assert_eq!(sent, withdrawal);
+                model.reserved += sent;
+                if outcome == 2 {
+                    match withheld_effect {
+                        0 => {}                                // Receipt is still in flight.
+                        1 => model.cash.complete(sent, false), // Paid, callback withheld.
+                        _ => {
+                            model.cash.complete(sent, true); // Refunded, callback withheld.
+                            model.returned_unresolved = sent;
+                        }
+                    }
+                }
+                model.check(&fx);
+
+                fx.ctx.attached_deposit(NearToken::from_yoctonear(0));
+                reset(&fx);
+                if below_boundary {
+                    assert!(
+                        panic_text(|| {
+                            fx.game.play(Mode::Solo, 1, "otter".into());
+                        })
+                        .contains("E20")
+                    );
+                    model.check(&fx);
+                    fx.ctx.attached_deposit(NearToken::from_yoctonear(1));
+                    reset(&fx);
+                    fx.game.deposit_credit();
+                    model.cash.incoming(1);
+                    model.credit += 1;
+                }
+                fx.ctx.attached_deposit(NearToken::from_yoctonear(0));
+                reset(&fx);
+                let play_id = fx.play(1, "otter");
+                assert_eq!(model.cash.outbound(), 0);
+                model.credit -= 10_100;
+                model.pending_play = true;
+                model.attempts += 1;
+                model.check(&fx);
+                fx.ctx.attached_deposit(NearToken::from_yoctonear(1));
+                reset(&fx);
+                assert!(panic_text(|| fx.game.withdraw_credit(U128(1))).contains("E21"));
+                deliver_env(&fx.ctx, PromiseResult::Failed);
+                fx.game.on_withdraw(play_id);
+                fx.game.on_verdict(withdraw_id);
+                model.check(&fx);
+
+                if withdraw_first && outcome != 2 {
+                    model.cash.complete(sent, outcome == 1);
+                    deliver_env(&fx.ctx, response(outcome == 1));
+                    fx.game.on_withdraw(withdraw_id);
+                    model.reserved -= sent;
+                    model.pending_withdrawal = false;
+                    if outcome == 1 {
+                        model.credit += sent;
+                    }
+                    model.check(&fx);
+                    fx.ctx.attached_deposit(NearToken::from_yoctonear(1));
+                    reset(&fx);
+                    assert!(panic_text(|| fx.game.withdraw_credit(U128(1))).contains("E21"));
+                }
+                if play_fails {
+                    deliver_env(&fx.ctx, PromiseResult::Failed);
+                    fx.game.on_verdict(play_id);
+                    model.credit += 10_100;
+                    model.attempts -= 1;
+                } else {
+                    fx.verdict(play_id, 0);
+                    model.shares += 1;
+                }
+                model.pending_play = false;
+                model.check(&fx);
+                if !withdraw_first && outcome != 2 {
+                    model.cash.complete(sent, outcome == 1);
+                    deliver_env(&fx.ctx, response(outcome == 1));
+                    fx.game.on_withdraw(withdraw_id);
+                    model.reserved -= sent;
+                    model.pending_withdrawal = false;
+                    if outcome == 1 {
+                        model.credit += sent;
+                    }
+                    model.check(&fx);
+                }
+
+                // Fund a replacement play independently; no reserved principal is spendable.
+                fx.ctx.attached_deposit(NearToken::from_yoctonear(10_100));
+                reset(&fx);
+                fx.game.deposit_credit();
+                model.cash.incoming(10_100);
+                model.credit += 10_100;
+                let mut replacement_withdrawal = None;
+                if outcome != 2 {
+                    fx.ctx.attached_deposit(NearToken::from_yoctonear(1));
+                    reset(&fx);
+                    fx.game.withdraw_credit(U128(1));
+                    model.cash.incoming(1);
+                    model.cash.surplus += 1;
+                    model.credit -= 1;
+                    replacement_withdrawal = Some(callback_id("on_withdraw"));
+                    let replacement_sent = model.cash.outbound();
+                    assert_eq!(replacement_sent, 1);
+                    model.reserved += replacement_sent;
+                    model.pending_withdrawal = true;
+                    // Leave enough credit even when the previous play succeeded.
+                    fx.ctx.attached_deposit(NearToken::from_yoctonear(1));
+                    reset(&fx);
+                    fx.game.deposit_credit();
+                    model.cash.incoming(1);
+                    model.credit += 1;
+                }
+                fx.ctx.attached_deposit(NearToken::from_yoctonear(0));
+                reset(&fx);
+                let replacement_play = fx.play(2, "otter");
+                assert_eq!(model.cash.outbound(), 0);
+                model.credit -= 10_100;
+                model.attempts += 1;
+                model.pending_play = true;
+                deliver_env(&fx.ctx, response(false));
+                if outcome != 2 {
+                    fx.game.on_withdraw(withdraw_id);
+                }
+                fx.game.on_verdict(play_id);
+                if let Some(id) = replacement_withdrawal {
+                    fx.game.on_verdict(id);
+                    fx.game.on_withdraw(replacement_play);
+                }
+                model.check(&fx);
+                fx.verdict(replacement_play, 0);
+                model.pending_play = false;
+                model.shares += 1;
+                model.check(&fx);
+                fx.verdict(replacement_play, 0);
+                model.check(&fx);
+                if let Some(id) = replacement_withdrawal {
+                    model.cash.complete(1, true);
+                    deliver_env(&fx.ctx, response(true));
+                    fx.game.on_withdraw(id);
+                    model.reserved -= 1;
+                    model.credit += 1;
+                    model.pending_withdrawal = false;
+                    model.check(&fx);
+                } else {
+                    fx.ctx.attached_deposit(NearToken::from_yoctonear(1));
+                    reset(&fx);
+                    assert!(panic_text(|| fx.game.withdraw_credit(U128(1))).contains("E21"));
+                    fx.at(50, OPEN_TIMEOUT * 2);
+                    assert!(!fx.game.expire_request(withdraw_id));
+                    model.check(&fx);
+                }
+                Ok(())
+            },
+        )
+        .unwrap();
+}

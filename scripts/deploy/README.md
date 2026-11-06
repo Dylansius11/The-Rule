@@ -94,3 +94,22 @@ Locally exercised 2026-11-07: eight focused regressions passed, including succes
 
 **Local layout cutover (2026-11-06, D34):** current source replaces the aggregate `get_player.pending` with `pending_play`, `pending_withdrawal` and `checking_guesses`, and adds one Borsh byte per Player. It must not be deployed over existing `game-r1` state; no migration or rehearsal upgrade was authorized. A pending native payment still cannot be expired or resent, but remaining credit can fund new plays in the new local implementation. Keep D32/D33's deployed hashes and receipts as historical evidence, not hashes of the current source.
 
+## Offline rehearsal inference and timing qualification
+
+`verifier/cli/examples/rehearsal-operator.rs` has no RPC, signing or secret-rule access. It filters daily candidates with the shared `rule-core` evaluator/classifier, uses exact shared equivalence for semantic classes, prepares protocol commit preimages, and suggests plays or bounded class guesses. A log-consistent candidate is not automatically the correct rule. The aid is separate from transaction submission and does not authorize a rehearsal.
+
+Build the executable in WSL, then supply one JSON request on stdin:
+
+```sh
+CARGO_TARGET_DIR="$HOME/target-the-rule-lead" cargo build -p verifier-cli --profile fast --example rehearsal-operator
+printf '%s\n' '{"command":"qualify","seeds":["p29-0"],"play_seconds":45,"guess_seconds":120,"investigation_seconds":7200}' |
+  "$HOME/target-the-rule-lead/fast/examples/rehearsal-operator"
+```
+
+`qualify` requires explicit positive play/guess durations no greater than the Investigation window, whose ceiling is 86,400 seconds. It models three players with 25 attempts each, at least 50 plays, a known-wrong guess and at most three subsequent class guesses. Checked time admission refuses an action finishing at or after the deadline. Previous-YES gaps use all three published buckets. Exit 0 means every supplied fixture and the retained adversarial fixture qualified in this **finite offline model**; exit 1 means unqualified or invalid input. Simulated elapsed seconds are not the CLI's wall time, a network latency SLA or proof that every sampled game rule is identifiable.
+
+Locally exercised 2026-11-06: eight fixed seeds plus the adversarial fixture qualified at 50 simulated plays/two guesses, 2,490 simulated seconds each with the explicit 45/120/7,200-second inputs. A short-window run refused qualification and four invalid duration boundaries rejected. After equivalent conditional cleanup for clippy, the final binary's two-fixture smoke passed; targeted clippy and changed-file formatting passed. Evidence is in `scratch/p29-next/qualification-*.json` and `operator-final-*.log`. No paid operation or new round was sent by this CLI.
+
+The other request commands are `advise` (complete public rows/bucket, rejected rules, actual current context, excluded keys and remaining guess budget), `known_wrong` (a rule contradicted by an observed verdict), and `prepare_guess` (game, round, actor/entity, rule and salt). Advice based on a pre-sign timestamp does not fix the context at receipt inclusion: a transaction operator must inspect actual rows, entity attempts, pending callbacks, budget and deadlines before continuing. Never run the historical r1 journal against fresh r2 accounts.
+
+

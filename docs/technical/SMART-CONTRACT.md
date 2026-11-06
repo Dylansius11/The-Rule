@@ -345,6 +345,19 @@ All byte layouts live in `crates/rule-core` (grammar) and `crates/protocol` (wir
 | I12 | Team: winner and share payouts split equally; vault refunds pro rata | Payout + `team_withdraw` math | T-TEAM-3 property |
 | I13 | Nothing is claimable before Settled with the hash check, except Cancelled/Void refunds | `claim` phase check | T-OPEN-2 |
 
+### P3.3 finite evidence and remaining gates (2026-11-06)
+
+| Requirement | Concrete coverage | Remaining boundary |
+| --- | --- | --- |
+| I1 principal and owner rights | `solo_cash_and_pot_partition_seeded_sequences`, payment/refund-order models, same-owner play/guess overlaps, and actual receipt-aware sandbox balance snapshots | Native models do not execute transfers or charge runtime storage/gas. Final whole-system collateral/admission acceptance on the selected deployment artifact remains B6; finite snapshots are not a universal scheduler proof |
+| I2 partitions, dust and terminal rights | Solo terminal properties, `seeded_cross_round_owner_and_cash_invariants`, bounded Team property, and actual-WASM solved Team payout/roster claims | Finite generated/observed sequences; Phase 3 still requires the accepted P2.9 testnet run with payouts |
+| I3 supply, allowance and burns | `seeded_mint_receipts_match_log_and_allowance`, authenticated token-recovery runtime, and `resolver_burn_preserves_game_log_supply_invariant` | Modeled acknowledgements are not executed token effects. The new actual-WASM burn scenario closes the previously separate log/supply/burn case, not every possible receipt schedule |
+
+The new burn scenario obtains 100 RULE from a real game mint, transfers it to the sandbox mock's delayed NEP-141 receiver and unregisters the now-empty sender before resuming with 40 RULE unused. The real `ft_resolve_transfer` emits a 40-RULE burn and leaves 60 RULE in supply and receiver custody. The original game log remains 100 RULE and its allowance does not restore on a later standard burn. The test binds initiating/receiver/resolver actions through receipt children and promise-data dependencies, checks the exact burn event, and rejects a duplicate resume. Both sandbox `mint` tests passed, as did targeted clippy and formatting; evidence is `scratch/resolver-burn-runtime.log`. No callback was impersonated, token balance patched, or testnet action used.
+
+Separately, `withdrawal_and_later_guess_keep_independent_guards_and_principal` passed both completion orders and payment outcomes: resolving one operation does not release the other's guard or principal. These are finite safety checks. D31's authenticated recovery of an unknown native payment is a **liveness/architecture** gate, not something another random-case count can supply. No formal verification or blanket all-schedules acceptance is claimed.
+
+
 ## Security and upgrade authority
 
 **Key-deletion ceremony (blindness ordering, sources/28 section 0.2):**
@@ -597,7 +610,7 @@ Commands below are acceptance recipes, not blanket claims of completion; BUILD-P
 | T-TEAM | Size 5 cap E31; roster locked during a round E30; shared attempt limit; vault pro-rata withdraw (I12) | unit + property |
 | T-TOK | Fixed-minter authority before replay lookup; cap and NEP-141/145/148 behavior; immutable exact replay and conflicting-payload rejection; independently funded permanent outcomes; no effects when budget is exhausted; only authenticated rejection restores allowance; unknown transport stays pending | `cargo test -p token`, native game recovery tests, `make token-recovery` |
 | T-LOCK | Lock only before Investigation; tier to attempt limit; terminal/never-started release; exact durable unlock acknowledgement; unknown/replayed completion preserves replacement custody; non-token caller E40 | unit + sandbox |
-| T-INV | Target: all public calls/callbacks preserve I1, I2, I3. Current bounded Solo principal/I2 model passes 10k cases; full cross-layer coverage remains P3.3/B6 | `PROPTEST_CASES=10000 cargo test -p game --test invariants --profile fast` |
+| T-INV | Target: all public calls/callbacks preserve I1, I2, I3. Finite Solo, two-round, mint and Team generated models plus actual balance/custody/resolver-burn evidence are mapped above; full P3.3/B6 acceptance remains open | `PROPTEST_CASES=10000 cargo test -p game --test invariants --test multiround --profile fast`; actual-WASM `cargo test -p sandbox-tests --test mint --profile fast -- --test-threads=1` |
 | T-ABI-1 | Exported method list equals the table in this file; no deploy/add-key/delete paths | unit |
 | T-REF | Referee: deterministic outputs for fixed MAC stub; commitment mismatch aborts; strict parsers fuzzed (cargo-fuzz on WSL) | `cargo test -p referee`, `cargo fuzz run parse_output` |
 | T-E2E | Testnet: Phase 0 T1 to T6, then one full rehearsal round (P8.2), then production rounds | scripts in `scripts/`, evidence in this file |

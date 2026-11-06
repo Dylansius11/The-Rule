@@ -1,6 +1,6 @@
 //! MOCK OutLayer for sandbox tests only. This contract does not execute WASM.
 use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
-use near_sdk::json_types::U64;
+use near_sdk::json_types::{U64, U128};
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::serde_json::Value;
 use near_sdk::store::Vector;
@@ -67,6 +67,24 @@ impl MockOutlayer {
             resolved: false,
         });
         promise
+    }
+
+    /// Sandbox-only NEP-141 receiver whose unused amount is chosen when resumed.
+    pub fn ft_on_transfer(&mut self, sender_id: AccountId, amount: U128, msg: String) -> Promise {
+        let input = near_sdk::serde_json::json!({
+            "sender_id": sender_id,
+            "amount": amount,
+            "msg": msg,
+        });
+        self.request_execution(
+            Value::Null,
+            None,
+            Some(input.to_string()),
+            None,
+            None,
+            None,
+            None,
+        )
     }
 
     pub fn request_count(&self) -> U64 {

@@ -77,6 +77,10 @@ Root-state size is bounded independently of fee/gas values: `chain_id == "testne
 
 `pending_native_payments` reserves withdrawal/platform principal from scheduling until its matching callback completes. This prevents a failed transfer's returned principal becoming operator collateral before the callback restores credit/accrual. It intentionally double-reserves principal while already escrowed or paid, so admission can reject a financially safe start until the callback completes. A failed, uncompleted callback retains this conservative reservation; the counter is not an authenticated outcome or a recovery mechanism. Do not add it again to the receipt-aware solvency equation, which already accounts for payment exposure separately.
 
+**Withdrawal isolation (local cutover, 2026-11-06):** `Player` stores separate `pending_play` and `pending_withdrawal` guards. Starting a withdrawal debits its principal and sets only the withdrawal guard. A pending withdrawal does not block a new Solo or Team play funded from the remaining credit or Team vault; ordinary phase, entity, credit and referee-capacity checks still apply. A new withdrawal rejects E21 while any earlier withdrawal, play or Checking guess is live. Matching verdict and withdrawal callbacks clear only their own guards; consumed request ids fence late/duplicate callbacks around replacements. A stalled native completion can still lock that payment and conservatively reduce global operator collateral, but no longer owns the player's play guard.
+
+This adds one Borsh byte per player and replaces `get_player.pending`; it is **not state-compatible with the deployed `game-r1` layout**. No migration, existing-account upgrade, new deployment or key deletion was performed. A deployment of this source requires fresh initialized state and separately authorized build/account/referee publication steps. The account lifetime bound below includes the extra byte.
+
 **Referee admission (D27).** The game tracks at most 10 pending begin/verdict/guess/open requests across all modes and retained rounds. New plays and guess reveals require the tracked total to be below 8; begin/open can use the last two admissions, but reject at 10. These fixed pre-freeze limits are returned as `max_pending_referee_requests` and `user_referee_request_limit` by `get_params`; `get_ledger.pending_referee_requests` exposes the current count.
 
 Capacity rejection is E23, after ordinary validation but before credit/compute debits, status changes, sequence allocation, round creation or commit sweeping. It charges no game fee; transaction gas still applies. A settled duplicate still returns its free Known result even at capacity. A rejected reveal leaves its commit Committed and its original reveal deadline unchanged; callers must retry only while the normal deadline permits. There is no on-chain queue or automatic retry.
@@ -150,7 +154,7 @@ stateDiagram-v2
 | Method | Caller | Effect |
 | --- | --- | --- |
 | `deposit_credit()` payable | anyone | Adds the deposit to the caller's credit. The first deposit interns the account and charges `storage_charge_account` |
-| `withdraw_credit(amount)` `1y` | owner | Pays credit out. Rejected while the caller has a pending play or a Checking guess (E21) |
+| `withdraw_credit(amount)` `1y` | owner | Pays credit out. Rejected while the caller has an earlier withdrawal, pending play or Checking guess (E21); its reserved principal is not spendable credit |
 | `create_team(name)` | deposited player not in a team | Charges `storage_charge_team` from personal credit; caller becomes captain; `name` is 3 to 24 ASCII chars `[a-z0-9-]` |
 | `invite(account)` / `join_team(team_id)` / `leave_team()` / `remove_member(account)` | captain / invitee / member / captain | Members plus outstanding invites never exceed `max_team_size`; the captain can revoke invites. Roster changes require no active unsettled participation (E30). Departure/removal first credits that depositor's pro-rata vault principal; captaincy passes to the first remaining member and the last departure removes the empty team |
 | `team_deposit(team_id)` payable | member | Adds the entire deposit to vault and depositor weight, only while unlocked and `vault == total_weight`. After play losses, all old positions must first withdraw to credit before a new deposit epoch; nominal new weights must not subsidize old losses. At most five depositor records |
@@ -256,9 +260,17 @@ All callback finishers check the expected request kind before removal. A misrout
 
 **Native incident evidence (2026-11-07):** `scripts/deploy/native_payment.py` is a testnet-only, read-only receipt-graph reporter; usage and exercised cases are in [the deployment README](../../scripts/deploy/README.md#native-payment-incident-diagnosis). It records transfer and completion-callback outcomes separately, preserves partial RPC evidence and rejects mismatched dependencies/recipients/amounts. The actual CLI matched D32's successful withdrawal and platform transfer. Its RPC observations cannot authorize a game-state change: unknown native effects still cannot be expired, refunded or resent. Logs support diagnosis, not a promise of permissionless recovery or an implicit acceptance of permanent stalls.
 
+**Isolation proof (2026-11-06, local only):** a failing-before native regression reproduced E13 on a fully funded play while withdrawal was pending. The corrected credit, callback-dispatch and effect-bound checks passed. An actual-WASM sandbox smoke used the ordinary artifact for a successful 0.25-NEAR withdrawal, then masked only `on_withdraw`'s export for another: the transfer succeeded and its dependency-linked callback genuinely failed `MethodNotFound`. A later failed play refunded fully and a NO play settled; only the payment stayed pending. A second withdrawal rejected E21, expiry returned false, and the exact native reservation remained. Export masking is sandbox-only instrumentation, not production recovery or a naturally observed testnet fault. Evidence: `scratch/native-isolation-runtime.log`.
+
+The existing `effect-gas` executable also passed on the new local artifact with two 2,048-byte URLs, three lock tiers, ten actual nonterminal rounds and a 64-character payer. Sampled withdrawal completion burnt 2.488 Tgas; failed/successful platform-transfer completions burnt 2.293/2.302 Tgas, each allocated 10 Tgas (`scratch/native-isolation-maxroot.log`). These bounded-config samples preserve headroom; they are not a universal gas bound or proof that an unknown native result can be recovered.
+
+**Proof-based recovery assessment [I], checked against primary sources 2026-11-06:** [`light_client_proof`](https://docs.near.org/api-reference/post-light_client_proof) returns outcome Merkle paths, not a contract-trusted historical payment result. A safe resolver still needs an authenticated final testnet head with validator/epoch updates, cryptographic binding of the exact transfer's predecessor/recipient/amount to the pending application request, and refund-aware solvency plus once-only consumption against the original callback. The current game stores no native transfer receipt id, and the proof schema does not directly contain its Transfer action or application request id. [`promise_result_checked`](https://docs.rs/near-sdk/5.30.0/near_sdk/env/fn.promise_result_checked.html) reads the current callback's dependency, not arbitrary history. Recording a scheduled transfer in a wrapper is not atomic evidence of payment across accounts. The [light-client guide](https://near.github.io/nearcore/ChainSpec/LightClient.html) warns that its reference is outdated and the example client archived. No historical-proof verifier, trusted resolver or new dependency was added; D31/B6 remain open. Isolation and diagnostic logs mitigate impact, not unknown-outcome liveness.
+
 ### Views (paged, read at `final`)
 
 `get_params()`, `get_round(mode, id?)`, `get_log(mode, id, from_idx, limit<=200)`, `get_verdict(mode, id, play)` (duplicate pre-check for the UI), `get_entity(mode, id, account)` (attempts, limit, shares, line, pending), `get_commits(mode, id, from, limit)`, `get_player(account)`, `get_team(id)`, `get_claimable(mode, id, account)`, `get_season(mode, season, from, limit)`, `get_ledger()` (all invariant terms), `get_word_list()`.
+
+`get_player(account)` returns `index`, string-valued `credit`, `pending_play`, `pending_withdrawal`, `checking_guesses` and nullable `team_id`. There is no aggregate `pending` alias. `get_entity.pending` remains the entity's play flag; it says nothing about payment completion. Clients must show a pending payment separately from a verdict and may spend only returned available credit.
 
 **`RoundView` fields (decided 2026-11-04, so the keeper, verifier and web read one shape).** `mode`, `round_id`, `phase`, `slot_ns` (`genesis_ns + round_id * round_period_ns + mode_offset_ns[mode]`), `sealing_started_ns` (when `start_round` was applied; the origin of `begin_timeout_ns`), `begin_status` (`none | pending | failed | ok`), `investigation_end_ns` (`begin_ok_ns + investigation_max_ns`, set when `begin` succeeds), `freeze_ns`, `reveal_deadline_ns`, `pending_checks`, `opening_started_ns` (when `finalize` was applied; the origin of `open_timeout_ns`), `open_status` (`none | pending | failed | ok`), `commit` (hex32), `header`, `pot`, `log_len`, `outcome`, and, only after Settled, `rule` and `salt`. `begin_status`/`open_status` become `failed` when the OutLayer callback reports a failure and a retry is allowed until the timeout.
 
@@ -268,7 +280,7 @@ All callback finishers check the expected request kind before removal. A misrout
 
 | Code | Meaning | Code | Meaning |
 | --- | --- | --- | --- |
-| E10 | Wrong round phase for this call | E21 | Withdraw while a play or guess check is pending |
+| E10 | Wrong round phase for this call | E21 | Withdraw while a withdrawal, play or guess check is pending |
 | E11 | Invalid input (number, word, rule, tier) | E22 | Compute float cannot cover the referee deposit |
 | E12 | Same combination is pending | E30 | Team roster is locked for a round |
 | E13 | Entity already has a pending play | E31 | Team is full (5) |
@@ -508,7 +520,7 @@ Actual-Borsh tests combine maximum-width account ids, amounts, rule/play JSON an
 
 | Lifetime allocation | Calculated combined record bytes | Funded byte ceiling |
 | --- | --- | --- |
-| Player, one withdrawal and one registration | 395 | 512 |
+| Player, one withdrawal and one registration (isolated guards) | 396 | 512 |
 | First Team play: five-member entity, log, seen, verdict, mint and one platform request | 1,418 | 2,048 |
 | First Team commit: five-member entity, commit, guess check and one platform request | 770 | 2,048 |
 | Team record plus five membership indexes | 1,860 | 2,048 |

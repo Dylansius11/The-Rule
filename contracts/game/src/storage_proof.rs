@@ -13,7 +13,8 @@ fn maximum_retained_records_and_callback_headroom() {
     let player = Player {
         index: u32::MAX,
         credit: u128::MAX,
-        pending: true,
+        pending_play: true,
+        pending_withdrawal: true,
         checking_guesses: u32::MAX,
         token: TokenState::Registered,
     };

@@ -96,6 +96,8 @@ sequenceDiagram
 
 For a begin/verdict/guess/open callback or read-only registration check that never completes, permissionless `expire_request(request_id)` applies its failure handler after ten minutes. Consumed ids fence late responses and replacements; registration changes no money/referee slot. Round retry/cancel deadlines remain independent. RULE mint/unlock instead retain terminal outcomes in the token: anyone can call game `retry_token_operation` with the original id, and only an exact authenticated acknowledgement settles its reservation. Each O(1) token record is permanently funded by a separate nonrefundable contribution; exhausted funding leaves a replayable pending operation until replenished. No balance guess, timeout refund or cleanup can erase a replay fence. Native NEAR withdraw/platform payments retain conservative pending principal and remain outside authenticated recovery (D31/B6).
 
+Native payment and gameplay admission use separate per-player guards. A stalled withdrawal does not block plays from remaining credit, but its principal remains unavailable and a second withdrawal is blocked; withdrawal initiation during a play or Checking guess is still rejected. The 2026-11-06 local cutover adds one Player Borsh byte and replaces the aggregate player view flag, so existing `game-r1` state cannot be upgraded with these bytes. No trusted resolver, hosted monitor or historical-proof verifier was added. Proof-based recovery prerequisites and actual sandbox isolation evidence are in SMART-CONTRACT; they do not close D31/B6.
+
 ## Approved tech stack
 
 | Layer | Choice | Exact stable version | Verified 2026-11-04, source | Why / compatibility |

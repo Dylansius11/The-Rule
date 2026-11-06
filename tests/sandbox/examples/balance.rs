@@ -402,7 +402,7 @@ async fn wait_player(game: &Contract, player: &Account, pending: bool) -> Res<()
             .args_json(json!({"account":player.id()}))
             .await?
             .json()?;
-        if p["pending"] == pending {
+        if p["pending_play"] == pending && p["pending_withdrawal"] == pending {
             return Ok(());
         }
         tokio::time::sleep(Duration::from_millis(200)).await;

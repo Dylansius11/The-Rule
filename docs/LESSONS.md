@@ -8,6 +8,12 @@ Read the headlines before work. Record actual surprises from this project only, 
 - **Root cause:** an initiating transaction's success does not establish the result of detached transfer and callback receipts. An unrelated or missing completion cannot authenticate a payment outcome.
 - **Rule:** retain the original transaction hash and raw public RPC responses; bind the transfer and callback through their promise-data dependency and check identity, recipient and amount. Diagnose transfer, callback and RPC failures separately. Never turn a diagnostic log into authority to refund or resend an unknown native effect.
 
+### 2026-11-06: payment uncertainty must not own the gameplay lock
+
+- **What happened:** a native regression reproduced E13 for a funded play during withdrawal. After guard separation, actual sandbox WASM paid 0.25 NEAR while its deliberately masked callback failed `MethodNotFound`; later failed/NO experiments still refunded or settled, while payment principal remained reserved.
+- **Root cause:** one `Player.pending` boolean let two unrelated async completion paths own the same admission flag. Reusing remaining credit is independent of establishing a historical native-transfer result.
+- **Rule:** give each operation its own guard and consume matching request ids once; test callback order, withheld/duplicate/late results and credit boundaries. Isolation is not recovery. Never infer refund authority from a callback failure or RPC log; keep the native proof/risk gate open before key deletion.
+
 ### 2026-11-06: a consistent hypothesis is not a correct rule
 
 - **What happened:** the real D32 rehearsal reached 22 plays, then four guesses all checked Wrong. The operator still reported 37 consistent canonical candidates before the first inferred guess. The actual opened rule was `AND(NOT atom 46, NOT atom 70)`; dropping the word-group exclusion fit those observations but was not equivalent. The ordinary Unsolved round then opened and replayed PASS 22/22; both native withdrawals and platform payout completed.

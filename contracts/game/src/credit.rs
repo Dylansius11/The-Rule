@@ -18,7 +18,8 @@ impl Game {
                 Player {
                     index,
                     credit: 0,
-                    pending: false,
+                    pending_play: false,
+                    pending_withdrawal: false,
                     checking_guesses: 0,
                     token: TokenState::None,
                 },
@@ -37,14 +38,17 @@ impl Game {
             .players
             .get_mut(&actor)
             .unwrap_or_else(|| env::panic_str("E20"));
-        near_sdk::require!(!player.pending && player.checking_guesses == 0, "E21");
+        near_sdk::require!(
+            !player.pending_play && !player.pending_withdrawal && player.checking_guesses == 0,
+            "E21"
+        );
         near_sdk::require!(player.credit >= amount.0, "E20");
         let pending_native = self
             .pending_native_payments
             .checked_add(amount.0)
             .expect("E11");
         player.credit -= amount.0;
-        player.pending = true;
+        player.pending_withdrawal = true;
         self.total_credit -= amount.0;
         self.pending_native_payments = pending_native;
         let id = self.next_request_id;
@@ -79,7 +83,7 @@ impl Game {
         };
         self.pending_native_payments -= amount;
         if let Some(player) = self.players.get_mut(&actor) {
-            player.pending = false;
+            player.pending_withdrawal = false;
             if env::promise_result_checked(0, 0).is_err() {
                 player.credit += amount;
                 self.total_credit += amount;

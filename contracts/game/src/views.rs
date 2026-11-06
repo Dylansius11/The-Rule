@@ -81,9 +81,16 @@ impl Game {
         json!({"round_id": id, "slot_ns": slot})
     }
     pub(crate) fn get_player_inner(&self, account: AccountId) -> Option<Value> {
-        self.players
-            .get(&account)
-            .map(|p| json!({"index":p.index,"credit":U128(p.credit),"pending":p.pending,"team_id":self.team_membership.get(&account)}))
+        self.players.get(&account).map(|p| {
+            json!({
+                "index":p.index,
+                "credit":U128(p.credit),
+                "pending_play":p.pending_play,
+                "pending_withdrawal":p.pending_withdrawal,
+                "checking_guesses":p.checking_guesses,
+                "team_id":self.team_membership.get(&account)
+            })
+        })
     }
 
     pub(crate) fn get_entity_inner(&self, mode: Mode, id: u32, account: AccountId) -> EntityView {

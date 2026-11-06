@@ -64,7 +64,7 @@ impl Game {
             .players
             .get(&actor)
             .unwrap_or_else(|| env::panic_str("E20"));
-        near_sdk::require!(!player.pending, "E13");
+        near_sdk::require!(!player.pending_play, "E13");
         let entity_id = entity.unwrap_or_else(|| env::panic_str("E20"));
         near_sdk::require!(self.payer_balance(entity_id, &actor) >= charge, "E20");
         if let Entity::Team(team_id) = entity_id {
@@ -90,7 +90,7 @@ impl Game {
         self.players
             .get_mut(&actor)
             .expect("player missing")
-            .pending = true;
+            .pending_play = true;
         self.pending_credit += charge;
         self.compute_float -= p.outlayer_deposit.verdict.0;
         if !self.entities.contains_key(&entity_key) {
@@ -180,7 +180,7 @@ impl Game {
                 .is_some_and(|r| r.phase == Phase::Investigation);
         let entity_key = (mode, round, entity);
         if let Some(player) = self.players.get_mut(&actor) {
-            player.pending = false;
+            player.pending_play = false;
         }
         if let Some(entity) = self.entities.get_mut(&entity_key) {
             entity.pending = false;

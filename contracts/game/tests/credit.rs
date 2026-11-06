@@ -88,3 +88,61 @@ fn failed_withdrawal_restores_credit_once_and_success_keeps_the_debit() {
         fx.game.withdraw_credit(U128(1));
     }
 }
+
+#[test]
+fn withheld_withdrawal_does_not_block_play_or_make_its_principal_spendable() {
+    let p = params();
+    let charge = p.play_fee.0 + p.storage_charge_per_play.0;
+    let mut fx = fixture(p);
+    let initial = fx.credit();
+    let amount = initial - charge;
+    fx.ctx.attached_deposit(NearToken::from_yoctonear(1));
+    testing_env!(fx.ctx.build());
+    fx.game.withdraw_credit(U128(amount));
+    let withdrawal = calls()
+        .into_iter()
+        .find(|(_, method, _, _)| method == "on_withdraw")
+        .unwrap()
+        .2["request_id"]
+        .as_u64()
+        .unwrap();
+    assert_eq!(fx.credit(), charge);
+
+    fx.ctx.attached_deposit(NearToken::from_yoctonear(0));
+    testing_env!(fx.ctx.build());
+    let play = fx.play(17, "otter");
+    assert_eq!(fx.credit(), 0);
+    fx.verdict(play, 0);
+    let before = near_sdk::serde_json::to_value(fx.game.get_ledger()).unwrap();
+    testing_env!(fx.ctx.build());
+    assert!(
+        panic_text(|| {
+            fx.play(18, "otter");
+        })
+        .contains("E20")
+    );
+    assert_eq!(
+        near_sdk::serde_json::to_value(fx.game.get_ledger()).unwrap(),
+        before
+    );
+
+    // A new deposit funds another experiment; it cannot release the old payment.
+    fx.ctx.attached_deposit(NearToken::from_yoctonear(charge));
+    testing_env!(fx.ctx.build());
+    fx.game.deposit_credit();
+    fx.ctx.attached_deposit(NearToken::from_yoctonear(0));
+    testing_env!(fx.ctx.build());
+    let next = fx.play(19, "otter");
+    deliver_env(&fx.ctx, PromiseResult::Failed);
+    fx.game.on_verdict(next);
+    assert_eq!(fx.credit(), charge);
+    fx.at(10, 600_000_000_000);
+    assert!(!fx.game.expire_request(withdrawal));
+    assert_eq!(fx.credit(), charge);
+    let ledger = near_sdk::serde_json::to_value(fx.game.get_ledger()).unwrap();
+    assert_eq!(ledger["pending_native_payments"], amount.to_string());
+    fx.ctx.attached_deposit(NearToken::from_yoctonear(1));
+    testing_env!(fx.ctx.build());
+    assert!(panic_text(|| fx.game.withdraw_credit(U128(1))).contains("E21"));
+    assert!(near_sdk::test_utils::get_created_receipts().is_empty());
+}

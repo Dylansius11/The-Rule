@@ -46,8 +46,9 @@ pub enum TokenState {
 pub struct Player {
     index: u32,
     credit: u128,
-    pending: bool,
-    /// Guess checks in flight for this player; separate from a play or withdrawal.
+    pending_play: bool,
+    pending_withdrawal: bool,
+    /// Guess checks in flight; withdrawal remains blocked until every check finishes.
     checking_guesses: u32,
     token: TokenState,
 }

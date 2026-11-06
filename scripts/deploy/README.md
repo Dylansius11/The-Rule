@@ -92,3 +92,5 @@ The RPC must confirm testnet. The report preserves public source responses, matc
 
 Locally exercised 2026-11-07: eight focused regressions passed, including successful transfer with failed callback, incorrect recipient/amount/dependency, missing or malformed evidence and preservation of partial RPC data. The actual CLI also matched D32's successful parent withdrawal and platform payment to their real receipts and exact amounts; no naturally failed testnet callback or recovery is claimed.
 
+**Local layout cutover (2026-11-06, D34):** current source replaces the aggregate `get_player.pending` with `pending_play`, `pending_withdrawal` and `checking_guesses`, and adds one Borsh byte per Player. It must not be deployed over existing `game-r1` state; no migration or rehearsal upgrade was authorized. A pending native payment still cannot be expired or resent, but remaining credit can fund new plays in the new local implementation. Keep D32/D33's deployed hashes and receipts as historical evidence, not hashes of the current source.
+

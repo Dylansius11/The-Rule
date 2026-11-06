@@ -74,3 +74,21 @@ cat scratch/deploy/plan.json
 ```
 
 The section reader is not a full WASM validator. These synthetic files contain no executable contract/referee implementation; real artifacts, exact imports, provenance and hosted bytes remain operator prerequisites.
+
+## Native-payment incident diagnosis
+
+Use the read-only reporter when an initiating transaction succeeds but a withdrawal or platform payment appears pending:
+
+```sh
+python3 -B scripts/deploy/native_payment.py \
+  --rpc https://test.rpc.fastnear.com --game game-r1.therule.testnet \
+  --tx <transaction-hash> --sender <signer-account> \
+  --output scratch/native-payment-incident.json
+```
+
+The RPC must confirm testnet. The report preserves public source responses, matches the initiating receipt's direct transfer and callback through their promise-data dependency, and checks recipient, withdrawal amount, request id, receipt identity and executor. Platform recipient configuration is read at the initiating block. Transfer success/failure and callback success/failure are reported separately; missing, ambiguous or malformed evidence remains unknown. Partial failures are retained and the classification is printed.
+
+**This is diagnosis, not on-chain authentication or recovery.** Do not infer a failed transfer from a callback or RPC error, and do not refund or resend an unknown native effect. Keep the original transaction hash and report for investigation. A successful failure callback is only consistent with restoration; inspect deployed code and state before claiming a restored balance.
+
+Locally exercised 2026-11-07: eight focused regressions passed, including successful transfer with failed callback, incorrect recipient/amount/dependency, missing or malformed evidence and preservation of partial RPC data. The actual CLI also matched D32's successful parent withdrawal and platform payment to their real receipts and exact amounts; no naturally failed testnet callback or recovery is claimed.
+

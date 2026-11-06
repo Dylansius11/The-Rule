@@ -41,7 +41,7 @@ b6:
 	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} PROPTEST_CASES=10000 cargo test -p game --test invariants --test multiround --profile fast -- --test-threads=1
 	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo clippy --workspace --all-targets -- -D warnings
 	cargo fmt --all --check
-	python3 -B -m unittest discover -s scripts/deploy -p test_rehearsal.py -v
+	python3 -B -m unittest discover -s scripts/deploy -p 'test_*.py' -v
 verify:
 	@case "$$ROUND" in solo/*|team/*) ;; *) echo "Usage: make verify ROUND=solo/<id> (or team/<id>)" >&2; exit 1;; esac
 	CARGO_TARGET_DIR=$${CARGO_TARGET_DIR:-$$HOME/target-the-rule} cargo run -p verifier-cli --profile fast -- verify --network testnet --game "$$GAME_ACCOUNT" --mode "$${ROUND%%/*}" --round "$${ROUND#*/}" --rpc-url "$$NEAR_RPC_URL"

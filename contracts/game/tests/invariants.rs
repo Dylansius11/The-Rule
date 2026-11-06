@@ -845,3 +845,67 @@ fn seeded_same_owner_withdrawal_overlaps_solo_plays() {
         )
         .unwrap();
 }
+
+#[test]
+fn withdrawal_and_later_guess_keep_independent_guards_and_principal() {
+    for withdraw_first in [false, true] {
+        for withdraw_failed in [false, true] {
+            let mut fx = fixture(params());
+            let mut cash = Cash::default();
+            cash.incoming(DEPOSIT);
+            fx.ctx.attached_deposit(NearToken::from_yoctonear(1));
+            reset(&fx);
+            fx.game.withdraw_credit(U128(123));
+            cash.incoming(1);
+            cash.surplus += 1;
+            let withdrawal = callback_id("on_withdraw");
+            assert_eq!(cash.outbound(), 123);
+            assert_eq!(fx.credit(), DEPOSIT - 100 - 123);
+
+            // The payment is already reserved; a later guess uses only remaining credit.
+            fx.ctx.attached_deposit(NearToken::from_yoctonear(0));
+            reset(&fx);
+            fx.commit();
+            assert_eq!(fx.credit(), DEPOSIT - 100 - 123 - 200);
+            fx.at(2, 1);
+            let guess = fx.reveal(0);
+            cash.check(&fx);
+            assert_eq!(fx.term("pending_native_payments"), 123);
+
+            for step in 0..2 {
+                if (step == 0) == withdraw_first {
+                    cash.complete(123, withdraw_failed);
+                    deliver_env(&fx.ctx, response(withdraw_failed));
+                    fx.game.on_withdraw(withdrawal);
+                    deliver_env(&fx.ctx, response(!withdraw_failed));
+                    fx.game.on_withdraw(withdrawal);
+                } else {
+                    fx.answer(guess, PromiseResult::Failed);
+                    fx.answer(guess, no());
+                }
+                cash.check(&fx);
+                if step == 0 {
+                    fx.ctx.attached_deposit(NearToken::from_yoctonear(1));
+                    reset(&fx);
+                    let credit = fx.credit();
+                    assert!(panic_text(|| fx.game.withdraw_credit(U128(1))).contains("E21"));
+                    assert_eq!(fx.credit(), credit);
+                    assert!(near_sdk::test_utils::get_created_receipts().is_empty());
+                }
+            }
+            assert_eq!(fx.term("pending_native_payments"), 0);
+            assert_eq!(
+                fx.credit(),
+                DEPOSIT - 100 - 123 - 100 + if withdraw_failed { 123 } else { 0 }
+            );
+            fx.ctx.attached_deposit(NearToken::from_yoctonear(1));
+            reset(&fx);
+            fx.game.withdraw_credit(U128(1));
+            cash.incoming(1);
+            cash.surplus += 1;
+            assert_eq!(cash.outbound(), 1);
+            assert_eq!(fx.term("pending_native_payments"), 1);
+            cash.check(&fx);
+        }
+    }
+}

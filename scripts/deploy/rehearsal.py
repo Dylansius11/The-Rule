@@ -140,18 +140,21 @@ def prepare(config):
         for n in p[key]: uint(n, bits, key)
     uint(p['wrong_return_bps'], 16, 'wrong_return_bps')
     uint(p['max_team_size'], 8, 'max_team_size')
-    require(isinstance(p['lock_tiers'], list), 'lock_tiers must be an array')
+    require(isinstance(p['lock_tiers'], list) and len(p['lock_tiers']) <= 3, 'lock_tiers must contain at most three tiers')
+    require(1 <= p['max_team_size'] <= 5, 'max_team_size must be between one and five')
     for tier in p['lock_tiers']:
         obj(tier, ('amount', 'extra_attempts'), 'lock tier'); amount(tier['amount'], 'lock tier amount'); uint(tier['extra_attempts'], 16, 'extra_attempts')
     require(sum(p['fee_split_bps']) == sum(p['solved_split_bps']) == sum(p['unsolved_split_bps']) == 10000 and p['wrong_return_bps'] <= 10000 and max(p['stake_bps']) <= 10000, 'invalid splits')
     require(all(p['base_attempts']) and all(p['share_cap']) and all(a >= b for a, b in zip(p['attempt_cap'], p['base_attempts'])) and int(p['round_allowance']) < 2**127 and int(p['play_fee']) + int(p['storage_charge_per_play']) < 2**128, 'invalid game bounds')
     if not config['demo']:
+        byte_cost = 10_000_000_000_000_000_000  # Current protocol price; on-chain init rechecks its actual runtime price.
+        require(int(p['storage_charge_account']) >= 512 * byte_cost and int(p['storage_charge_per_play']) >= 2048 * byte_cost and int(p['storage_charge_team']) >= 2048 * byte_cost, 'production storage charges below lifetime record budgets')
         require(p['genesis_ns'] >= time.time_ns() + 7_200_000_000_000 and p['round_period_ns'] >= 3_600_000_000_000 and min(p['reveal_window_ns'], p['begin_timeout_ns'], p['open_timeout_ns']) >= 600_000_000_000, 'non-demo schedule violates deployment bounds')
     ref = obj(p['referee'], ('outlayer', 'urls', 'hash', 'build_target'), 'referee')
     require(ref['outlayer'] == 'outlayer.testnet' and ref['hash'] == digest and ref['build_target'] == 'wasm32-wasip2', 'referee configuration mismatch')
-    require(isinstance(ref['urls'], list) and len(ref['urls']) > 0, 'referee URLs required')
+    require(isinstance(ref['urls'], list) and 1 <= len(ref['urls']) <= 2, 'one or two referee URLs required')
     for url in ref['urls']:
-        require(isinstance(url, str), 'invalid URL')
+        require(isinstance(url, str) and len(url.encode('utf-8')) <= 2048, 'referee URL exceeds 2048 bytes')
         u = urlsplit(url)
         require(u.scheme == 'https' and bool(u.hostname) and u.username is None and u.password is None and u.port in (None, 443) and not u.fragment and not any(c.isspace() for c in url), 'referee URL must be HTTPS on port 443 without credentials or fragment')
     for key in ('resource_limits', 'outlayer_deposit'):

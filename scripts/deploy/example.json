@@ -17,9 +17,9 @@
   "params": {
     "play_fee": "10000000000000000000000",
     "fee_split_bps": [8000, 1500, 500],
-    "storage_charge_per_play": "7680000000000000000000",
-    "storage_charge_account": "1600000000000000000000",
-    "storage_charge_team": "5000000000000000000000",
+    "storage_charge_per_play": "20480000000000000000000",
+    "storage_charge_account": "5120000000000000000000",
+    "storage_charge_team": "20480000000000000000000",
     "stake_bps": [100, 200],
     "stake_min": "100000000000000000000000",
     "wrong_return_bps": 5000,

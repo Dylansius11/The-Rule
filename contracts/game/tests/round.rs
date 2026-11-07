@@ -1,3 +1,5 @@
+mod common;
+
 use game::Game;
 use near_sdk::serde_json::json;
 use near_sdk::{NearToken, test_utils::VMContextBuilder, testing_env};
@@ -115,6 +117,51 @@ fn delivered_verdict_splits_fee_and_duplicate_is_free() {
     ));
     assert_eq!(ledger, ledger_view(&game));
     assert_eq!(game.get_log(Mode::Solo, 0, 0, 200).len(), 1);
+}
+
+#[test]
+fn pending_duplicate_uses_the_full_context_and_preserves_the_request() {
+    let mut fx = common::fixture(common::params());
+    fx.at(10, 59_000_000_000);
+    let request = fx.play(1, "otter");
+    let credit = fx.credit();
+    let actor = fx.me();
+    let entity =
+        near_sdk::serde_json::to_value(fx.game.get_entity(Mode::Solo, 0, actor.parse().unwrap()))
+            .unwrap();
+    for (block, timestamp, expected) in [
+        (11, 59_999_999_999, "E12"),
+        (12, 60_000_000_000, "E13"),
+        (13, 600_000_000_000, "E12"),
+    ] {
+        fx.at(block, timestamp);
+        let ledger = fx.ledger();
+        assert!(
+            common::panic_text(|| {
+                fx.play(1, " Otter ");
+            })
+            .contains(expected),
+            "wrong pending-key precedence at {timestamp}"
+        );
+        assert_eq!(fx.ledger(), ledger);
+        assert_eq!(fx.credit(), credit);
+        assert_eq!(
+            near_sdk::serde_json::to_value(fx.game.get_entity(
+                Mode::Solo,
+                0,
+                actor.parse().unwrap()
+            ),)
+            .unwrap(),
+            entity
+        );
+        assert!(near_sdk::test_utils::get_created_receipts().is_empty());
+    }
+    fx.verdict(request, 0);
+    let rows = fx.game.get_log(Mode::Solo, 0, 0, 200);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].play.minute_digit(), 0);
+    assert_eq!(fx.credit(), credit);
+    assert_eq!(fx.round()["log_len"], 1);
 }
 
 #[test]

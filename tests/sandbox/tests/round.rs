@@ -119,18 +119,6 @@ async fn begin_resolves_via_mock_outlayer() -> Result<(), Box<dyn std::error::Er
         }
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
-    let duplicate_error = alice
-        .call(game.id(), "play")
-        .args_json(json!({"mode":0,"number":1,"word":"otter"}))
-        .max_gas()
-        .transact()
-        .await?
-        .into_result()
-        .expect_err("pending duplicate must fail");
-    assert!(
-        format!("{duplicate_error:?}").contains("E12"),
-        "{duplicate_error:?}"
-    );
     let pending_error = alice
         .call(game.id(), "play")
         .args_json(json!({"mode":0,"number":2,"word":"otter"}))

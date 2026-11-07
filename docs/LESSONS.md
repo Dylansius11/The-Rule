@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-07: pending duplicates require the same full play context
+
+- **What happened:** the exact-artifact sandbox round test expected E12 from repeated number/word but received E13 across a minute boundary. The live r2 operator also observed a real inclusion minute differing from its prior advice.
+- **Root cause:** the shared play key includes minute digit and previous-YES context, not just number and word. Different contextual keys correctly reach the entity-pending guard instead of the pending-key guard.
+- **Rule:** test E12/E13 precedence with a controlled clock: same-minute duplicate E12, next-minute E13, and the matching digit ten minutes later E12, all without state or receipt effects. The native regression and actual-WASM round scenario passed; the wall-clock-dependent assertion was removed, not weakened to accept either error. Live inference must consume the actual logged context and never resend a settled play because its advice context drifted.
+
 ### 2026-11-07: native-payment incidents need receipt dependencies, not transaction success
 
 - **What happened:** the new read-only diagnostic matched the real D32 withdrawal and platform receipts, while focused regressions preserved a successful transfer alongside a failed callback and kept partial evidence unknown.

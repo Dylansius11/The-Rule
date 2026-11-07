@@ -2,6 +2,18 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-08: vault principal is not the signing wallet's gas balance
+
+- **What happened:** D36 funded a 3-NEAR Team vault, but a member with 0.149085480732098956410234 NEAR in its wallet had a signed 300-Tgas play rejected against a 0.300919159630831-NEAR transaction-cost quote. The nonce had not advanced. The already-planned low-gas E30 roster guard then consumed that exact nonce before parent gas sponsorship of 0.4/0.1 NEAR; the original signed play was never resent.
+- **Root cause:** vault/credit funding and expected burnt fees do not establish the wallet liquidity needed for protocol transaction admission. A future top-up must not accidentally make an old rejected signed transaction usable.
+- **Rule:** budget wallet gas separately from Team principal and preserve headroom after deposits. Distinguish a signed validation rejection from an unsigned lookup error; retain the original evidence and verify an appropriate nonce fence before funding. This is transaction-admission fencing, not recovery of an unknown native payment.
+
+### 2026-11-08: a missing CLI hash is not evidence that nothing was sent
+
+- **What happened:** D36's first paid play was FINAL while a later snapshot hit public RPC 429s. Two later attempts failed before signing; another was signed but validation-rejected. The intended E30 roster call actually executed, but near-cli-rs 0.30.1 printed its execution error before the transaction id. A read-only sender-shard block/chunk search recovered the original hash and nonce; no action was replayed.
+- **Root cause:** one stdout hash matcher conflated submission acknowledgement, transaction validation and execution. Repeated full snapshots also generated unnecessary RPC bursts; an alternative provider's extra JSON-RPC `note` field was incompatible with the real CLI parser.
+- **Rule:** qualify the actual client, pace public reads and reuse a genuinely observed pre-action snapshot. Obtain the submission identity with `send --wait-until none`, then independently require FINAL and the complete receipt result; the live E30 vault guard and both gas transfers exercised this separation. An acknowledgement is not execution success, and a missing hash is never permission to resend.
+
 ### 2026-11-07: context-stalled inference needs a reachable experiment, not another blind guess
 
 - **What happened:** D35 reached 50 real plays but retained four non-equivalent, log-consistent candidates and only three remaining guesses. A common-YES line reset followed by an actual short-gap play reduced the set; the next semantic guess checked Correct. The round ultimately opened and replayed 52/52.

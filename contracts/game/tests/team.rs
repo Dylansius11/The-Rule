@@ -63,6 +63,82 @@ fn roster_is_bounded_and_captain_can_revoke_invitation() {
 }
 
 #[test]
+fn only_captain_manages_invites_and_uninvited_cannot_join() {
+    let mut f = fixture(params());
+    let id = team(&mut f);
+    join(&mut f, id, "other.near");
+    register(&mut f, "other.near");
+    let before = state(&f, id);
+    assert!(panic_text(|| f.game.invite("third.near".parse().unwrap())).contains("E33"));
+    assert!(panic_text(|| f.game.remove_member("alice.near".parse().unwrap())).contains("E33"));
+    register(&mut f, "third.near");
+    assert!(panic_text(|| f.game.join_team(id)).contains("E33"));
+    assert_eq!(state(&f, id), before);
+}
+
+#[test]
+fn team_members_share_pending_play_and_attempt_limit() {
+    let mut p = params();
+    p.base_attempts[1] = 2;
+    let mut f = fixture(p);
+    let id = team(&mut f);
+    join(&mut f, id, "other.near");
+    register(&mut f, "alice.near");
+    deposit(&mut f, id, 40_000);
+    begin_team(&mut f);
+    let alice_credit = credit_of(&f.game, "alice.near");
+    let other_credit = credit_of(&f.game, "other.near");
+    let first = match f.game.play(Mode::Team, 417, "otter".into()) {
+        PlayAck::Pending { request_id, .. } => request_id,
+        _ => panic!("expected pending"),
+    };
+    register(&mut f, "other.near");
+    let pending = state(&f, id);
+    assert!(
+        panic_text(|| {
+            f.game.play(Mode::Team, 418, "otter".into());
+        })
+        .contains("E13")
+    );
+    assert_eq!(state(&f, id), pending);
+    f.verdict(first, 0);
+    let second = match f.game.play(Mode::Team, 418, "otter".into()) {
+        PlayAck::Pending { request_id, .. } => request_id,
+        _ => panic!("expected pending"),
+    };
+    f.verdict(second, 0);
+    register(&mut f, "alice.near");
+    let exhausted = state(&f, id);
+    assert_eq!(exhausted["vault"], "19800");
+    assert!(
+        panic_text(|| {
+            f.game.play(Mode::Team, 419, "otter".into());
+        })
+        .contains("E14")
+    );
+    assert_eq!(state(&f, id), exhausted);
+    assert_eq!(credit_of(&f.game, "alice.near"), alice_credit);
+    assert_eq!(credit_of(&f.game, "other.near"), other_credit);
+}
+
+#[test]
+fn first_commit_locks_roster_and_charges_vault() {
+    let mut f = fixture(params());
+    let id = team(&mut f);
+    join(&mut f, id, "other.near");
+    register(&mut f, "alice.near");
+    deposit(&mut f, id, 40_000);
+    begin_team(&mut f);
+    let credit = credit_of(&f.game, "alice.near");
+    f.game.commit_guess(Mode::Team, protocol::Hex32([0; 32]));
+    assert_eq!(state(&f, id)["vault"], "39800");
+    assert_eq!(credit_of(&f.game, "alice.near"), credit);
+    assert!(panic_text(|| f.game.remove_member("other.near".parse().unwrap())).contains("E30"));
+    register(&mut f, "other.near");
+    assert!(panic_text(|| f.game.leave_team()).contains("E30"));
+}
+
+#[test]
 fn vault_spend_refund_and_roster_lock() {
     let mut f = fixture(params());
     let id = team(&mut f);
@@ -220,6 +296,16 @@ fn team_guess_is_actor_bound_and_returns_stake_to_vault() {
     let response = f.open_ok();
     f.on_open(request, response);
     assert_eq!(f.game.settle_team(id).0, 100);
+    let settled = state(&f, id);
+    let stakes = f.term("open_stakes");
+    assert!(
+        panic_text(|| {
+            f.game.settle_team(id);
+        })
+        .contains("E56")
+    );
+    assert_eq!(state(&f, id), settled);
+    assert_eq!(f.term("open_stakes"), stakes);
     assert_eq!(f.game.claim_team(Mode::Team, 0, id).0, 200);
     register(&mut f, "other.near");
     assert_eq!(f.game.claim_team(Mode::Team, 0, id).0, 200);

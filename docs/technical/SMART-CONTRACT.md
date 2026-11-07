@@ -787,6 +787,54 @@ Operator incidents were not mislabeled contract failures. One official CLI looku
 
 Raw transactions, receipt actions, exported round, verifier, payment diagnostics and audits are retained under ignored `scratch/p29-r2/`; public tx ids above are durable retrieval anchors. Gross accounting conservatively includes attached deposits and all recorded transaction-tree burn, without netting refunds; it is not a claim that the initiating signer paid every receipt's gas. P2.9's original acceptance and Phase 3's finite cash/invariant/collateral requirements are satisfied. After reviewing that evidence, the founder explicitly selected **“Terima hanya untuk testnet”** for D31 on 2026-11-07, accepting P3.1/P3.3 only for testnet with native stalled-callback risk recorded. A transfer can succeed while its failed callback leaves a withdrawal pending; isolation and reservation are not recovery, and no unknown transfer may be expired/refunded/resent. Production recovery/risk acceptance, B6, freeze and key deletion remain open. No asset/resolver/authority changed and no original test or count requirement was reduced.
 
+### D36 Team rehearsal (testnet, 2026-11-07 UTC; keys retained)
+
+[V] The founder-authorized Phase 4 run reused the unchanged r2 game/token and hash-pinned non-demo referee from D35, without a new deployment, account or publication. Label: **TESTNET REHEARSAL — KEYS RETAINED; compressed schedule; non-demo referee; no preselected rule**. `therule.testnet`, `probe-other.therule.testnet` and `probe-game.therule.testnet` formed Team 0 with vault deposits 1.6/0.6/0.8 NEAR (weights 8:3:4). Captain credit was 0.1 NEAR and the Team seed was 0.2 NEAR. Existing compute/token-outcome funding sufficed. All receipts and final views below are from 2026-11-07 UTC; acceptance was recorded 2026-11-08.
+
+Team round 0 settled **Solved** with **11 unique paid plays (6 YES / 5 NO)** and a single shared line, attempt count and share balance. Members supplied 4/4/3 plays. Four actor-bound commits consumed Team vault stakes: three Wrong and one Correct. The first correct result froze play and opened an actual ten-minute Reveal window; finalize/open ran after that deadline. The original Phase 4 criterion is a testnet round with at least two members and a vault withdrawal, not Solo's separate 50-play criterion. Fourteen reserved play attempts, including two proved unsigned and one signed validation rejection, stayed within the unchanged 50-reservation/four-guess authorization.
+
+| Action | Observed transaction |
+| --- | --- |
+| Start Team 0 | `9gKR3xHeaxXe5wQs6W29eL9hyKCpwo3Zqace58aGqKzj` |
+| Correct commit / reveal | `4iJxjTWsjX1FdM4j6a7jvXUUytwxhov9t6UZwMXadWdo` / `2PitKKLHmTfr8AyALJgzDfeb7v4KGK6FXoygZ27ZARfJ` |
+| Finalize / open | `CSksWZNMELdvEkacKmoU5rWWcGEVvh4FB6moExp2fnrG` |
+| Settle Team; return Correct stake to vault | `4wgiRJYWF7gWgeiqrYV1Kn2DtT71Nc97mZJX9xn5G36P` |
+| Parent vault exit / historical reward claim | `GxPxAspZkY5XRBLUyUAqPPxbP4Ld6AaxoVivt5mJDQVj` / `2iKir3y4NNUbAkHmKt8KZmJjSy4Z9JYJUTbcjsMyaG36` |
+| Other vault exit / historical reward claim | `6KRsDXiMyj9AJzY7shPMFNVerFtuKsiTi17JvdmUdXB9` / `AtZdV4Z43b2tYKnfxGnnoKGdAeWogwgg44d4YxsK2uqX` |
+| Spare vault exit / historical reward claim | `BeZUB6f6UmNo49rX44Vw5QuFPqFQHRb4V9dEDNXPwVmV` / `7ZxcByFifhoyrUaB1V9xxn3kN19r27apw3sBzogMmr1A` |
+| Parent / other / spare native withdrawal | `9ps9Eg52fbSZnNLyAGJRLAvwTtH3BdZRmRTwBqqPdLGd` / `8vnWLagNHbk38KJ3HknKhwpAwE7wXWJqezrmaTfAPKdA` / `8t7FX2guz2DKEkKq6B3jbJ8VxYpqF8mQD2bqEvxBPUba` |
+| Platform transfer | `9PgDqYReGNF8BFA8DyjUi9XwsDNrSXpR5DrjHyFcDqcU` |
+
+Canonical revealed rule `{"v":"g1","form":2,"lits":[[7,1],[83,0]]}` and salt `f2413ade131a63b326260359c28d888577d4eb54e2bec5cdb4f695a471cfdb7a` reproduce commitment `0376d1ad90ff04a28fee3722ea01ed6404f34bbc6b0da5a78cea74329f2bb510`. The actual default-account command `make verify ROUND=team/0 NEAR_RPC_URL=https://test.rpc.fastnear.com` printed **`PASS: 11 of 11 verdicts match`**; the independently exported `{round,rows}` also passed the real portable CLI 11/11. Replay establishes consistency, not secrecy or RPC authenticity.
+
+The independent audit pinned final views to block **276670127**, hash `88rMX4XuLNmaqJibCYkhtTxWYcvhS2qMYQFEw8NVND7r`, timestamp **2026-11-07T18:52:47.834069940Z**. It bound all **51 FINAL actions**, including three expected E30 roster/vault guards, to their exact signed identities and receipt actions. All **17 real OutLayer operations** (begin, 11 verdicts, four guesses, open) matched pinned program/caller/mode/round inputs, execution results and promise-data-linked game callbacks. All **six mints** matched token actions, durable outcomes and game acknowledgements. Solo 0's round/log remained unchanged.
+
+| Audited quantity | Observed |
+| --- | --- |
+| Team pot / vault after settlement | 0.438 / 2.4328 NEAR |
+| Equal reward per member, excluding vault principal | 0.116799999999999999999999 NEAR |
+| Team rollover, including three yoctoNEAR dust | 0.043800000000000000000003 NEAR |
+| Parent vault principal / native wallet withdrawal | 1.297493333333333333333333 / 1.493813333333333333333332 NEAR |
+| Other vault principal / native wallet withdrawal | 0.48656 / 0.603359999999999999999999 NEAR |
+| Spare vault principal / native wallet withdrawal | 0.648746666666666666666667 / 0.765546666666666666666666 NEAR |
+| Platform transfer | 0.0493 NEAR |
+| Credit, vault, pots, stakes, claimables, platform and pending play/payment/referee liabilities | All zero |
+| I1 unallocated margin | 3.414107880698373700000009 NEAR |
+| Required / available operator collateral; retained rounds | 5.04034 / 7.071917880698373700000009 NEAR; two |
+| Newly minted / total RULE supply | 149.981251249953125937 / 599.790052240391964534 RULE |
+| Completed token outcomes / remaining funding | 24 / 0.19456 NEAR |
+| Parent gross debit / ceiling | 2.417990342738427000000003 / 3 testnet NEAR |
+| Other gross debit / ceiling | 0.609948202280087900000003 / 0.7 testnet NEAR |
+| Spare gross debit / ceiling | 0.809039713648264400000002 / 1 testnet NEAR |
+
+Vault exits returned principal pro rata to game credit before native withdrawal. Every member then left, deleting the current Team record; all three `claim_team` calls still paid the original round-snapshot entitlements exactly once. The Correct stake returned to the vault, not a personal reward. Expected E30 receipts rejected active-round leave/withdraw and an impaired-vault deposit without changing financial rights. Each native withdrawal and platform payment had its actual transfer recipient/amount and callback completion checked separately before the next signed action. These are successful native completions, not failed-callback recovery.
+
+I1 and operator collateral passed both live Reveal block **276664652** and the final post-payout block. Independent arithmetic used the actual byte price, code/account storage, root ceiling, **two** retained rounds and ten refundable-referee exposures; it did not trust the ledger's displayed collateral as its own proof. Existing 10k Team properties were retained, not rerun or replaced by this success-path sample. Local readiness separately passed 13 focused native tests, four exact-r2-artifact sandbox Team scenarios with **MOCK OutLayer**, targeted clippy and formatting.
+
+Operational failures remained distinct from contract callbacks. RPC 429 and an incompatible provider envelope caused two pre-sign failures; access-key evidence proved them unsigned. A third play was signed but validation-rejected for wallet gas headroom despite a funded Team vault. Its exact nonce was consumed by the already-planned zero-value E30 guard before parent gas sponsorship of 0.4/0.1 NEAR, within the parent cap. An original reward-claim hash acknowledged with `wait_until:NONE` never entered a block: installed-SDK reconstruction identified its exact key/nonce, and a pre-inspected zero-value getter at that same nonce reached FINAL with unchanged game rights before a replacement claim was signed. Original hash `8j38iESvyJJMKa3BumjDawm3p44dUqTYZnXT2yLtyBsm`; FINAL nonce fence `EBbsXwjho2ZLnoCffoygm5zR1cVRGHGJaDFJ6p5vbYsu`. No unknown transaction or native payment was blindly resent. Remaining submissions required inclusion and exact-hash FINAL receipt confirmation.
+
+Public tx ids above are durable retrieval anchors. Raw receipt trees/actions, append-only journal, snapshots, verifier outputs, payment diagnostics, exact-hash reconstruction and independent auditors remain in ignored `scratch/p4-team/`; execution/signing scaffolds are removed after proof. Final-height access-key views show one retained key on each rehearsal contract. D36 and Phase 4 are complete, not reusable authority for another round. This is not production native recovery, load/scheduler proof, a keyless launch, freeze, permission to delete keys or a source push. D31/B6 and P8.1 remain explicit production gates.
+
 ### Phase 0 probe evidence (testnet, 2026-11-04, probe contract and probe referee, not the game)
 
 Operator: lead through a worker using `near-rule`. Full raw logs are in the gitignored `scratch/probe/`; the callback bytes are committed in `tests/vectors/outlayer-callback.json`.

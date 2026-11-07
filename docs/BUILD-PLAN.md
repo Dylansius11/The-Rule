@@ -123,12 +123,14 @@ Phase 3 testnet acceptance is complete: the recorded T-PAY/T-INV checks passed, 
 
 ## Phase 4: team mode, founder order 3 (2026-11-09)
 
-- [ ] **P4.1 Teams and roster lock** (F14). Owned: `contracts/game/src/team.rs`. Tests: T-TEAM size and lock cases.
+- [x] **P4.1 Teams and roster lock** (F14), accepted for testnet 2026-11-08. Owned: `contracts/game/src/team.rs`. Tests: T-TEAM size and lock cases.
   - **Phase 4 readiness checked 2026-11-07:** 13 focused native Team tests passed, including the added cross-member pending/attempt cap, captain/invite authorization, first-commit vault/roster lock and repeated-settlement guards. All four Team sandbox scenarios passed using the exact deployed r2 game/token artifacts with MOCK OutLayer; targeted Team clippy and changed-file formatting passed. Existing 10k pro-rata/equal-split/terminal-rights evidence is retained rather than rerun. This is local readiness, not the D36 real-Team acceptance.
-- [ ] **P4.2 Vault and team play** (F15, F16). Tests: T-TEAM-3 property (pro-rata exactness, equal split), shared attempt limit, team stake from the vault.
+- [x] **P4.2 Vault and team play** (F15, F16), accepted for testnet 2026-11-08. Tests: T-TEAM-3 property (pro-rata exactness, equal split), shared attempt limit, team stake from the vault.
   - **Team dependency locally exercised for B6, 2026-11-05:** bounded roster/invites/depositors, vault-to-credit pro-rata withdrawal, shared attempts/line/commits, actor-bound guesses, per-round roster snapshots, exact equal reward/dust accounting, historical claims and member-owned lock aggregation are implemented. Native Team cases and real local WASM sandbox cases passed, including timeout Cancel natively and Void locally. A five-member, 64-character-account runtime passed actual mint, correct stake, pro-rata exits and claims after roster deletion. A reproduced new-deposit dilution path now rejects E30 until old impaired positions withdraw; it passed natively and in the actual runtime. Team testnet acceptance and whole-system B6 acceptance remain open.
 
 Acceptance: a testnet team round with 2 or more members on rehearsal accounts, including a vault withdrawal.
+
+**D36 testnet acceptance completed 2026-11-08:** one Team 0 on the unchanged r2 contracts completed Solved with three members, 11 paid plays (6 YES / 5 NO), three Wrong guesses, one Correct guess and a real non-demo OutLayer open. The actual default-account `make verify ROUND=team/0 NEAR_RPC_URL=https://test.rpc.fastnear.com` passed 11/11. All three unequal-weight vault withdrawals, historical reward claims after every member left, native wallet withdrawals and the platform transfer/callback completed. An independent final-block **276670127** audit bound 51 FINAL actions, 17 real referee completions and six mints; shared entity state, guarded roster/vault failures, principal/reward/dust partitions, cash/supply/funding, unchanged Solo 0 and two-retained-round I1/operator collateral reconciled exactly. Gross debit remained within the 3/0.7/1-NEAR caps; all transient liabilities are zero. The original two-or-more-member/vault-withdrawal criterion and existing generated-property counts are unchanged. [Durable receipts and exact arithmetic](technical/SMART-CONTRACT.md#d36-team-rehearsal-testnet-2026-11-07-utc-keys-retained). This is finite testnet evidence with retained keys, not production native recovery, a load test or freeze; D31/B6 remain open for production.
 
 ## Phase 5: RULE token, founder order 4 (2026-11-09 to 2026-11-10)
 
@@ -142,7 +144,7 @@ Acceptance: a testnet team round with 2 or more members on rehearsal accounts, i
 ## Phase 6: Demo Mode and schedule, founder order 5 (2026-11-10)
 
 - [ ] **P6.1 Schedule and seasons** (F20). Owned: `contracts/game/src/season.rs`. Tests: slot enforcement; one round per mode per day; season board order.
-- [ ] **P6.2 Keeper.** Owned: `apps/keeper/`. Calls `start_round`, `advance`, `finalize`, `retry_open`, `cancel` when due; pings a heartbeat only after the transition is final. First qualify near-api-js 7.4.0 signing on Cloudflare Workers (D20); otherwise use the GitHub Actions fallback. Tests: dry-run against a sandbox; a duplicate call is a harmless panic. **Status:** decision logic and mock-RPC tests done (12 tests); B5 qualified locally; the sandbox dry-run waits for the settle methods.
+- [ ] **P6.2 Keeper.** Owned: `apps/keeper/`. Calls `start_round`, `advance`, `finalize`, `retry_open`, `cancel` when due; pings a heartbeat only after the transition is final. First qualify near-api-js 7.4.0 signing on Cloudflare Workers (D20); otherwise use the GitHub Actions fallback. Tests: dry-run against a sandbox; a duplicate call is a harmless panic. **Status:** historical decision logic and mock-RPC tests passed (12 tests); B5 qualified locally. Settlement methods are now available on r2, so they no longer block the still-unrun actual sandbox dry-run or deployed keeper qualification.
 - [ ] **P6.3 Demo instance** (F21). Owned: `scripts/demo/`. Deploy `demo-game` and `demo-token` with demo params and the demo referee; `RULE_DEMO` set as an OutLayer secret; Reset Demo means redeploy with a fresh state. Acceptance: one compressed demo round end to end.
 - [ ] **P6.4 Contract freeze.** Tag the contract and referee commit; reproducible builds of `game`, `token` and the referee; hashes recorded. After this, no contract change before submission.
   - **Build entrypoint prepared 2026-11-05:** `make build-contracts` now calls both contracts through the pinned cargo-near reproducible flow; game metadata matches the existing token image/digest/locked no-ABI recipe. Locked Cargo metadata validation passed. The actual make command failed closed on missing WSL Docker integration; Windows backend pipes were also unavailable despite Desktop reporting already running (B7). No new reproducible artifact or second-build comparison is claimed. The token-only wrapper was removed and callers migrated; hosting and final artifact gates stay open.
@@ -156,7 +158,7 @@ Acceptance: a testnet team round with 2 or more members on rehearsal accounts, i
 
 Starts when B1 resolves; the founder's references feed `docs/DESIGN.md`, written then. Stack: D2. Owned: `apps/web/`. Functional acceptance only (PRD screens S1 to S8):
 
-- [ ] **P7.1** S1 Play and S6 Wallet: connect, deposit, play, pending, YES, NO, duplicate, refund and error states against `game-r1`.
+- [ ] **P7.1** S1 Play and S6 Wallet: connect, deposit, play, pending, YES, NO, duplicate, refund and error states against `game-r2.therule.testnet`.
 - [ ] **P7.2** S2 Log: 10k-row virtualized log, filters, CSV/JSON export of filtered rows, completeness indicator.
 - [ ] **P7.3** S3 Guess and S4 Reveal: commit, reveal, statuses; browser replay in a worker matches `rule verify`.
 - [ ] **P7.4** S5 Team, S7 Season, S8 Demo toggle with the permanent label.

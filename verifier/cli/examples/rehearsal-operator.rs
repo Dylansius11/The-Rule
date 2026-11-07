@@ -23,6 +23,7 @@ enum Request {
     Advise {
         bucket: WireBucket,
         rows: Vec<Row>,
+        minimum_plays: usize,
         wrong: Vec<CanonicalRule>,
         // Include pending keys as well as settled keys when applicable.
         unused_exclude_keys: Vec<String>,
@@ -35,6 +36,7 @@ enum Request {
     },
     PrepareGuess {
         game: String,
+        mode: Mode,
         round: u32,
         actor: String,
         entity_id: u32,
@@ -107,8 +109,8 @@ fn solved(rules: &[CanonicalRule]) -> bool {
             .all(|r| equivalence(&rules[0], r).equivalent)
 }
 
-// Stop after the fourth class: no result above three can fit the allowed budget.
-fn classes(rules: &[CanonicalRule]) -> Option<Vec<CanonicalRule>> {
+// Stop beyond the caller's budget rather than classifying unusable alternatives.
+fn classes(rules: &[CanonicalRule], budget: u8) -> Option<Vec<CanonicalRule>> {
     if rules.len() > 256 {
         return None;
     }
@@ -116,7 +118,7 @@ fn classes(rules: &[CanonicalRule]) -> Option<Vec<CanonicalRule>> {
     for rule in rules {
         if !reps.iter().any(|rep| equivalent(rep, rule)) {
             reps.push(rule.clone());
-            if reps.len() > 3 {
+            if reps.len() > usize::from(budget) {
                 return None;
             }
         }
@@ -195,6 +197,7 @@ fn split(
 fn advice(
     rules: &[CanonicalRule],
     rows: usize,
+    minimum_plays: usize,
     budget: u8,
     minute: u8,
     previous: Option<Previous>,
@@ -203,12 +206,12 @@ fn advice(
     if rules.is_empty() {
         return json!({"status":"inconsistent", "candidates":0});
     }
-    if rows >= 50 && budget > 0 && solved(rules) {
+    if rows >= minimum_plays && budget > 0 && solved(rules) {
         return json!({"status":"guess", "guarantee":true, "assumption":"complete accurate rows, bucket and Wrong results, and a daily sampled rule", "candidates":rules.len(), "rule":rules[0], "guess":RuleHex(rules[0].clone())});
     }
-    if rows >= 50
+    if rows >= minimum_plays
         && budget > 0
-        && let Some(reps) = classes(rules)
+        && let Some(reps) = classes(rules, budget)
         && !reps.is_empty()
         && reps.len() <= usize::from(budget)
     {
@@ -218,10 +221,10 @@ fn advice(
     if let Some((play, yes)) = split(rules, minute, previous, used) {
         return json!({"status":"play", "candidates":rules.len(), "play":play, "play_key":play.play_key().0.to_string(), "yes_candidates":yes, "no_candidates":rules.len()-yes});
     }
-    if rows < 50
+    if rows < minimum_plays
         && let Some(play) = filler(minute, previous, used)
     {
-        return json!({"status":"play", "purpose":"reach_50", "play":play, "play_key":play.play_key().0.to_string(), "candidates":rules.len()});
+        return json!({"status":"play", "purpose":"reach_minimum", "play":play, "play_key":play.play_key().0.to_string(), "candidates":rules.len()});
     }
     if rules.len() > 256 {
         json!({"status":"search_limited", "candidates":rules.len(), "reason":"no split in 512 deterministic plays; full domain not searched"})
@@ -267,7 +270,7 @@ fn qualify_one(
             time += guess_seconds;
         }
         if wrong_done
-            && let Some(reps) = classes(&rules)
+            && let Some(reps) = classes(&rules, 3)
             && !reps.is_empty()
             && reps.len() <= 3
         {
@@ -356,14 +359,15 @@ fn run(req: Request) -> Result<Value, String> {
         Request::Advise {
             bucket,
             rows,
+            minimum_plays,
             wrong,
             unused_exclude_keys,
             minute_digit,
             previous,
             remaining_guess_budget,
         } => {
-            if remaining_guess_budget > 3 {
-                return Err("remaining guess budget must be at most 3".into());
+            if remaining_guess_budget > 4 || minimum_plays > 75 {
+                return Err("guess budget must be at most 4 and minimum plays at most 75".into());
             }
             Play::new(0, 0, minute_digit, previous)
                 .map_err(|e| format!("invalid context: {e:?}"))?;
@@ -382,6 +386,7 @@ fn run(req: Request) -> Result<Value, String> {
             let mut result = advice(
                 &rules,
                 rows.len(),
+                minimum_plays,
                 remaining_guess_budget,
                 minute_digit,
                 previous,
@@ -405,6 +410,7 @@ fn run(req: Request) -> Result<Value, String> {
         }
         Request::PrepareGuess {
             game,
+            mode,
             round,
             actor,
             entity_id,
@@ -417,15 +423,18 @@ fn run(req: Request) -> Result<Value, String> {
             let hash = commit_hash(&CommitPreimage {
                 chain: "testnet",
                 game: &game,
-                mode: Mode::Solo,
+                mode,
                 round,
                 actor: &actor,
-                entity: Entity::Solo(entity_id),
+                entity: match mode {
+                    Mode::Solo => Entity::Solo(entity_id),
+                    Mode::Team => Entity::Team(entity_id),
+                },
                 guess: &rule,
                 salt: &salt.0,
             });
             Ok(
-                json!({"status":"prepared","chain":"testnet","game":game,"round":round,"actor":actor,"entity_id":entity_id,"rule":rule,"guess":RuleHex(rule.clone()),"hash":hash,"salt":salt,"commit_args":{"mode":0,"hash":hash},"reveal_args_without_commit_seq":{"mode":0,"guess":RuleHex(rule.clone()),"salt":salt}}),
+                json!({"status":"prepared","chain":"testnet","game":game,"mode":mode,"round":round,"actor":actor,"entity_id":entity_id,"rule":rule,"guess":RuleHex(rule.clone()),"hash":hash,"salt":salt,"commit_args":{"mode":mode,"hash":hash},"reveal_args_without_commit_seq":{"mode":mode,"guess":RuleHex(rule.clone()),"salt":salt}}),
             )
         }
         Request::Qualify {

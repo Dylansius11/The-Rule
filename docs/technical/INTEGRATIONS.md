@@ -153,6 +153,9 @@ Founder chose **Cloudflare Pages primary and FastFS testnet mirror** on 2026-11-
 4. **Observed.** Upload tx `3XbgZYVddhofieFctrvz154P1zUY5TbsDFkLVgEF6bru`, block `276477344`, burnt 0.0012591626714774 testnet NEAR. Both hosts returned matching GET bytes. FastFS HEAD returned 404 while GET returned 200; do not substitute HEAD for the worker's byte fetch. The old probe's 404 root cause remains unknown.
 5. **Verification helper.** `scripts/referee/publish.sh FILE.wasm --verify-url https://...` checks size and downloaded hash with at most three HTTPS-only redirects. It **does not build, upload or configure hosting**. Exact URLs and repeatable verification commands are in REPRODUCIBLE-BUILDS; availability to the real OutLayer worker is checked in P2.9.
 
+**Fresh caller-bound publication (2026-11-07, D35):** r2 uses a new two-build-matched non-demo component, hash `21b58e86fb2e19737e904fc3177f9d7871320342f0c929b626bf8d31c64c71cb`. Cloudflare deployment `ca500dd6` and the FastFS testnet mirror both passed exact-byte WSL GET checks. FastFS upload `5hVETQf6meHriCdJTzYX96WcRRiGrHUAVMz8XvB3LacT` cost 0.0012591626714774 NEAR; its omitted CLI hash was reconciled read-only without resending. Exact URLs, source/provenance and the Windows urllib 403 discrepancy are in REPRODUCIBLE-BUILDS. The r1 deployment-pinned URL remains separate; no source visibility, paid hosting or key-deletion change occurred.
+
+
 ### 4. Web wallet and hosting (Phase 7, blocked on B1)
 
 1. **Docs [V] 2026-11-04:** [NEAR wallet login guide](https://docs.near.org/web3-apps/tutorials/wallet-login.md) (`@hot-labs/near-connect` 0.12.0 + near-api-js 7.4.0); [Cloudflare Pages limits](https://developers.cloudflare.com/pages/platform/limits/), [headers](https://developers.cloudflare.com/pages/configuration/headers/).

@@ -331,7 +331,7 @@ All byte layouts live in `crates/rule-core` (grammar) and `crates/protocol` (wir
 
 | Id | Invariant | Enforced by | Test |
 | --- | --- | --- | --- |
-| I1 | At quiescence, `balance >= Σcredit + Σvault + Σround pots + Σcarry + Σopen stakes + Σclaimable + compute_float + platform_accrued + max(storage_reserve, locked_storage)` | `storage_reserve` already backs collateral. `pending_credit` holds unsettled play fee/storage debits, not outgoing transfers | 10k native Solo principal sequences and sampled same-block sandbox snapshots pass; actual unknown-outcome payment reconciliation and worst-case reserves remain B6 |
+| I1 | At quiescence, `balance >= Σcredit + Σvault + Σround pots + Σcarry + Σopen stakes + Σclaimable + compute_float + platform_accrued + max(storage_reserve, locked_storage)` | `storage_reserve` already backs collateral. `pending_credit` holds unsettled play fee/storage debits, not outgoing transfers | Native generated sequences, selected-artifact receipt-aware balance/collateral checks and D35's real Reveal/final payout audits pass; unknown-native-outcome liveness remains D31/B6 |
 | I2 | Per round `P == W + C_paid + R + L` (or the exact refund sum when Cancelled) | Payout code, dust to R | T-INV-2 |
 | I3 | After all mint requests reconcile, `token.ft_total_supply == Σ minted on LogRows − Σ burned <= cap`; pending rows contain reserved intended amounts, not proof of confirmed issuance. The only burn is the standard NEP-141 resolver burn when a refund target unregistered; each round reserves at most its allowance | Durable token outcome + exact game acknowledgement; replay never applies a second effect | T-INV-3 sandbox, T-TOK-3 |
 | I4 | Referee output cannot name an account or an amount | Strict schema parse | T-REF-4 fuzz the parsers |
@@ -349,8 +349,8 @@ All byte layouts live in `crates/rule-core` (grammar) and `crates/protocol` (wir
 
 | Requirement | Concrete coverage | Remaining boundary |
 | --- | --- | --- |
-| I1 principal and owner rights | `solo_cash_and_pot_partition_seeded_sequences`, payment/refund-order models, same-owner play/guess overlaps, and actual receipt-aware sandbox balance snapshots | Native models do not execute transfers or charge runtime storage/gas. Final whole-system collateral/admission acceptance on the selected deployment artifact remains B6; finite snapshots are not a universal scheduler proof |
-| I2 partitions, dust and terminal rights | Solo terminal properties, `seeded_cross_round_owner_and_cash_invariants`, bounded Team property, and actual-WASM solved Team payout/roster claims | Finite generated/observed sequences; Phase 3 still requires the accepted P2.9 testnet run with payouts |
+| I1 principal and owner rights | `solo_cash_and_pot_partition_seeded_sequences`, payment/refund-order models, same-owner play/guess overlaps, actual receipt-aware sandbox balance, and D35 final-block reconciliation | Native models do not execute transfers or charge runtime storage/gas. Selected-artifact collateral/admission and real cash snapshots now pass; finite safety evidence is not universal scheduler liveness or authenticated unknown-native-outcome recovery |
+| I2 partitions, dust and terminal rights | Solo terminal properties, `seeded_cross_round_owner_and_cash_invariants`, bounded Team property, actual-WASM solved Team payouts, and D35's real Solved claims | Finite generated/observed sequences; D35 supplies the accepted P2.9 round with exact payouts. The separate overall D31 acceptance boundary is not another random-case requirement |
 | I3 supply, allowance and burns | `seeded_mint_receipts_match_log_and_allowance`, authenticated token-recovery runtime, and `resolver_burn_preserves_game_log_supply_invariant` | Modeled acknowledgements are not executed token effects. The new actual-WASM burn scenario closes the previously separate log/supply/burn case, not every possible receipt schedule |
 
 The new burn scenario obtains 100 RULE from a real game mint, transfers it to the sandbox mock's delayed NEP-141 receiver and unregisters the now-empty sender before resuming with 40 RULE unused. The real `ft_resolve_transfer` emits a 40-RULE burn and leaves 60 RULE in supply and receiver custody. The original game log remains 100 RULE and its allowance does not restore on a later standard burn. The test binds initiating/receiver/resolver actions through receipt children and promise-data dependencies, checks the exact burn event, and rejects a duplicate resume. Both sandbox `mint` tests passed, as did targeted clippy and formatting; evidence is `scratch/resolver-burn-runtime.log`. No callback was impersonated, token balance patched, or testnet action used.
@@ -731,6 +731,57 @@ The actual `make verify ROUND=solo/1 GAME_ACCOUNT=game-r1.therule.testnet NEAR_R
 Each native transfer's actual receipt recipient/amount and promise-data-linked completion were checked with the read-only incident reporter. All three withdrawals and the platform transfer/callback succeeded; no naturally failed native callback was observed. The conservative journal charges deposits plus all recorded transaction-tree burn to the initiating signer for cap enforcement; that is not a claim that every receipt's gas was paid by that signer or that allocated funds were burnt.
 
 Public tx ids above are durable retrieval anchors; raw responses, export, verifier, payment diagnostics and audit are in ignored `scratch/p29/`. P2.9 remains unmet: this single round had neither 50 plays nor a Correct guess. No new account, deployment, asset, public referee, key deletion or source push occurred. D35 separately proposes fresh hardened r2 state; current Docker availability, funding, approval, artifact/URL verification and final preflight remain prerequisites. D31/B6 still gate native recovery and freeze.
+
+### D35 qualifying Solved rehearsal (testnet, 2026-11-07; keys retained)
+
+Fresh `game-r2.therule.testnet` and `token-r2.therule.testnet` use the hardened Player layout without upgrading r1 state. Exact artifacts, source revisions, deployed hashes, independent referee reproductions and verified Cloudflare/FastFS URLs are in REPRODUCIBLE-BUILDS. Label: **TESTNET REHEARSAL — KEYS RETAINED; compressed schedule; non-demo referee; no preselected rule**. No keyless launch or production freeze occurred.
+
+Solo 0 settled **Solved** with **52 unique plays: 18 YES / 34 NO**, one Wrong and one Correct guess. The three players contributed 20/16/16 shares. There were 54 conservatively reserved play attempts: 52 new rows, one free Known result and one demonstrably unsigned CLI failure; two of four authorized guesses were used. The Correct callback selected the earliest correct commit, froze gameplay, and started the actual ten-minute reveal window. Only after that deadline did finalize request the real OutLayer open.
+
+| Action | Observed transaction |
+| --- | --- |
+| Start Solo 0 | `9A3wkky3EPjz8HA7P1vL4a1hbakWG5hxE6eLhkB5jhME` |
+| Wrong commit / reveal | `Az92tyRHVkFbjh2X5QTxmzTFonb6zQ99WSXPU4itHYPb` / `FGn5K6Ce7gSUt6eLX1k4hcFQmkNYYnrruTSYQk1ycrpe` |
+| Correct commit / reveal | `BarkPa8EY3K2kgjzUeormuMrtE3pWdN9sFwKW9HvzCAk` / `DiTH2hcDPQXSpqJ81jqwWoHqPcWh3j86Q1aXYQmJCNvG` |
+| Finalize and open | `F9aHXGncw8fkouzKqNFqq3ReMRCPak55WeqvtbHAHaN8` |
+| Parent claim / withdrawal | `FVc5cqs7JV9tK8af1iSFZiueKxJrtWjQebPmM9Scwpfp` / `CR3jtarvdxDct9UjtNE2u6svP4Hx4kNb9KBzvX1MLuqg` |
+| Other claim / withdrawal | `76TBgJsGdsiyCdh8mWb3atuZK8y5cbsQRj72LtqYJUr1` / `57Uk8rUbi8ds7H1fuATsMPhBr38tHHF3545ir4dtyaJX` |
+| Spare claim / withdrawal | `6oTztCMcKixShCvUAhf3gjDr9UXjsUnXQdbJciRa4kj2` / `8gwn93CVh4i1nTS14Ggc4vBDf6PazN2zW3bZMHni7t5J` |
+| Platform payment | `8E9UDX97dxhxMGL2hz5oDvaZ9E4xXNk5AJbp3ZjuiAm6` |
+
+The revealed canonical rule is `{"v":"g1","form":0,"lits":[[22,1]]}` (number at least 300); salt `ef959b820d712f62a5998d0d5f1dcb085a1d9fc63d0ffd5ac221e173c6f008a2`. Shared canonical bytes plus salt reproduce commitment `e85e38f0d995d6a1832f063f93744e0b9700e89a0bd83e24e0db8a7ad8b75233`. The actual default-account command `make verify ROUND=solo/0 NEAR_RPC_URL=https://test.rpc.fastnear.com` selected r2 and printed **`PASS: 52 of 52 verdicts match`**. The actual portable export also passed `rule verify --from-file ... --json` with 52/52. Replay establishes consistency, not secrecy or RPC authenticity.
+
+The independent read-only audit pinned account, params/code, ledger, round, log, claims, RULE supply/balances and operation-funding views to final block **276632879**. All 75 FINAL action identities matched their reservations and complete receipt trees. All 56 OutLayer operations (begin, 52 verdicts, two guesses, open) were bound to their exact request inputs/source hash, result chain and promise-data-linked game callback. Every row/guess had a unique bound result; all 18 mint operations had exact token actions, applied outcomes, acknowledgement dependencies and reconciled game state.
+
+| Audited quantity | Observed |
+| --- | --- |
+| Pot = seed + 80% of play fees + half Wrong stake | 0.716 NEAR |
+| Winner reward, excluding contributor shares and returned stake | 0.2864 NEAR |
+| Contributor reward per share | 0.005507692307692307692307 NEAR |
+| Parent claim, reward + 20 shares + returned Correct stake | 0.496553846153846153846140 NEAR |
+| Other / spare claim, each 16 shares | 0.088123076923076923076912 NEAR |
+| Carry, including 36 yoctoNEAR dust | 0.071600000000000000000036 NEAR |
+| Platform payment, play fees plus terminal share | 0.0976 NEAR |
+| Parent withdrawal, remaining credit plus claim | 0.990873846153846153846140 NEAR |
+| Other / spare withdrawal, each | 0.395323076923076923076912 NEAR |
+| Credit, vault, pots, stakes, claimables, platform and pending play/payment/referee liabilities | All zero |
+| Compute float / storage reserve / runtime-locked storage | 0.26999328 / 1.12128 / 5.05214 NEAR |
+| Game balance / I1 obligations | 8.508720326498373700000039 / 5.393733280000000000000036 NEAR |
+| I1 unallocated margin | 3.114987046498373700000003 NEAR |
+| Required / available operator collateral | 5.0301 / 7.045847046498373700000003 NEAR |
+| RULE supply = log mints = three player balances | 449.808800990438838597 RULE |
+| Completed token outcomes / remaining funding | 18 / 0.20992 NEAR |
+| Parent gross debit / ceiling | 12.165352813458883300000001 / 13.5 testnet NEAR |
+| Other gross debit / conservative exposure / ceiling | 0.828684679301220600000001 / 0.888684679301220600000001 / 1.2 testnet NEAR |
+| Spare gross debit / ceiling | 0.829438092183157800000001 / 1.2 testnet NEAR |
+
+Independent collateral arithmetic used the live byte price `10^19` yoctoNEAR, original empty-account storage plus the actual game code (483,554 bytes), the 8,192-byte root ceiling, one retained 1,024-byte round and ten 1,024-byte referee exposures. Per-account/action/Team charge floors remain 512/2,048/2,048 bytes. The selected artifacts also passed the local lifetime-storage, operator E24 admission, receipt-aware balance and maximum-config/ten-round effect runtimes before deployment. A separate live Reveal snapshot at final block 276631770 satisfied I1 and operator collateral before claims. These finite proofs complement the existing generated properties; they are not universal gas/scheduler liveness.
+
+Each of the three native withdrawals and platform transfer had its actual recipient/amount and callback promise-data dependency checked before the next signed action. Transfer and callback succeeded separately. Withdrawal callbacks burnt 2.201516415094, 2.205949087894 and 2.205758179910 Tgas; platform completion burnt 1.994169191205 Tgas, each allocated 10 Tgas. These are observed samples, not upper bounds, and no naturally failed native callback or unknown-outcome recovery was observed.
+
+Operator incidents were not mislabeled contract failures. One official CLI lookup failed with RPC 429 before signing: access-key nonces at the original reservation block and a later final block were identical, with no submitted transaction; its attempt and 0.06-NEAR worst-case reservation remain counted. The isolated CLI then used the official testnet RPC while reads retained FastNEAR. Inclusion-minute changes were reconciled from actual rows/timestamps without resending. One play became Known at inclusion; its existing row, unchanged credit/entity and absence of a referee call were checked. After 50 rows, four observationally consistent candidates exceeded the remaining guess budget. Two additional legal plays used a common-YES line reset and an actual short-gap experiment, reducing the set before the Correct guess. All evaluation/equivalence used `rule-core`; temporary diagnostic code was removed.
+
+Raw transactions, receipt actions, exported round, verifier, payment diagnostics and audits are retained under ignored `scratch/p29-r2/`; public tx ids above are durable retrieval anchors. Gross accounting conservatively includes attached deposits and all recorded transaction-tree burn, without netting refunds; it is not a claim that the initiating signer paid every receipt's gas. P2.9's original acceptance and Phase 3's finite cash/invariant/collateral evidence are satisfied. The separate founder-owned D31 native unknown-outcome acceptance still gates the overall Phase 3/B6 decision: reservations prevent blind double payment but cannot guarantee completion after a failed native callback. No larger random-case count, further funding or successful normal payout can resolve that architectural choice.
 
 ### Phase 0 probe evidence (testnet, 2026-11-04, probe contract and probe referee, not the game)
 

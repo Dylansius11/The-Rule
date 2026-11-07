@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-07: context-stalled inference needs a reachable experiment, not another blind guess
+
+- **What happened:** D35 reached 50 real plays but retained four non-equivalent, log-consistent candidates and only three remaining guesses. A common-YES line reset followed by an actual short-gap play reduced the set; the next semantic guess checked Correct. The round ultimately opened and replayed 52/52.
+- **Root cause:** all three prior YES lines had made a contextual predicate observationally redundant. Exhausting number/word inputs at one current context cannot distinguish rules that differ only in previous-number or gap context.
+- **Rule:** use the shared evaluator/equivalence engine, inspect reachable contexts and remaining budgets before signing, and retain actual inclusion context as authoritative. Spend a legal context-changing experiment rather than call one consistent rule proven. Temporary diagnostics must have no signing or secret-rule access and be removed after use.
+
 ### 2026-11-07: pending duplicates require the same full play context
 
 - **What happened:** the exact-artifact sandbox round test expected E12 from repeated number/word but received E13 across a minute boundary. The live r2 operator also observed a real inclusion minute differing from its prior advice.

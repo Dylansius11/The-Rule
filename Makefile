@@ -1,6 +1,6 @@
 # THE RULE targets. Run inside WSL from the repo root.
 .PHONY: vectors sandbox gas storage balance token-failure token-recovery b6 verify build-contracts build-referee
-GAME_ACCOUNT ?= game-r1.therule.testnet
+GAME_ACCOUNT ?= game-r2.therule.testnet
 NEAR_RPC_URL ?= https://rpc.testnet.near.org
 CONTRACTS_OUT ?= scratch/repro/contracts
 export ROUND GAME_ACCOUNT NEAR_RPC_URL CONTRACTS_OUT

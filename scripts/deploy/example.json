@@ -1,7 +1,7 @@
 {
   "network": "testnet",
-  "game_account": "game-r1.therule.testnet",
-  "token_account": "token-r1.therule.testnet",
+  "game_account": "game-r2.therule.testnet",
+  "token_account": "token-r2.therule.testnet",
   "game_wasm": "scratch/deploy/game.wasm",
   "token_wasm": "scratch/deploy/token.wasm",
   "referee_wasm": "scratch/deploy/referee.wasm",
@@ -54,7 +54,7 @@
     "gas_outlayer": 100000000000000,
     "gas_callback": 60000000000000,
     "gas_mint": 10000000000000,
-    "token": "token-r1.therule.testnet",
+    "token": "token-r2.therule.testnet",
     "platform": "therule.testnet",
     "chain_id": "testnet"
   }

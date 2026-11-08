@@ -20,6 +20,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Home /> },
       { path: 'log', element: page(() => import('@/screens/LogPage'), 'LogPage') },
+      { path: 'guess', element: page(() => import('@/screens/GuessPage'), 'GuessPage') },
       { path: '*', element: page(() => import('@/screens/NotFound'), 'NotFound') },
     ],
   },

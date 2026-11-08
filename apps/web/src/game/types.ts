@@ -110,6 +110,14 @@ export interface Commit {
 
 export interface Params {
   playFee: bigint;
+  /** Share of one play fee, in basis points: [pot, compute float, platform]. */
+  feeSplitBps: [number, number, number];
+  /** Share of a wrong or unrevealed stake returned to the guesser, in basis points. */
+  wrongReturnBps: number;
+  /** Final pot when solved, in basis points: [winner, contributors, rollover, platform]. */
+  solvedSplitBps: [number, number, number, number];
+  /** Final pot when unsolved, in basis points: [contributors, rollover, platform]. */
+  unsolvedSplitBps: [number, number, number];
   storagePerPlay: bigint;
   storagePerAccount: bigint;
   stakeBps: [number, number];

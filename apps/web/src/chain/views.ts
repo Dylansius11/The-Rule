@@ -66,6 +66,10 @@ export async function getParams(): Promise<Params> {
   const p = await view<Wire>('get_params');
   return {
     playFee: BigInt(p.play_fee),
+    feeSplitBps: p.fee_split_bps,
+    wrongReturnBps: p.wrong_return_bps,
+    solvedSplitBps: p.solved_split_bps,
+    unsolvedSplitBps: p.unsolved_split_bps,
     storagePerPlay: BigInt(p.storage_charge_per_play),
     storagePerAccount: BigInt(p.storage_charge_account),
     stakeBps: p.stake_bps,

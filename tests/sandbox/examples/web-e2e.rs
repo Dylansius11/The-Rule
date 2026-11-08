@@ -36,11 +36,24 @@ async fn main() -> Res<()> {
         .await?
         .into_result()?;
     common::fund_token_operations(&token).await?;
+    // Deployment prerequisite: the game receives locked RULE. Players still register in the browser.
+    let bounds: Value = token.view("storage_balance_bounds").await?.json()?;
+    let storage: u128 = bounds["min"].as_str().ok_or("storage minimum missing")?.parse()?;
+    token
+        .call("storage_deposit")
+        .args_json(json!({"account_id":game.id(),"registration_only":true}))
+        .deposit(NearToken::from_yoctonear(storage))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
     eprintln!("Initializing game and funded fixture accounts");
     let mut config = params(mock.id().as_str(), worker.view_block().await?.timestamp());
     config["token"] = json!(token.id());
     config["base_attempts"] = json!([25, 50]);
     config["reveal_window_ns"] = json!(3_000_000_000u64);
+    // Browser regression tier only: earn real RULE before locking, without a premint.
+    config["lock_tiers"] = json!([{"amount":"1000000000000000000","extra_attempts":25}]);
     game.call("new")
         .args_json(json!({"params":config,"demo":true}))
         .transact()
@@ -69,16 +82,6 @@ async fn main() -> Res<()> {
     let begin_value = json!({"commit":commitment,"header":{
         "tier":"daily","bucket":"mid","grammar":Hex32(protocol::grammar_hash())
     }});
-    let begin = game
-        .call("start_round")
-        .args_json(json!({"mode":0}))
-        .gas(Gas::from_tgas(300))
-        .transact_async()
-        .await?;
-    wait_requests(&mock, 1).await?;
-    resolve(&mock, 0, begin_value.clone(), false).await?;
-    begin.await?.into_result()?;
-    eprintln!("Solo begin resolved; writing private fixture configuration");
     let fixture = json!({
         "label":"sandbox with mock OutLayer, not testnet evidence",
         "rpcUrl":worker.rpc_addr(), "networkId":"sandbox", "chainId":"testnet",
@@ -100,7 +103,7 @@ async fn main() -> Res<()> {
             }
         }
     });
-    let mut next_request = 1u32;
+    let mut next_request = 0u32;
     loop {
         let line = match rx.try_recv() {
             Ok(line) => line?,
@@ -127,10 +130,11 @@ async fn main() -> Res<()> {
                         .await?;
                     Ok(json!(true))
                 }
-                "startTeam" => {
+                "startSolo" | "startTeam" => {
+                    let mode = u8::from(command["op"] == "startTeam");
                     let begin = game
                         .call("start_round")
-                        .args_json(json!({"mode":1}))
+                        .args_json(json!({"mode":mode}))
                         .gas(Gas::from_tgas(300))
                         .transact_async()
                         .await?;
@@ -188,6 +192,9 @@ async fn main() -> Res<()> {
                         }
                         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
                     }
+                    Ok(json!(true))
+                }
+                "indexSeason" => {
                     game.call("index_season")
                         .args_json(json!({"mode":0,"season":0,"limit":20}))
                         .max_gas()

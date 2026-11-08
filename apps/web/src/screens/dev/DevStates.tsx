@@ -9,7 +9,8 @@ import { ProgressMeter } from '@/ui/ProgressMeter';
 import { Heron } from '@/mascot/Heron';
 import { Drip } from '@/mascot/Drip';
 import { Band } from '@/ui/Band';
-import { PlayDesk } from './play/PlayDesk';
+import { PlayDesk } from '@/screens/play/PlayDesk';
+import { TeamSetup } from '@/screens/play/crew/TeamSetup';
 import type { Round } from '@/game/types';
 
 const input = { number: 7, word: 'otter' };
@@ -88,6 +89,10 @@ export function DevStates() {
       <h2 className="display mt-8 text-[36px]">Stamp desk with a SAMPLE open round (no chain data)</h2>
       <Band tone="sun" edge={false} className="mt-4 py-14">
         <PlayDesk mode={0} round={SAMPLE_ROUND} />
+      </Band>
+      <h2 className="display mt-8 text-[36px]">Team room without a team (SAMPLE, no wallet needed)</h2>
+      <Band tone="sun" edge={false} className="mt-4 py-14">
+        <TeamSetup />
       </Band>
       <h2 className="display mt-8 text-[36px]">Blot</h2>
       <div className="flex flex-wrap items-end gap-4">

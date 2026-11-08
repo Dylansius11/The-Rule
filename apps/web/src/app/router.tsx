@@ -41,7 +41,7 @@ function crewLoader({ params }: LoaderFunctionArgs) {
 }
 
 const devRoutes = import.meta.env.DEV
-  ? [{ path: 'dev/states', element: page(() => import('@/screens/DevStates'), 'DevStates') }]
+  ? [{ path: 'dev/states', element: page(() => import('@/screens/dev/DevStates'), 'DevStates') }]
   : [];
 
 const router = createBrowserRouter([

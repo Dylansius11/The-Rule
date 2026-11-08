@@ -57,7 +57,7 @@ All fonts are self-hosted through Fontsource (no third-party font request).
 
 | Character | Role | Rules |
 | --- | --- | --- |
-| **Blot** | Hero. A blob of red sealing wax with a keyhole seal on its belly | Reacts to recorded results only. Never "knows" the rule, never chooses YES/NO, never talks about money or price |
+| **Blot** | Hero. A blob of red sealing wax with a keyhole seal on its belly | Reacts to recorded results only. Never "knows" the rule, never chooses YES/NO, never talks about money or price. On the landing hero he is a toon-shaded 3D model built in code from the master drawing (`src/mascot/Blot3D.tsx`): flat brand inks, boiling ink outlines, eyes and body follow the pointer, breathes, blinks, waves, squashes and spins his seal when poked. Reduced motion, missing WebGL or a lost context show the 2D `blot/hero` art in the same box |
 | **Drip** | Pink ink-drop sidekick | Lives in progress and empty states (crawls along progress bars, peeks over cards, sleeps in empty results, startles on errors). **No cursor follower** (founder, 2026-11-08) |
 | **The heron clerk** | Cameo: keeps the public ledger and the Team desk | Never presented as the referee and never stamps a player's verdict |
 
@@ -69,7 +69,7 @@ Every generated asset has a job. Paths are relative to `apps/web/public/art/`.
 
 | Asset | Where |
 | --- | --- |
-| `blot/hero` | Home hero, idles and leans toward the pointer |
+| `blot/hero` | Landing hero baseline under the 3D Blot (and its fallback); idles and leans toward the pointer |
 | `blot/{idle,pending,yes,no,already,reveal}` | Play desk reactions; reveal page |
 | `scenes/peek` | Header logo: Blot peeking over the header rule, next to the **THE RULE** wordmark |
 | `scenes/hanging` | Hanging from the grape marquee ribbon on Home |
@@ -93,22 +93,33 @@ Every generated asset has a job. Paths are relative to `apps/web/public/art/`.
 
 ## Layout
 
-- **Header (sticky):** Blot peeking over the bottom rule at the left, then the wordmark **THE RULE**; nav Play, Log, Guess, Reveal, Team, Season; at the right the wallet chip (credit and $RULE with the seal mark) or a Connect button. Under the header, a thin strip carries the deployment label from `deploymentLabel()`; in Demo Mode it becomes a permanent tomato tape reading "Demo Mode - preselected rule".
-- **Mobile (390 px):** the header keeps peek + wordmark + wallet chip; navigation moves to a bottom tab bar (Play, Log, Guess, Reveal, Wallet) with a "More" sheet (Team, Season, Demo). Tap targets 44 px minimum. No horizontal scroll at any width.
-- **Footer:** trust sentence, replay limit, testnet and no-price disclaimer, Blot in the pool giving a thumbs-up.
+The landing and the game are separate (founder, 2026-11-08). The landing sells and explains; the game is a round room. Entering the game needs no wallet ("soft gate"): reading the ledger and verifying are open to everyone, and the wallet is asked for only at an action.
+
+- **Landing header (sticky):** Blot peeking over the bottom rule, the wordmark **THE RULE**, anchor links (How to play, The last law, Season) and the primary "Enter the game" button. No wallet chip. On mobile a sticky "Enter the game" bar appears once the hero scrolls away.
+- **App header (sticky):** peek + wordmark (back to the landing), Play, Season, Account, a `?` that reopens How to play, a settings gear, then the wallet chip (credit and $RULE with the seal mark) or Connect. Inside the round room a sticky sub-bar carries the Solo/Team switch and the tabs Stamp, Ledger, Guess, Verify.
+- **Deployment strip:** under every header, the label from `deploymentLabel(active.kind)` plus a Live/Demo toggle. Without a configured demo instance, Demo opens an honest "not deployed yet" dialog; with one, it switches and reloads. In Demo Mode the strip is a permanent tomato tape reading "Demo Mode - preselected rule" on every page.
+- **Mobile (390 px):** in the app, a bottom tab bar (Stamp, Ledger, Guess, Verify, More) with More holding Season, Account, Team crew, How to play, Settings and Demo. Tap targets 44 px minimum. No horizontal scroll at any width. Wide screens use a fluid container up to 1440 px with full-bleed bands and doodles in the gutters.
+- **Footer:** the full footer (trust sentence, replay limit, testnet and no-price disclaimer, accounts, Blot in the pool) lives on the landing. The app has one slim line whose "Trust model" opens a sheet with the same sentences; Verify keeps the replay limit beside its results.
+- **Settings (gear):** sound on/off and volume, reduce motion (for people who get dizzy from animation; the OS setting always applies too), show How to play.
+- **How to play:** a five-step illustrated modal that opens on the first visit to `/play` and from `?`: pick a number and a word; the sealed law stamps YES or NO (YES mints $RULE, fees fund the pot); read the ledger and spot the pattern; commit a guess with a stake (earliest correct commit wins); the rule opens and your browser replays every verdict.
 
 ## Screens
 
+Solo and Team run side by side every day, each with its own rule, pot, log and season board (PRD F16, F20), so mode is a switch inside the room, not a season-start choice.
+
 | Screen | Route | Visual job |
 | --- | --- | --- |
-| S1 Play + home | `/` | Hero "FIND THE RULE!", live round strip stickers, marquee ribbon with hanging Blot, the stamp desk (reels, word chips, STAMP, slip, Blot reactions), live mini-log, the sealed-law scroll story, How it works, footer |
-| S2 Log | `/log` | Heron's ledger: search and filters as sticker chips, virtualized crisp table, completeness meter with Drip crawling, export CSV/JSON |
-| S3 Guess | `/guess` | Notebook builder from published atoms, local consistency check against the log, commit and reveal slips with statuses |
-| S4 Reveal | `/reveal` | The seal cracks open, the rule types out (English, DSL, canonical JSON), salt and commitment check, replay meter N of N, `make verify` command, log download |
-| S5 Team | `/team` | Heron's team desk: roster stickers, vault, locks, settle and claim |
-| S6 Wallet | `/wallet` | Wallet NEAR vs game credit vs vault, separate pending slips, $RULE balance and locks, claims, token operation recovery |
-| S7 Season | `/season` | Ledger-style boards; when the deployment has no season view, an honest asleep-Blot empty state |
-| S8 Demo | header toggle | Switches deployment; disabled with a reason until a demo instance exists |
+| Landing | `/` | 3D Blot hero with "FIND THE RULE!", live round strip stickers, marquee ribbon with hanging Blot, how it works, the sealed-law scroll story, season teaser, full footer |
+| S1 Stamp | `/play/:mode` | Round header (round, phase, time, pot, plays, accept rate), the stamp desk (reels, word chips, STAMP, slip, Blot reactions), attempts, own line, credit, mini ledger. Team mode without a team shows the create/join card first |
+| S2 Ledger | `/play/:mode/ledger` | Heron's ledger: search and filters as sticker chips, virtualized crisp table, completeness meter with Drip crawling, export CSV/JSON |
+| S3 Guess | `/play/:mode/guess` | Four steps: write a hypothesis from published atoms, test it free against the ledger, commit with a stake quote, reveal in the window; statuses as slips |
+| S4 Verify | `/play/:mode/verify` | The seal cracks open, the rule types out (English, DSL, canonical JSON), salt and commitment check, replay meter N of N, `make verify` command, log download; `?round=` for past rounds |
+| S5 Team crew | `/play/team/crew` | Heron's team desk: roster stickers, vault, locks, settle and claim |
+| S6 Account | `/account` | Wallet NEAR vs game credit vs vault, separate pending slips, $RULE balance and locks, claims, token operation recovery |
+| S7 Season | `/season` | Ledger-style boards per mode plus round history linking to each ledger and verify; when the deployment has no season view, an honest empty state |
+| S8 Demo | deployment strip | Live/Demo toggle as above |
+
+Old paths (`/log`, `/guess`, `/reveal`, `/team`, `/wallet`) redirect to their new homes with mode and round kept.
 
 ## The sealed-law scroll story (Home)
 
@@ -119,7 +130,7 @@ A pinned sequence about 400 vh tall that must land somewhere:
 3. In the dark, star doodles drift in parallax and the sealed envelope floats in, turning.
 4. The wax seal grows over the envelope while three lines appear one by one: "One law. Sealed before the first play." "It stamps every play YES or NO." "It opens only at the reveal."
 5. Blot slides in covering its eyes: "Not even Blot peeks."
-6. The pin releases into **"The last law, opened"**: the latest revealed round from chain (rule in English, plays, winner) and a button to replay every verdict on `/reveal`.
+6. The pin releases into **"The last law, opened"**: the latest revealed round from chain (rule in English, plays, winner) and a button to replay every verdict in Verify.
 
 Reduced motion: the same content as a static, readable stack.
 
@@ -140,6 +151,10 @@ Feel comes from five to eight small things in the same 100 ms, then rest.
 | Reveal | the seal cracks, the rule types out (38 ms per character), checks go spinner → tick |
 
 Curves: `--spring: cubic-bezier(.34,1.7,.5,1)` for pops, `--out: cubic-bezier(.2,.8,.2,1)` for settles. `prefers-reduced-motion` (and an in-app toggle) collapses every row to an instant state change.
+
+## Sound
+
+Short, dry, tactile SFX from a hand-inked paper world (rubber stamps, wax, paper, a rubbery mascot), generated once with ElevenLabs by `scripts/web/gen-sfx.mjs` and shipped as small MP3s under `public/sfx/` (about 90 KB total). Sounds answer only a user action or the user's own result (stamp, verdict, replay, poke, modal, tab); never page load, scroll or polling. On by default at a moderate volume, muted or adjusted in Settings, silent until the first gesture. No music for now (founder, 2026-11-08).
 
 ## Voice
 

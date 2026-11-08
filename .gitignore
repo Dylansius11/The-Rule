@@ -14,6 +14,8 @@ target/
 node_modules/
 dist/
 pkg/
+test-results/
+playwright-report/
 
 # OS and editor junk
 .DS_Store

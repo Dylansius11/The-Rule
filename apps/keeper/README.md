@@ -16,6 +16,52 @@ Dry run reads the network and a single final-block snapshot and prints decisions
 
 Heartbeat requires FINAL status, successful returned receipt outcomes and a compatible observed postcondition for every attempted action. The transaction's action outcome must be present; gas/data receipt IDs need not themselves have an execution outcome. This is not a claim that every detached callback appears in the returned graph: pending or failed begin/open states suppress heartbeat, including on an idle run. E10/E50 races are not resubmitted and suppress heartbeat; unknown outcomes and stale decisions also suppress it. An idle heartbeat only confirms a successful final state observation. No exception details, URLs or keys are logged. D31's native unknown-outcome risk remains unrecovered.
 
+## Planned Cloudflare qualification (not run)
+
+The `qualification` Wrangler environment deploys the same scheduled handler as the production Worker, under `the-rule-keeper-qualification`. It explicitly starts with **no Cron**, no workers.dev or preview URL, and full-sample Workers Logs. The top-level production schedule is unchanged; always use `--env qualification` below. No fetch endpoint or manual public trigger is needed.
+
+**Prerequisites, owned by founder/lead:**
+
+- A specific authorization for Cloudflare deployment, secrets, bounded Cron operation, testnet signing and spending: named account, fresh compatible Phase 6 game, permitted mode and inclusive round ceiling, allowed methods, spending ceiling, UTC run window, and a person responsible for monitoring and stopping. Existing r2 is not compatible; do not deploy over it or target it. Do not use the Demo game or its preselected-rule referee for this qualification.
+- A deployed, funded fresh testnet game with the current Borsh layout, reviewed non-demo referee and compatible parameters; a funded testnet keeper account and usable key with appropriate permissions; a reachable testnet RPC URL. Account creation, funding and deployment require their own authorization. Verify account IDs, contract code/parameters and next slots using read-only views before proceeding.
+- A Cloudflare account with Workers Free enabled, an available Cron slot, and authorization/credentials scoped to that account and this Worker. The separate Cloudflare Pages publication authorization is not Worker deployment authorization. A real Healthchecks.io check and its secret ping URL are required; if not already available, its account/check creation and access require owner authorization. Do not substitute a fabricated URL.
+- The selected mode and ceiling must cover every possible action. `LAST_ROUND_ID` is **inclusive**, not an exact-round filter: earlier rounds in that mode can also be acted on. If those are outside the authorization, do not enable Cron. Keep `MAINTAIN_SEASONS` false because the season ceiling does not isolate rounds.
+
+Use Windows PowerShell from the repository root with Windows Node and the already installed Wrangler **4.157.0**. The commands below invoke its JS entrypoint directly, not a Linux shim or a package installer. Authenticate only through an already authorized Cloudflare session; if unavailable, stop for the owner. Commands are planned, not executed:
+
+Use a project-isolated credential directory: `$env:XDG_CONFIG_HOME = (Join-Path (Get-Location) 'scratch/cloudflare-auth')`. The lead exercised this on 2026-11-09: the global Wrangler login belonged to another account, while isolated OAuth authenticated the founder-approved `ec31758cbebe819f854974885edf5379` account without replacing the global login. Its scopes are account/user read, Workers scripts write, tail read, Pages write and background refresh; do not expand them merely to silence Wrangler's generic missing-scope warning. Keep this directory ignored and never print its token. Recheck `whoami` with this same environment before a mutation.
+
+1. In `apps/keeper/wrangler.jsonc`, edit **only** `env.qualification.vars`: add `NEAR_RPC_URL`, `GAME_ACCOUNT` and `KEEPER_ACCOUNT` as non-secret strings, and set `KEEPER_MODES` and `LAST_ROUND_ID` to the exact authorized mode and inclusive ceiling. The committed `0` / `0` are restrictive defaults, **not** an authorization or selected target. Keep `NEAR_NETWORK` as `testnet`, `MAINTAIN_SEASONS` as `false`, and qualification `crons` as `[]`. Confirm the RPC URL contains no credentials. Do not put either secret in `vars`, command arguments, shell history, output or committed files.
+2. Set `$env:CLOUDFLARE_ACCOUNT_ID` in PowerShell to the owner-approved non-secret account ID, then check the selected Cloudflare account and deploy the no-Cron Worker only after authorization:
+
+   ```powershell
+   node .\apps\keeper\node_modules\wrangler\bin\wrangler.js whoami --config .\apps\keeper\wrangler.jsonc
+   node .\apps\keeper\node_modules\wrangler\bin\wrangler.js deploy --config .\apps\keeper\wrangler.jsonc --env qualification
+   ```
+
+   Confirm in Workers & Pages that `the-rule-keeper-qualification` is in the intended free account, has no Cron triggers, route or workers.dev/preview URL, and has the reviewed non-secret values. If a Worker with that name already exists, inspect it first and stop on any mismatch; a deploy can overwrite it. Do not proceed if account or trigger state is uncertain.
+3. Add each secret with Wrangler's masked interactive prompt, in a private terminal without transcript/recording. Paste its value only when prompted; never paste it in chat or command lines:
+
+   ```powershell
+   node .\apps\keeper\node_modules\wrangler\bin\wrangler.js secret put KEEPER_PRIVATE_KEY --config .\apps\keeper\wrangler.jsonc --env qualification
+   node .\apps\keeper\node_modules\wrangler\bin\wrangler.js secret put HEALTHCHECK_PING_URL --config .\apps\keeper\wrangler.jsonc --env qualification
+   ```
+
+   Each `secret put` immediately deploys a new Worker version. Confirm the secret *names*, not values, in the dashboard and confirm Cron remains absent. Secrets are environment-specific and survive ordinary deployments. Do not proceed if either secret or its authorized source is missing.
+4. Before enabling, start a separate PowerShell terminal for live output:
+
+   ```powershell
+   node .\apps\keeper\node_modules\wrangler\bin\wrangler.js tail --config .\apps\keeper\wrangler.jsonc --env qualification --format json
+   ```
+
+   With explicit approval for the exact run window, replace only qualification `crons: []` with a **date- and time-bounded UTC expression**, then deploy the same environment using the deploy command above. For example, `["10,12,14 9 12 11 *"]` selects 09:10, 09:12 and 09:14 UTC on November 12; it is illustrative, not an approved date. Enumerate only approved minutes and allow up to 15 minutes for propagation before the first scheduled instant. Cron has no year field, so this expression repeats annually if not removed; it is not an automatic permanent expiration. Do not use `*/2 * * * *` for qualification. Confirm the deployed trigger and all target fences in the dashboard before the first instant.
+5. Monitor continuously. At the approved stop time, or immediately on an error, unexpected state, missing heartbeat, uncertain outcome or approaching any authorization limit, restore qualification `crons` to `[]` and run the same scoped deploy command. Confirm the trigger is absent in the dashboard and keep monitoring for at least 15 minutes: changes can take up to 15 minutes to propagate and an already-started invocation can still finish. The date/minute restriction and authorization must account for propagation and in-flight transactions; removing Cron is not an instantaneous transaction kill switch. Never resend an unknown transaction; reconcile final receipts and state first. If the stop deploy fails, use the authorized Cloudflare dashboard emergency removal for this Worker, verify removal, and investigate before proceeding.
+6. Retrieve actual deployed evidence promptly: Workers & Pages → `the-rule-keeper-qualification` → **Observability**, filter the UTC window and Cron invocation logs. Record each scheduled invocation's timestamp, outcome, CPU time and wall time, relevant sanitized keeper decision/postcondition logs, and errors including `exceededCpu`; reconcile observed Healthchecks pings and final-block on-chain state/receipts with scheduled slot times. Invocation success or `decision=none` alone does not prove a transition or an on-time start; `keeper waiting; no heartbeat` is not healthy. Correlate transaction hashes independently from chain records; the keeper does not log them. Live `tail` is supplementary and can drop events. Logs on the free plan have limited retention, so preserve sanitized evidence without secrets.
+
+Cloudflare documents 10 ms CPU per Free-plan Cron invocation and 50 subrequests per invocation; CPU excludes network wait. Actual deployed signed transitions and their CPU/outcomes must be observed; local workerd, bundling and idle-only invocations cannot qualify the signing path. The on-time testnet and heartbeat criteria remain open until actually demonstrated, and a finite sample is not a timeliness guarantee.
+
+Sources checked 2026-11-09: [Cron propagation and UTC](https://developers.cloudflare.com/workers/configuration/cron-triggers/), [environment isolation](https://developers.cloudflare.com/workers/wrangler/environments/), [secrets](https://developers.cloudflare.com/workers/configuration/secrets/), [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/), [real-time logs](https://developers.cloudflare.com/workers/observability/logs/real-time-logs/), and [Free limits/CPU](https://developers.cloudflare.com/workers/platform/limits/).
+
 ## Local sandbox and Worker qualification
 
 The lead's Rust near-workspaces launcher deploys the current game WASM and MOCK OutLayer to disposable local sandbox state, funds disposable accounts and invokes `apps/keeper/ci/sandbox-smoke.ts` with `NEAR_RPC_URL`, `GAME_ACCOUNT`, `KEEPER_ACCOUNT`, `KEEPER_PRIVATE_KEY`, and `KEEPER_SMOKE_CASE`. The `race` case additionally requires distinct `RACER_ACCOUNT` and `RACER_PRIVATE_KEY`. The four cases use fresh fixtures: `advance`, `race` and `worker` need a due Solo Investigation; `pending` needs an outstanding begin. Explicit sandbox mode accepts actual RPC chain IDs `localnet`, `sandbox`, or `test-chain-<alphanumeric suffix>`, only on loopback; it rejects mainnet/testnet and never substitutes the RPC's chain ID.

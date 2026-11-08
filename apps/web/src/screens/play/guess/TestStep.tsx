@@ -1,5 +1,6 @@
 import type { useLog } from '@/game';
 import { Button } from '@/ui/Button';
+import { Term } from '@/ui/Term';
 import type { GuessDraft } from './useGuessDraft';
 
 type Log = ReturnType<typeof useLog>;
@@ -10,9 +11,10 @@ export function TestStep({ draft, log }: { draft: GuessDraft; log: Log }) {
   return (
     <div>
       <p className="text-[17px] font-semibold">
-        Your browser replays your guess against every play in the ledger. It is free, nothing is sent and
-        nothing is charged. A guess that disagrees with even one logged verdict cannot be the rule. A guess
-        that agrees with all of them might still not be the rule, because other guesses can fit too.
+        Your browser replays your guess against every play in the <Term term="ledger" />. It is free, nothing
+        is sent and nothing is charged. A guess that disagrees with even one logged verdict cannot be the
+        rule. A guess that agrees with all of them might still not be the rule, because other guesses can fit
+        too.
       </p>
       {rule ? (
         <>

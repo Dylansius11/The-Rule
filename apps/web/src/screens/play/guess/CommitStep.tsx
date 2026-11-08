@@ -5,6 +5,7 @@ import { useConnect } from '@/layout/useConnect';
 import { ActionSlip } from '@/ui/ActionSlip';
 import { Button } from '@/ui/Button';
 import { Doodle } from '@/ui/Doodle';
+import { Term } from '@/ui/Term';
 import type { GuessDraft } from './useGuessDraft';
 
 type Actions = ReturnType<typeof useGuessActions>;
@@ -28,8 +29,9 @@ export function CommitStep({ draft, actions, open, stake, needsTeam }: CommitSte
   return (
     <div>
       <p className="text-[17px] font-semibold">
-        Committing seals your guess as a hash on the chain and locks a stake. Nobody can read the guess until
-        you reveal it in step 4. The earliest correct commit wins 40% of the pot.
+        <Term term="commit">Committing</Term> seals your guess as a hash on the chain and locks a{' '}
+        <Term term="stake" />. Nobody can read the guess until you <Term term="reveal" /> it in step 4. The
+        earliest correct commit wins 40% of the pot.
       </p>
       <h3 className="display mt-4 flex items-center gap-2 text-[30px] leading-none">
         Commit <Doodle name="doodles/ribbon" size={60} rot={-4} />
@@ -45,7 +47,8 @@ export function CommitStep({ draft, actions, open, stake, needsTeam }: CommitSte
         )}
       </p>
       <p className="mt-1 text-[15px] font-bold">
-        The salt for this guess is stored only in this browser. Do not clear site data before you reveal.
+        The <Term term="salt" /> for this guess is stored only in this browser. Do not clear site data before
+        you reveal.
       </p>
       {rule ? (
         <p className="mt-3 rounded-lg border-[3px] border-ink bg-paper-2 p-3 text-[17px] font-extrabold">

@@ -1,5 +1,6 @@
 import { AtomPicker } from '@/screens/shared/AtomPicker';
 import { RadioChips } from '@/ui/Chip';
+import { Term } from '@/ui/Term';
 import type { GuessDraft } from './useGuessDraft';
 
 const SHAPES: Record<number, string> = {
@@ -21,9 +22,9 @@ export function HypothesisStep({ draft }: { draft: GuessDraft }) {
   return (
     <div>
       <p className="text-[17px] font-semibold">
-        The hidden law is a short sentence made of one or two published building blocks, called atoms, such as
-        “the number is even”. Pick how many atoms your guess uses, then choose them. You can flip any atom to
-        its opposite.
+        The hidden law is a short sentence made of one or two published building blocks, called{' '}
+        <Term term="atom">atoms</Term>, such as “the number is even”. Pick how many atoms your guess uses,
+        then choose them. You can flip any atom to its opposite.
       </p>
       <div className="mt-4">
         <RadioChips

@@ -3,7 +3,7 @@ import { useClaimActions, useLatestRound, useTeamActions } from '@/game';
 import { ActionSlip } from '@/ui/ActionSlip';
 import { Button } from '@/ui/Button';
 import { InkBox } from '@/ui/InkBox';
-import { phaseLabel } from '../shared/round';
+import { phaseLabel } from '@/screens/shared/round';
 import { TextField, busy } from './parts';
 
 export function PastRounds({ teamIdGuess }: { teamIdGuess: number | null }) {

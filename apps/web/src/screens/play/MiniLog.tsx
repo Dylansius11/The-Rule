@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
+import { roomPath } from '@/app/paths';
 import type { useLog } from '@/game';
 import type { Mode, Round } from '@/game/types';
 import { Heron } from '@/mascot/Heron';
@@ -7,7 +8,7 @@ import { Button } from '@/ui/Button';
 import { ErrorCard } from '@/ui/ErrorCard';
 import { InkBox } from '@/ui/InkBox';
 import { VerdictTag } from '@/ui/Tag';
-import { modeName, pad3, isActive } from '../shared/round';
+import { modeName, pad3, isActive } from '@/screens/shared/round';
 
 type Log = ReturnType<typeof useLog>;
 const SHOW = 6;
@@ -26,8 +27,8 @@ export function MiniLog({ mode, round, log }: { mode: Mode; round: Round | null;
     <div className="wrap">
       <div className="relative flex items-end justify-between gap-4">
         <div>
-          <h2 className="display text-[clamp(52px,8vw,104px)] leading-[0.85]">
-            The public <span className="text-grape">ledger</span>
+          <h2 className="display text-[clamp(40px,6vw,72px)] leading-[0.85]">
+            The newest <span className="text-grape">plays</span>
           </h2>
           <span className="hand mb-5 mt-1 block -rotate-1 text-[24px] md:text-[28px]">
             every row is on-chain. we hide nothing (except the one thing).
@@ -92,12 +93,15 @@ export function MiniLog({ mode, round, log }: { mode: Mode; round: Round | null;
         </InkBox>
       )}
       <div className="mt-6 flex flex-wrap items-center gap-4">
-        <Button to={round ? `/log?mode=${mode}&round=${round.roundId}` : '/log'} variant="grape">
+        <Button to={roomPath(mode, 'ledger', round?.roundId)} variant="grape">
           Open the full ledger
         </Button>
         <span className="text-[15px] font-semibold">
           Filter, search, export CSV or JSON.{' '}
-          <Link to="/reveal" className="font-extrabold underline decoration-2 underline-offset-2">
+          <Link
+            to={roomPath(mode, 'verify')}
+            className="font-extrabold underline decoration-2 underline-offset-2"
+          >
             Replay a settled round
           </Link>
           .

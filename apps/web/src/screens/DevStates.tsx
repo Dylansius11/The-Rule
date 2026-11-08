@@ -9,7 +9,7 @@ import { ProgressMeter } from '@/ui/ProgressMeter';
 import { Heron } from '@/mascot/Heron';
 import { Drip } from '@/mascot/Drip';
 import { Band } from '@/ui/Band';
-import { PlayDesk } from './home/PlayDesk';
+import { PlayDesk } from './play/PlayDesk';
 import type { Round } from '@/game/types';
 
 const input = { number: 7, word: 'otter' };

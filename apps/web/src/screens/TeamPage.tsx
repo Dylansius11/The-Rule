@@ -7,9 +7,9 @@ import { EmptyState } from '@/ui/EmptyState';
 import { ErrorCard } from '@/ui/ErrorCard';
 import { HashText } from '@/ui/HashText';
 import { PageHead } from './shared/PageHead';
-import { InTeam } from './team/InTeam';
-import { NoTeam } from './team/NoTeam';
-import { PastRounds } from './team/PastRounds';
+import { InTeam } from './play/crew/InTeam';
+import { NoTeam } from './play/crew/NoTeam';
+import { PastRounds } from './play/crew/PastRounds';
 
 /** S5: the heron's team desk. */
 export function TeamPage() {

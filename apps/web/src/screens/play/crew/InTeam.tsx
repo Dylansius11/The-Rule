@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
+import { roomPath } from '@/app/paths';
 import { formatNear } from '@/chain/format';
 import { useEntity, useLatestRound, useTeamActions } from '@/game';
 import type { Team } from '@/game/types';
@@ -7,7 +8,7 @@ import { ActionSlip } from '@/ui/ActionSlip';
 import { AmountField, readNear } from '@/ui/AmountField';
 import { Button } from '@/ui/Button';
 import { InkBox } from '@/ui/InkBox';
-import { isActive, phaseLabel, pad3 } from '../shared/round';
+import { isActive, phaseLabel, pad3 } from '@/screens/shared/round';
 import { Roster } from './Roster';
 import { TextField, busy } from './parts';
 
@@ -144,12 +145,12 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
           )}
           <p className="mt-3 text-[15px] font-semibold">
             Team stamps happen on the{' '}
-            <Link to="/" className="font-extrabold underline decoration-2">
-              Play desk
+            <Link to={roomPath(1)} className="font-extrabold underline decoration-2">
+              Stamp tab
             </Link>{' '}
-            in Team mode. RULE locks for a team round are set on the{' '}
-            <Link to="/wallet" className="font-extrabold underline decoration-2">
-              Wallet
+            of the Team room. RULE locks for a team round are set on the{' '}
+            <Link to="/account" className="font-extrabold underline decoration-2">
+              Account page
             </Link>
             .
           </p>

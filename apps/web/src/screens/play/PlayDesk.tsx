@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
+import { roomPath } from '@/app/paths';
+import { useSound, type SoundName } from '@/audio';
 import { Art } from '@/art/Art';
 import { formatNear } from '@/chain/format';
 import { useEntity, usePlay, usePlayer, useParams, useTeam, useWords } from '@/game';
@@ -16,7 +18,7 @@ import { ReelNumber } from '@/ui/Reel';
 import { PlaySlip } from '@/ui/Slip';
 import { SpeechBubble } from '@/ui/SpeechBubble';
 import { timeAgo } from '@/chain/format';
-import { modeName, pad3 } from '../shared/round';
+import { modeName, pad3 } from '@/screens/shared/round';
 import { WordPicker } from './WordPicker';
 
 const BLOT: Record<PlayState['kind'], BlotState> = {
@@ -84,22 +86,37 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
   const inFlight = BUSY.includes(play.state.kind);
   const waiting = !!player.data?.pendingPlay || !!entity.data?.pending;
 
+  // Sounds answer the player's own stamp: the verdict on their play, never page load or polling.
+  const sound = useSound();
+  const stateKind = play.state.kind;
+  const lastKind = useRef(stateKind);
+  const minted = play.state.kind === 'accepted' && play.state.row.minted > 0n;
+  useEffect(() => {
+    if (lastKind.current === stateKind) return;
+    lastKind.current = stateKind;
+    const cue: Partial<Record<PlayState['kind'], SoundName>> = {
+      pending: 'pending',
+      accepted: 'yes',
+      rejected: 'no',
+      known: 'duplicate',
+      refunded: 'refund',
+      error: 'error',
+    };
+    const name = cue[stateKind];
+    if (name) sound.play(name);
+    if (stateKind === 'accepted' && minted) setTimeout(() => sound.play('mint'), 280);
+  }, [stateKind, minted, sound]);
+
   let reason: ReactReason = null;
   if (wallet.status === 'connected') {
-    if (mode === 1 && player.data && player.data.teamId === null)
-      reason = {
-        text: 'Team plays are paid from a Team vault. Join or create a team first.',
-        to: '/team',
-        cta: 'Open Team desk',
-      };
-    else if (waiting && !inFlight)
+    if (waiting && !inFlight)
       reason = { text: 'A play is already waiting for the sealed program. One at a time.' };
     else if (left !== null && left <= 0) reason = { text: 'No attempts left in this round for your line.' };
     else if (fee !== null && balance !== undefined && balance < fee)
       reason = {
         text: `Not enough ${mode === 0 ? 'game credit' : 'team vault'} for the ${formatNear(fee)} NEAR fee.`,
-        to: mode === 0 ? '/wallet' : '/team',
-        cta: mode === 0 ? 'Add credit' : 'Open Team desk',
+        to: mode === 0 ? '/account' : roomPath(1, 'crew'),
+        cta: mode === 0 ? 'Add credit' : 'Open the crew desk',
       };
   }
   const canStamp = wallet.status === 'connected' && !reason && !inFlight && word !== null && fee !== null;
@@ -155,6 +172,12 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
             {modeName(mode)} #{round.roundId} · No. {pad3(number)}
           </span>
         </div>
+        {mode === 1 ? (
+          <p className="mt-1 text-[15px] font-bold">
+            Your team plays as one: this play is paid from the team vault and uses the team&apos;s single
+            line.
+          </p>
+        ) : null}
 
         <div className="hand mt-3 flex items-baseline gap-3 text-[26px]">
           number <small className="mono text-[13px] font-bold opacity-70">000 to 999</small>
@@ -221,6 +244,7 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
             busy={inFlight}
             disabled={!canStamp}
             onClick={stamp}
+            sound="stamp"
           >
             {inFlight ? 'Stamping…' : 'STAMP!'}
             {fee !== null && !inFlight ? (

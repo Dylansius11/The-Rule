@@ -1,4 +1,5 @@
 import { Link } from 'react-router';
+import { roomPath } from '@/app/paths';
 import { Art } from '@/art/Art';
 import { useLatestRevealedRound, useNextSlot } from '@/game';
 import type { Mode, Round } from '@/game/types';
@@ -6,8 +7,8 @@ import { Blot } from '@/mascot/Blot';
 import { useNow } from '@/motion/hooks';
 import { Button } from '@/ui/Button';
 import { InkBox } from '@/ui/InkBox';
-import { fmtIn, fmtUtc } from '../shared/format';
-import { modeName, phaseLabel, outcomeLabel } from '../shared/round';
+import { fmtIn, fmtUtc } from '@/screens/shared/format';
+import { modeName, phaseLabel, outcomeLabel } from '@/screens/shared/round';
 
 /**
  * The honest face of the desk when plays are closed. Says what is true (phase, next slot, last revealed round)
@@ -53,12 +54,12 @@ export function NoRoundOpen({ mode, round }: { mode: Mode; round: Round | null }
       <p className="mono mx-auto mt-3 max-w-[56ch] text-[14px] font-bold">{next}</p>
       <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
         {revealed.data ? (
-          <Button to={`/reveal?mode=${revealed.data.mode}&round=${revealed.data.roundId}`} variant="red">
+          <Button to={roomPath(revealed.data.mode, 'verify', revealed.data.roundId)} variant="red">
             See the last opened law
           </Button>
         ) : null}
         {round ? (
-          <Button to={`/log?mode=${mode}&round=${round.roundId}`} variant="paper">
+          <Button to={roomPath(mode, 'ledger', round.roundId)} variant="paper">
             Read the ledger
           </Button>
         ) : null}
@@ -68,7 +69,7 @@ export function NoRoundOpen({ mode, round }: { mode: Mode; round: Round | null }
           Last revealed: {modeName(revealed.data.mode)} round {revealed.data.roundId}, {revealed.data.logLen}{' '}
           plays,{' '}
           <Link
-            to={`/reveal?mode=${revealed.data.mode}&round=${revealed.data.roundId}`}
+            to={roomPath(revealed.data.mode, 'verify', revealed.data.roundId)}
             className="font-extrabold underline decoration-2 underline-offset-2"
           >
             replay every verdict in your browser

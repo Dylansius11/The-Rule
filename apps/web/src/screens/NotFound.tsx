@@ -1,4 +1,5 @@
 import { Link } from 'react-router';
+import { roomPath } from '@/app/paths';
 import { Heron } from '@/mascot/Heron';
 import { Button } from '@/ui/Button';
 import { InkBox } from '@/ui/InkBox';
@@ -21,15 +22,15 @@ export function NotFound() {
             The clerk checked every drawer. Nothing lives at this address.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-4 md:justify-start">
-            <Button to="/" variant="red">
-              Back to the play desk
+            <Button to={roomPath(0)} variant="red">
+              Back to the game
             </Button>
-            <Button to="/log" variant="paper">
-              Read the ledger
+            <Button to="/" variant="paper">
+              Start page
             </Button>
           </div>
           <p className="mt-4 text-[15px] font-semibold">
-            <Link to="/reveal" className="font-extrabold underline decoration-2">
+            <Link to={roomPath(0, 'verify')} className="font-extrabold underline decoration-2">
               Or see the last opened law
             </Link>
             .

@@ -23,14 +23,14 @@ pub fn artifact(name: &str) -> PathBuf {
     .join(relative)
 }
 
-pub fn params(outlayer: &str) -> Value {
+pub fn params(outlayer: &str, genesis_ns: u64) -> Value {
     let limits = json!({"instructions":1000000000,"memory_mb":128,"execution_seconds":5});
     json!({
         "play_fee":"10000000000000000000000","fee_split_bps":[8000,1500,500],
         "storage_charge_per_play":"7680000000000000000000","storage_charge_account":"1600000000000000000000","storage_charge_team":"5000000000000000000000",
         "stake_bps":[100,200],"stake_min":"100000000000000000000000","wrong_return_bps":5000,
         "solved_split_bps":[4000,4000,1000,1000],"unsolved_split_bps":[4000,5000,1000],
-        "genesis_ns":0,"round_period_ns":86400000000000u64,"mode_offset_ns":[0,0],
+        "genesis_ns":genesis_ns,"round_period_ns":86400000000000u64,"mode_offset_ns":[0,0],
         "investigation_max_ns":3600000000000u64,"reveal_window_ns":60000000000u64,"begin_timeout_ns":3600000000000u64,"open_timeout_ns":3600000000000u64,
         "min_reveal_delay_blocks":2,"base_attempts":[1,50],"lock_tiers":[],"attempt_cap":[125,250],"share_cap":[25,50],
         "round_allowance":"500000000000000000000000","mint_base":"100000000000000000000","max_team_size":5,

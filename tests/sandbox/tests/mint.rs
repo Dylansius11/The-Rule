@@ -210,7 +210,8 @@ async fn assert_burn_receipts(
 #[tokio::test]
 async fn accept_mints_real_rule_and_a_lock_round_trips_through_the_token() -> Res<()> {
     let worker = near_workspaces::sandbox().await?;
-    let Env { mock, game, token } = start(&worker, &"11".repeat(32), WINDOW_NS).await?;
+    let Env { mock, game, token } =
+        start_with_period(&worker, &"11".repeat(32), WINDOW_NS, 120_000_000_000).await?;
     let bounds: Value = token.view("storage_balance_bounds").await?.json()?;
     let min: u128 = bounds["min"].as_str().unwrap().parse()?;
     // The game receives locked RULE, so it needs a token account too.
@@ -311,8 +312,20 @@ async fn accept_mints_real_rule_and_a_lock_round_trips_through_the_token() -> Re
     assert_eq!(lock_view(&game, &alice, 1).await?, 40 * RULE);
     assert_eq!(balance(&token, game.id().as_str()).await?, 40 * RULE);
 
-    // Unlock needs one yocto. Round 1 never started and its slot lies far in the past in this
-    // demo setup (genesis 0), so the lock is released; on a production game it waits a period.
+    // The never-started slot releases only after its full scheduled period.
+    // Advance the real sandbox clock, not game state or callback ownership.
+    let timing: Value = game.view("get_params").await?.json()?;
+    let deadline = timing["genesis_ns"].as_u64().ok_or("missing genesis")?
+        + 2 * timing["round_period_ns"].as_u64().ok_or("missing period")?;
+    let stop = std::time::Instant::now() + std::time::Duration::from_secs(90);
+    while worker.view_block().await?.timestamp() < deadline {
+        assert!(
+            std::time::Instant::now() < stop,
+            "sandbox lock deadline not reached"
+        );
+        worker.fast_forward(100).await?;
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
     let no_yocto = alice
         .call(game.id(), "unlock")
         .args_json(json!({"mode":0,"round_id":1}))

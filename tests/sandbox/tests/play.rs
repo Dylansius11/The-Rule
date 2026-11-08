@@ -352,7 +352,7 @@ async fn low_compute_and_external_callback_are_rejected_without_effects() -> Res
         .await?;
     mock.call("new").transact().await?.into_result()?;
     let game = worker.dev_deploy(&std::fs::read(artifact("game"))?).await?;
-    let mut config = params(mock.id().as_str());
+    let mut config = params(mock.id().as_str(), worker.view_block().await?.timestamp());
     config["outlayer_deposit"]["verdict"] = json!("1");
     game.call("new")
         .args_json(json!({"params":config,"demo":true}))

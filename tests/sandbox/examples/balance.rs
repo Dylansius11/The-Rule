@@ -446,7 +446,8 @@ async fn main() -> Res<()> {
         .await?;
     token.call("new").args_json(json!({"minter":game.id(),"cap":"1000000000000000000000000000","metadata":{"spec":"ft-1.0.0","name":"THE RULE","symbol":"RULE","decimals":18}})).transact().await?.into_result()?;
     fund_token_operations(&token).await?;
-    let mut params = sandbox_tests::params(mock.id().as_str());
+    let mut params =
+        sandbox_tests::params(mock.id().as_str(), worker.view_block().await?.timestamp());
     params["token"] = json!(token.id());
     params["platform"] = json!(platform_id);
     params["reveal_window_ns"] = json!(3_000_000_000u64);

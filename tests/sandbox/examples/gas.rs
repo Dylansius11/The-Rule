@@ -333,7 +333,8 @@ async fn sweep_fixture(
         .await?;
     token.call("new").args_json(json!({"minter":game.id(),"cap":"1000000000000000000000000000","metadata":{"spec":"ft-1.0.0","name":"THE RULE","symbol":"RULE","decimals":18}})).transact().await?.into_result()?;
     fund_token_operations(&token).await?;
-    let mut config = sandbox_tests::params(mock.id().as_str());
+    let mut config =
+        sandbox_tests::params(mock.id().as_str(), worker.view_block().await?.timestamp());
     config["reveal_window_ns"] = json!(3_000_000_000u64);
     config["token"] = json!(token.id());
     game.call("new")
@@ -728,7 +729,8 @@ async fn main() -> Res<()> {
         .await?;
     token.call("new").args_json(json!({"minter":game.id(),"cap":"1000000000000000000000000000","metadata":{"spec":"ft-1.0.0","name":"THE RULE","symbol":"RULE","decimals":18}})).transact().await?.into_result()?;
     fund_token_operations(&token).await?;
-    let mut config = sandbox_tests::params(mock.id().as_str());
+    let mut config =
+        sandbox_tests::params(mock.id().as_str(), worker.view_block().await?.timestamp());
     config["reveal_window_ns"] = json!(3_000_000_000u64);
     config["base_attempts"] = json!([2, 50]);
     config["token"] = json!(token.id());

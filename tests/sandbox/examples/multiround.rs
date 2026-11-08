@@ -171,6 +171,23 @@ async fn wait_phase(game: &Contract, id: u32, phase: &str) -> Res<()> {
     }
     Err(format!("round {id} did not reach {phase}").into())
 }
+async fn wait_deadline(worker: &Worker<Sandbox>, game: &Contract, id: u32, field: &str) -> Res<()> {
+    let round: Value = game
+        .view("get_round")
+        .args_json(json!({"mode":0,"id":id}))
+        .await?
+        .json()?;
+    let deadline = round[field].as_u64().ok_or("missing logical deadline")?;
+    let stop = std::time::Instant::now() + Duration::from_secs(180);
+    while worker.view_block().await?.timestamp() < deadline {
+        if std::time::Instant::now() >= stop {
+            return Err(format!("round {id} {field} not reached").into());
+        }
+        worker.fast_forward(5).await?;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    Ok(())
+}
 async fn token_balance(token: &Contract, account: &str) -> Res<u128> {
     let amount: String = token
         .view("ft_balance_of")
@@ -182,7 +199,7 @@ async fn token_balance(token: &Contract, account: &str) -> Res<u128> {
 async fn locked(game: &Contract, alice: &Account) -> Res<u128> {
     let amount: String = game
         .view("get_lock")
-        .args_json(json!({"mode":0,"round_id":1,"account":alice.id()}))
+        .args_json(json!({"mode":1,"round_id":0,"account":alice.id()}))
         .await?
         .json()?;
     Ok(amount.parse()?)
@@ -260,11 +277,13 @@ async fn main() -> Res<()> {
         .transact()
         .await?
         .into_result()?;
-    let mut config = sandbox_tests::params(mock.id().as_str());
+    let mut config =
+        sandbox_tests::params(mock.id().as_str(), worker.view_block().await?.timestamp());
     fund_token_operations(&token).await?;
     config["token"] = json!(token.id());
     config["base_attempts"] = json!([3, 50]);
-    config["investigation_max_ns"] = json!(1_000_000_000u64);
+    config["investigation_max_ns"] = json!(120_000_000_000u64);
+    config["round_period_ns"] = json!(180_000_000_000u64);
     config["reveal_window_ns"] = json!(1_000_000_000u64);
     let (rule, _) = rule_core::sample(b"multiround-sandbox");
     let commitment = serde_json::to_value(protocol::round_commitment(&rule, &[5; 32]))?;
@@ -399,9 +418,23 @@ async fn main() -> Res<()> {
     // Move all minted tokens into a future lock; now the owner can unregister without burning.
     let amount = 100 * RULE;
     alice
+        .call(game.id(), "create_team")
+        .args_json(json!({"name":"unlock-fixture"}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+    let slot: Value = game
+        .view("get_next_slot")
+        .args_json(json!({"mode":1}))
+        .await?
+        .json()?;
+    assert_eq!(slot["round_id"], 0, "Team lock slot already elapsed");
+    let unlock_at = slot["slot_ns"].as_u64().ok_or("missing Team slot")? + 180_000_000_000;
+    alice
         .call(token.id(), "ft_transfer_call")
         .args_json(json!({"receiver_id":game.id(),"amount":amount.to_string(),
-        "msg":json!({"lock":{"mode":0,"round_id":1}}).to_string()}))
+        "msg":json!({"lock":{"mode":1,"round_id":0}}).to_string()}))
         .deposit(NearToken::from_yoctonear(1))
         .max_gas()
         .transact()
@@ -411,9 +444,17 @@ async fn main() -> Res<()> {
     assert_eq!(token_balance(&token, alice.id().as_str()).await?, 0);
     assert_eq!(token_balance(&token, game.id().as_str()).await?, amount);
     unregister(&alice, &token).await?;
+    let stop = std::time::Instant::now() + Duration::from_secs(240);
+    while worker.view_block().await?.timestamp() < unlock_at {
+        if std::time::Instant::now() >= stop {
+            return Err("Team lock expiry not reached".into());
+        }
+        worker.fast_forward(100).await?;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
     let first = alice
         .call(game.id(), "unlock")
-        .args_json(json!({"mode":0,"round_id":1}))
+        .args_json(json!({"mode":1,"round_id":0}))
         .deposit(NearToken::from_yoctonear(1))
         .max_gas()
         .transact()
@@ -433,7 +474,7 @@ async fn main() -> Res<()> {
     register_storage(&alice, &token, minimum).await?;
     let retry = alice
         .call(game.id(), "unlock")
-        .args_json(json!({"mode":0,"round_id":1}))
+        .args_json(json!({"mode":1,"round_id":0}))
         .deposit(NearToken::from_yoctonear(1))
         .max_gas()
         .transact()
@@ -452,7 +493,7 @@ async fn main() -> Res<()> {
     assert_eq!(token_balance(&token, alice.id().as_str()).await?, amount);
     let duplicate = alice
         .call(game.id(), "unlock")
-        .args_json(json!({"mode":0,"round_id":1}))
+        .args_json(json!({"mode":1,"round_id":0}))
         .deposit(NearToken::from_yoctonear(1))
         .max_gas()
         .transact()
@@ -462,6 +503,7 @@ async fn main() -> Res<()> {
     assert!(format!("{duplicate:?}").contains("E56"));
     reconcile(&game, &token, ALLOWANCE - amount, &[0, amount]).await?;
     // Leave round zero Opening while round one starts. No state patch or callback impersonation.
+    wait_deadline(&worker, &game, 0, "investigation_end_ns").await?;
     alice
         .call(game.id(), "advance")
         .args_json(json!({"mode":0}))
@@ -469,8 +511,7 @@ async fn main() -> Res<()> {
         .transact()
         .await?
         .into_result()?;
-    tokio::time::sleep(Duration::from_secs(2)).await;
-    worker.fast_forward(3).await?;
+    wait_deadline(&worker, &game, 0, "reveal_deadline_ns").await?;
     let open0 = alice
         .call(game.id(), "finalize")
         .args_json(json!({"mode":0}))
@@ -478,6 +519,21 @@ async fn main() -> Res<()> {
         .transact_async()
         .await?;
     wait_requests(&mock, 4).await?;
+    let slot: Value = game
+        .view("get_next_slot")
+        .args_json(json!({"mode":0}))
+        .await?
+        .json()?;
+    assert_eq!(slot["round_id"], 1, "fixture missed its second slot");
+    let slot_ns = slot["slot_ns"].as_u64().ok_or("missing next slot")?;
+    let stop = std::time::Instant::now() + Duration::from_secs(180);
+    while worker.view_block().await?.timestamp() < slot_ns {
+        if std::time::Instant::now() >= stop {
+            return Err("second slot not reached".into());
+        }
+        worker.fast_forward(5).await?;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
     let begin1 = alice
         .call(game.id(), "start_round")
         .args_json(json!({"mode":0}))
@@ -522,7 +578,8 @@ async fn main() -> Res<()> {
     assert_eq!(ledger["carry"], (p0 * 5 / 10).to_string());
     let expected_credit = initial_credit
         - 2 * (10_000_000_000_000_000_000_000u128 + 7_680_000_000_000_000_000_000u128)
-        - 7_680_000_000_000_000_000_000u128;
+        - 7_680_000_000_000_000_000_000u128
+        - 5_000_000_000_000_000_000_000u128;
     assert_eq!(credit(&game, &alice).await?, expected_credit);
     alice
         .call(game.id(), "claim")
@@ -573,6 +630,7 @@ async fn main() -> Res<()> {
         (ALLOWANCE - 100 * RULE).to_string()
     );
     assert_eq!(second["pot"], (p0 / 2).to_string());
+    wait_deadline(&worker, &game, 1, "investigation_end_ns").await?;
     alice
         .call(game.id(), "advance")
         .args_json(json!({"mode":0}))
@@ -580,8 +638,7 @@ async fn main() -> Res<()> {
         .transact()
         .await?
         .into_result()?;
-    tokio::time::sleep(Duration::from_secs(2)).await;
-    worker.fast_forward(3).await?;
+    wait_deadline(&worker, &game, 1, "reveal_deadline_ns").await?;
     let open1 = alice
         .call(game.id(), "finalize")
         .args_json(json!({"mode":0}))

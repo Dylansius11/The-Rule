@@ -27,7 +27,7 @@ async fn main() -> Res<()> {
         .await?
         .into_result()?;
     let game = account.deploy(&wasm).await?.into_result()?;
-    let config = sandbox_tests::params(mock.id().as_str());
+    let config = sandbox_tests::params(mock.id().as_str(), worker.view_block().await?.timestamp());
     root.call(game.id(), "new")
         .args_json(json!({"params":config,"demo":true}))
         .max_gas()

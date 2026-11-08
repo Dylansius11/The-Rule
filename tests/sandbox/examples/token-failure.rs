@@ -165,10 +165,10 @@ async fn token_balance(token: &Contract, account: &str) -> Res<u128> {
         .json()?;
     Ok(amount.parse()?)
 }
-async fn locked(game: &Contract, alice: &Account) -> Res<u128> {
+async fn locked(game: &Contract, alice: &Account, round_id: u32) -> Res<u128> {
     let amount: String = game
         .view("get_lock")
-        .args_json(json!({"mode":0,"round_id":1,"account":alice.id()}))
+        .args_json(json!({"mode":0,"round_id":round_id,"account":alice.id()}))
         .await?
         .json()?;
     Ok(amount.parse()?)
@@ -247,9 +247,11 @@ async fn main() -> Res<()> {
         .await?
         .into_result()?;
     fund_token_operations(&token).await?;
-    let mut config = sandbox_tests::params(mock.id().as_str());
+    let mut config =
+        sandbox_tests::params(mock.id().as_str(), worker.view_block().await?.timestamp());
     config["token"] = json!(token.id());
     config["base_attempts"] = json!([3, 50]);
+    config["round_period_ns"] = json!(120_000_000_000u64);
     game.call("new")
         .args_json(json!({"params":config,"demo":true}))
         .transact()
@@ -374,22 +376,37 @@ async fn main() -> Res<()> {
 
     // Move all minted tokens into a future lock; now the owner can unregister without burning.
     let amount = 100 * RULE;
+    let slot: Value = game
+        .view("get_next_slot")
+        .args_json(json!({"mode":0}))
+        .await?
+        .json()?;
+    let lock_id = slot["round_id"].as_u64().ok_or("missing lock slot")? as u32;
+    let unlock_at = slot["slot_ns"].as_u64().ok_or("missing lock timestamp")? + 120_000_000_000;
     alice
         .call(token.id(), "ft_transfer_call")
         .args_json(json!({"receiver_id":game.id(),"amount":amount.to_string(),
-        "msg":json!({"lock":{"mode":0,"round_id":1}}).to_string()}))
+        "msg":json!({"lock":{"mode":0,"round_id":lock_id}}).to_string()}))
         .deposit(NearToken::from_yoctonear(1))
         .max_gas()
         .transact()
         .await?
         .into_result()?;
-    assert_eq!(locked(&game, &alice).await?, amount);
+    assert_eq!(locked(&game, &alice, lock_id).await?, amount);
     assert_eq!(token_balance(&token, alice.id().as_str()).await?, 0);
     assert_eq!(token_balance(&token, game.id().as_str()).await?, amount);
     unregister(&alice, &token).await?;
+    let stop = std::time::Instant::now() + Duration::from_secs(300);
+    while worker.view_block().await?.timestamp() < unlock_at {
+        if std::time::Instant::now() >= stop {
+            return Err("lock expiry not reached".into());
+        }
+        worker.fast_forward(1000).await?;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
     let first = alice
         .call(game.id(), "unlock")
-        .args_json(json!({"mode":0,"round_id":1}))
+        .args_json(json!({"mode":0,"round_id":lock_id}))
         .deposit(NearToken::from_yoctonear(1))
         .max_gas()
         .transact()
@@ -403,13 +420,13 @@ async fn main() -> Res<()> {
         ("execute_operation", false, "on_unlock", None),
     )
     .await?;
-    assert_eq!(locked(&game, &alice).await?, amount);
+    assert_eq!(locked(&game, &alice, lock_id).await?, amount);
     assert_eq!(token_balance(&token, game.id().as_str()).await?, amount);
     assert_eq!(token_balance(&token, alice.id().as_str()).await?, 0);
     register_storage(&alice, &token, minimum).await?;
     let retry = alice
         .call(game.id(), "unlock")
-        .args_json(json!({"mode":0,"round_id":1}))
+        .args_json(json!({"mode":0,"round_id":lock_id}))
         .deposit(NearToken::from_yoctonear(1))
         .max_gas()
         .transact()
@@ -423,12 +440,12 @@ async fn main() -> Res<()> {
         ("execute_operation", true, "on_unlock", None),
     )
     .await?;
-    assert_eq!(locked(&game, &alice).await?, 0);
+    assert_eq!(locked(&game, &alice, lock_id).await?, 0);
     assert_eq!(token_balance(&token, game.id().as_str()).await?, 0);
     assert_eq!(token_balance(&token, alice.id().as_str()).await?, amount);
     let duplicate = alice
         .call(game.id(), "unlock")
-        .args_json(json!({"mode":0,"round_id":1}))
+        .args_json(json!({"mode":0,"round_id":lock_id}))
         .deposit(NearToken::from_yoctonear(1))
         .max_gas()
         .transact()

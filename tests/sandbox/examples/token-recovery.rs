@@ -263,9 +263,19 @@ async fn replay_pair(
     assert_eq!(observed, *op);
     Ok(())
 }
-async fn lock(env: &Env, who: &Account, amount: u128) -> Res<()> {
-    let used: String = who.call(env.token.id(), "ft_transfer_call").args_json(json!({"receiver_id":env.game.id(),"amount":amount.to_string(),"msg":"{\"lock\":{\"mode\":0,\"round_id\":1}}"})).deposit(NearToken::from_yoctonear(1)).max_gas().transact().await?.json()?;
-    assert_eq!(used, amount.to_string());
+async fn lock(env: &Env, who: &Account, amount: u128, round_id: u32) -> Res<u128> {
+    let used: String = who.call(env.token.id(), "ft_transfer_call").args_json(json!({"receiver_id":env.game.id(),"amount":amount.to_string(),"msg":json!({"lock":{"mode":0,"round_id":round_id}}).to_string()})).deposit(NearToken::from_yoctonear(1)).max_gas().transact().await?.json()?;
+    Ok(used.parse()?)
+}
+async fn wait_until(worker: &Worker<Sandbox>, deadline: u64) -> Res<()> {
+    let stop = std::time::Instant::now() + Duration::from_secs(900);
+    while worker.view_block().await?.timestamp() < deadline {
+        if std::time::Instant::now() >= stop {
+            return Err("sandbox deadline not reached".into());
+        }
+        worker.fast_forward(1000).await?;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
     Ok(())
 }
 
@@ -286,9 +296,13 @@ async fn main() -> Res<()> {
         .dev_deploy(&std::fs::read(sandbox_tests::artifact("token"))?)
         .await?;
     token.call("new").args_json(json!({"minter":game.id(),"cap":"1000000000000000000000000000","metadata":{"spec":"ft-1.0.0","name":"THE RULE","symbol":"RULE","decimals":18}})).transact().await?.into_result()?;
-    let mut config = sandbox_tests::params(mock.id().as_str());
+    let mut config =
+        sandbox_tests::params(mock.id().as_str(), worker.view_block().await?.timestamp());
     config["token"] = json!(token.id());
     config["base_attempts"] = json!([5, 50]);
+    config["round_period_ns"] = json!(120_000_000_000u64);
+    config["investigation_max_ns"] = json!(600_000_000_000u64);
+    config["reveal_window_ns"] = json!(1_000_000_000u64);
     game.call("new")
         .args_json(json!({"params":config,"demo":true}))
         .transact()
@@ -414,53 +428,17 @@ async fn main() -> Res<()> {
     .await?;
     assert!(pending(&env.game, second.operation_id).await?.is_none());
     assert_eq!(supply(&env.token).await?, issued);
-
-    // A successful unlock plus failed callback must never release a later paid replacement lock.
-    let release = issued / 2;
-    lock(&env, &alice, release).await?;
-    env.game.as_account().deploy(&fault).await?.into_result()?;
-    let unlock = alice
-        .call(env.game.id(), "unlock")
-        .args_json(json!({"mode":0,"round_id":1}))
-        .deposit(NearToken::from_yoctonear(1))
-        .max_gas()
-        .transact()
-        .await?;
-    let op = observe_operation(
-        &worker,
-        &unlock,
-        alice.id().as_str(),
-        &env.game,
-        &env.token,
-        ("on_unlock", false, Some(TokenOperationStatus::Applied), 1),
-    )
-    .await?;
-    assert_eq!(balance(&env.token, env.game.id().as_str()).await?, 0);
-    assert_eq!(balance(&env.token, alice.id().as_str()).await?, issued);
-    lock(&env, &alice, 7).await?;
-    env.game.as_account().deploy(&wasm).await?.into_result()?;
-    let before = funding(&env.token).await?;
-    replay_pair(
-        &worker,
-        &env,
-        &helper,
-        &op,
-        "on_unlock",
-        true,
-        TokenOperationStatus::Applied,
-    )
-    .await?;
-    assert_eq!(funding(&env.token).await?, before);
-    assert_eq!(balance(&env.token, env.game.id().as_str()).await?, 7);
-    let locked: String = env
+    let slot: Value = env
         .game
-        .view("get_lock")
-        .args_json(json!({"mode":0,"round_id":1,"account":alice.id()}))
+        .view("get_next_slot")
+        .args_json(json!({"mode":0}))
         .await?
         .json()?;
-    assert_eq!(locked, "7");
-    assert!(pending(&env.game, op.operation_id).await?.is_none());
-    assert_eq!(supply(&env.token).await?, issued);
+    let old_lock = slot["round_id"].as_u64().ok_or("missing lock slot")? as u32;
+    let expiry = slot["slot_ns"].as_u64().ok_or("missing lock timestamp")? + 120_000_000_000;
+    let release = issued / 2;
+    assert_eq!(lock(&env, &alice, release, old_lock).await?, release);
+
     // A durable rejection stays rejected even after the receiver re-registers.
     // Reconcile it only after the old round is terminal and the next one is live.
     let bob = worker.dev_create_account().await?;
@@ -520,7 +498,86 @@ async fn main() -> Res<()> {
     );
     assert_eq!(supply(&env.token).await?, issued);
     register(&bob, &env.token, bob.id().as_str(), minimum).await?;
-    worker.fast_forward(20_000).await?;
+    // A successful unlock plus failed callback must never release a later paid replacement lock.
+    wait_until(&worker, expiry).await?;
+    env.game.as_account().deploy(&fault).await?.into_result()?;
+    let unlock = alice
+        .call(env.game.id(), "unlock")
+        .args_json(json!({"mode":0,"round_id":old_lock}))
+        .deposit(NearToken::from_yoctonear(1))
+        .max_gas()
+        .transact()
+        .await?;
+    let op = observe_operation(
+        &worker,
+        &unlock,
+        alice.id().as_str(),
+        &env.game,
+        &env.token,
+        ("on_unlock", false, Some(TokenOperationStatus::Applied), 1),
+    )
+    .await?;
+    assert_eq!(balance(&env.token, env.game.id().as_str()).await?, 0);
+    assert_eq!(balance(&env.token, alice.id().as_str()).await?, issued);
+    assert_eq!(
+        lock(&env, &alice, 7, old_lock).await?,
+        0,
+        "expired lock was accepted"
+    );
+    let slot: Value = env
+        .game
+        .view("get_next_slot")
+        .args_json(json!({"mode":0}))
+        .await?
+        .json()?;
+    let replacement = slot["round_id"]
+        .as_u64()
+        .ok_or("missing replacement slot")? as u32;
+    assert!(replacement > old_lock);
+    assert_eq!(lock(&env, &alice, 7, replacement).await?, 7);
+    env.game.as_account().deploy(&wasm).await?.into_result()?;
+    let before = funding(&env.token).await?;
+    replay_pair(
+        &worker,
+        &env,
+        &helper,
+        &op,
+        "on_unlock",
+        true,
+        TokenOperationStatus::Applied,
+    )
+    .await?;
+    assert_eq!(funding(&env.token).await?, before);
+    assert_eq!(balance(&env.token, env.game.id().as_str()).await?, 7);
+    let locked: String = env
+        .game
+        .view("get_lock")
+        .args_json(json!({"mode":0,"round_id":replacement,"account":alice.id()}))
+        .await?
+        .json()?;
+    assert_eq!(locked, "7");
+    let old_locked: String = env
+        .game
+        .view("get_lock")
+        .args_json(json!({"mode":0,"round_id":old_lock,"account":alice.id()}))
+        .await?
+        .json()?;
+    assert_eq!(old_locked, "0");
+    assert!(pending(&env.game, op.operation_id).await?.is_none());
+    assert_eq!(supply(&env.token).await?, issued);
+    let round: Value = env
+        .game
+        .view("get_round")
+        .args_json(json!({"mode":0,"id":0}))
+        .await?
+        .json()?;
+    wait_until(
+        &worker,
+        round["investigation_end_ns"]
+            .as_u64()
+            .ok_or("missing investigation deadline")?,
+    )
+    .await?;
     helper
         .call(env.game.id(), "advance")
         .args_json(json!({"mode":0}))
@@ -528,7 +585,19 @@ async fn main() -> Res<()> {
         .transact()
         .await?
         .into_result()?;
-    worker.fast_forward(500).await?;
+    let round: Value = env
+        .game
+        .view("get_round")
+        .args_json(json!({"mode":0,"id":0}))
+        .await?
+        .json()?;
+    wait_until(
+        &worker,
+        round["reveal_deadline_ns"]
+            .as_u64()
+            .ok_or("missing reveal deadline")?,
+    )
+    .await?;
     let finalization = helper
         .call(env.game.id(), "finalize")
         .args_json(json!({"mode":0}))
@@ -577,7 +646,7 @@ async fn main() -> Res<()> {
         let round: Value = env
             .game
             .view("get_round")
-            .args_json(json!({"mode":0,"id":1}))
+            .args_json(json!({"mode":0,"id":null}))
             .await?
             .json()?;
         if round["phase"] == "Investigation" {

@@ -121,7 +121,7 @@ Solo and Team run side by side every day, each with its own rule, pot, log and s
 
 Old paths (`/log`, `/guess`, `/reveal`, `/team`, `/wallet`) redirect to their new homes with mode and round kept.
 
-## The sealed-law scroll story (Home)
+## The sealed-law scroll story (landing)
 
 A pinned sequence about 400 vh tall that must land somewhere:
 

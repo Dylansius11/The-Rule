@@ -1,0 +1,100 @@
+@import 'tailwindcss';
+@import './tokens.css';
+@import '@fontsource/londrina-solid/latin-400.css';
+@import '@fontsource/londrina-solid/latin-900.css';
+@import '@fontsource/delicious-handrawn/latin-400.css';
+@import '@fontsource-variable/nunito/wght.css';
+@import '@fontsource-variable/jetbrains-mono/wght.css';
+@import './ink.css';
+@import './parts.css';
+@import './chrome.css';
+@import './anim.css';
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+    scroll-padding-top: calc(var(--header-h) + 12px);
+    background: var(--color-paper);
+  }
+  body {
+    margin: 0;
+    min-width: 320px;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 17px;
+    line-height: 1.5;
+    font-weight: 600;
+    overflow-x: clip;
+    padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  }
+  @media (min-width: 900px) {
+    body {
+      font-size: 18px;
+      padding-bottom: 0;
+    }
+  }
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+  button {
+    cursor: pointer;
+    background: none;
+    border: 0;
+    padding: 0;
+  }
+  a {
+    color: inherit;
+  }
+  img {
+    max-width: 100%;
+  }
+  :focus-visible {
+    outline: 4px solid var(--color-focus);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+  ::selection {
+    background: var(--color-sun);
+    color: var(--color-ink);
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    margin: 0;
+  }
+  p {
+    margin: 0;
+  }
+}
+
+/* Reduced motion: OS preference or the in-app switch. Every motion row becomes an instant state change. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+html[data-motion='reduced'] *,
+html[data-motion='reduced'] *::before,
+html[data-motion='reduced'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+html[data-motion='reduced'] {
+  scroll-behavior: auto;
+}

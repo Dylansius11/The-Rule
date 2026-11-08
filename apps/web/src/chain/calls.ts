@@ -1,9 +1,9 @@
-import { config } from '@/config/env';
+import { active } from '@/config/env';
 import type { Mode, PlayInput } from '@/game/types';
 import { sendCall } from './wallet';
 
 const game = (method: string, args: object = {}, deposit = 0n) =>
-  sendCall(config.main.game, method, args, deposit);
+  sendCall(active.game, method, args, deposit);
 export const play = (mode: Mode, input: PlayInput) =>
   game('play', { mode, number: input.number, word: input.word });
 export const depositCredit = (amount: bigint) => game('deposit_credit', {}, amount);
@@ -25,10 +25,10 @@ export const teamWithdraw = (teamId: number) => game('team_withdraw', { team_id:
 export const settleTeam = (teamId: number) => game('settle_team', { team_id: teamId });
 export const lock = (mode: Mode, roundId: number, amount: bigint) =>
   sendCall(
-    config.main.token,
+    active.token,
     'ft_transfer_call',
     {
-      receiver_id: config.main.game,
+      receiver_id: active.game,
       amount: amount.toString(),
       msg: JSON.stringify({ lock: { mode, round_id: roundId } }),
     },

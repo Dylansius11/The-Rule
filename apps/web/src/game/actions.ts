@@ -5,7 +5,7 @@ import * as calls from '@/chain/calls';
 import { toUiError } from '@/chain/errors';
 import { getFinalBlock, view } from '@/chain/rpc';
 import * as views from '@/chain/views';
-import { config } from '@/config/env';
+import { active } from '@/config/env';
 import { commitHash, encodeRuleHex } from '@/verify';
 import type { ActionState, CanonicalRule, Mode, SavedGuess } from './types';
 
@@ -86,7 +86,7 @@ export function useLockActions(mode: Mode, roundId: number) {
 export function useGuessActions(mode: Mode, roundId: number) {
   const { accountId } = useWallet();
   const query = useQueryClient();
-  const key = accountId ? `the-rule:guesses:${config.main.game}:${accountId}:${mode}:${roundId}` : null;
+  const key = accountId ? `the-rule:guesses:${active.game}:${accountId}:${mode}:${roundId}` : null;
   const [saved, setSaved] = useState<SavedGuess[]>([]);
   const [commitState, setCommitState] = useState<ActionState>({ kind: 'idle' });
   const [revealState, setRevealState] = useState<ActionState>({ kind: 'idle' });
@@ -110,7 +110,7 @@ export function useGuessActions(mode: Mode, roundId: number) {
           if (record.entityTag !== 0 && record.entityTag !== 1) continue;
           const hash = await commitHash({
             chain: 'testnet',
-            game: config.main.game,
+            game: active.game,
             mode,
             round: roundId,
             actor: accountId,
@@ -164,7 +164,7 @@ export function useGuessActions(mode: Mode, roundId: number) {
       ).join('');
       const hash = await commitHash({
         chain: 'testnet',
-        game: config.main.game,
+        game: active.game,
         mode,
         round: roundId,
         actor: accountId,

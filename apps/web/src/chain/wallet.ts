@@ -1,5 +1,5 @@
 import { NearConnector } from '@hot-labs/near-connect';
-import { config } from '@/config/env';
+import { config, active } from '@/config/env';
 
 let connector: NearConnector | undefined;
 export function getConnector(): NearConnector {
@@ -15,7 +15,7 @@ export async function sendCall(
   deposit = 0n,
   gas = 300_000_000_000_000n,
 ) {
-  if (receiverId !== config.main.game && receiverId !== config.main.token)
+  if (receiverId !== active.game && receiverId !== active.token)
     throw new Error('Unsupported transaction receiver');
   const wallet = await getConnector().wallet();
   return wallet.signAndSendTransaction({

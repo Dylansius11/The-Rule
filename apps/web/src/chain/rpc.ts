@@ -1,4 +1,4 @@
-import { config } from '@/config/env';
+import { config, active } from '@/config/env';
 
 export class RpcError extends Error {
   constructor(
@@ -16,7 +16,7 @@ export class MethodNotFound extends RpcError {
   }
 }
 
-export async function view<T>(method: string, args: object = {}, accountId = config.main.game): Promise<T> {
+export async function view<T>(method: string, args: object = {}, accountId = active.game): Promise<T> {
   let last: unknown;
   for (const url of config.rpcUrls) {
     try {

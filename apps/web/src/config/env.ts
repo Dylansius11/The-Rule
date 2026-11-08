@@ -55,6 +55,33 @@ export const config = {
   })(),
 } as const;
 
+export type DeploymentChoice = 'main' | 'demo';
+
+const CHOICE_KEY = 'the-rule:deployment';
+
+function readChoice(): DeploymentChoice {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem(CHOICE_KEY) === 'demo'
+      ? 'demo'
+      : 'main';
+  } catch {
+    return 'main';
+  }
+}
+
+/**
+ * The deployment this page talks to. Fixed for the page's lifetime: switching reloads,
+ * so cached reads from two instances can never mix. Demo is only reachable when configured.
+ */
+export const active: Deployment = readChoice() === 'demo' && config.demo ? config.demo : config.main;
+
+/** Persist the choice and reload. Throws instead of pretending when no demo instance exists. */
+export function chooseDeployment(choice: DeploymentChoice): void {
+  if (choice === 'demo' && !config.demo) throw new Error('No demo instance is configured');
+  localStorage.setItem(CHOICE_KEY, choice);
+  location.reload();
+}
+
 /** The exact public label for each deployment kind. Copy is fixed by CLAUDE.md honesty rules. */
 export function deploymentLabel(kind: DeploymentKind): string {
   switch (kind) {

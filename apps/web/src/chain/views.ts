@@ -1,4 +1,4 @@
-import { config } from '@/config/env';
+import { active } from '@/config/env';
 import type {
   Commit,
   Entity,
@@ -196,7 +196,7 @@ export async function getLock(mode: Mode, roundId: number, account: string): Pro
   return BigInt(await view<string>('get_lock', { mode, round_id: roundId, account }));
 }
 export async function getRuleBalance(account: string): Promise<bigint> {
-  return BigInt(await view<string>('ft_balance_of', { account_id: account }, config.main.token));
+  return BigInt(await view<string>('ft_balance_of', { account_id: account }, active.token));
 }
 export async function getSeason(
   mode: Mode,
@@ -255,7 +255,7 @@ export async function getTokenOutcome(operationId: number): Promise<TokenOutcome
   const result = await view<{ operation: WireTokenOperation; status: TokenOutcome['status'] } | null>(
     'get_operation',
     { operation_id: operationId },
-    config.main.token,
+    active.token,
   );
   if (!result) return null;
   const statuses: TokenOutcome['status'][] = [

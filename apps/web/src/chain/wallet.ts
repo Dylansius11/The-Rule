@@ -1,8 +1,9 @@
 import { NearConnector } from '@hot-labs/near-connect';
-import { config, active } from '@/config/env';
+import { config, active, e2e } from '@/config/env';
 
 let connector: NearConnector | undefined;
 export function getConnector(): NearConnector {
+  if (e2e) return e2e.connector;
   return (connector ??= new NearConnector({
     network: 'testnet',
     providers: { testnet: [...config.rpcUrls] },

@@ -1,9 +1,11 @@
+import type { NearConnector } from '@hot-labs/near-connect';
+
 /**
  * Public, build-time configuration. Every value is a public account id or URL, never a secret.
  * Defaults point at the key-retaining testnet rehearsal deployment (r2).
  */
 
-export type NetworkId = 'testnet';
+export type NetworkId = 'testnet' | 'sandbox';
 
 /** What a deployment honestly is. The UI label comes from this, never from guesswork. */
 export type DeploymentKind =
@@ -22,6 +24,23 @@ export interface Deployment {
 
 const env = import.meta.env;
 
+/** Dedicated e2e mode only. Playwright injects public config and a keyless wallet bridge. */
+export const e2e =
+  import.meta.env.MODE === 'e2e'
+    ? (
+        globalThis as typeof globalThis & {
+          __THE_RULE_E2E__?: {
+            rpcUrl: string;
+            game: string;
+            token: string;
+            connector: NearConnector;
+          };
+        }
+      ).__THE_RULE_E2E__
+    : undefined;
+if (import.meta.env.MODE === 'e2e' && !e2e)
+  throw new Error('E2E mode requires the injected local chain configuration');
+
 function read(name: string, fallback: string): string {
   const value = env[name] as string | undefined;
   return value && value.trim() !== '' ? value.trim() : fallback;
@@ -34,18 +53,20 @@ function kind(name: string, fallback: DeploymentKind): DeploymentKind {
 }
 
 export const config = {
-  network: 'testnet' as NetworkId,
-  rpcUrls: [
-    read('VITE_RPC_URL', 'https://test.rpc.fastnear.com'),
-    read('VITE_RPC_FALLBACK_URL', 'https://rpc.testnet.near.org'),
-  ],
+  network: (e2e ? 'sandbox' : 'testnet') as NetworkId,
+  rpcUrls: e2e
+    ? [e2e.rpcUrl]
+    : [
+        read('VITE_RPC_URL', 'https://test.rpc.fastnear.com'),
+        read('VITE_RPC_FALLBACK_URL', 'https://rpc.testnet.near.org'),
+      ],
   explorerTx: (hash: string) => `https://testnet.nearblocks.io/txns/${hash}`,
   explorerAccount: (account: string) => `https://testnet.nearblocks.io/address/${account}`,
   explorerBlock: (height: number | string) => `https://testnet.nearblocks.io/blocks/${height}`,
   main: {
     kind: kind('VITE_GAME_KIND', 'rehearsal'),
-    game: read('VITE_GAME_ACCOUNT', 'game-r2.therule.testnet'),
-    token: read('VITE_TOKEN_ACCOUNT', 'token-r2.therule.testnet'),
+    game: e2e?.game ?? read('VITE_GAME_ACCOUNT', 'game-r2.therule.testnet'),
+    token: e2e?.token ?? read('VITE_TOKEN_ACCOUNT', 'token-r2.therule.testnet'),
   } satisfies Deployment,
   /** Absent until the separate preselected-rule demo instance is deployed. */
   demo: ((): Deployment | null => {
@@ -84,6 +105,7 @@ export function chooseDeployment(choice: DeploymentChoice): void {
 
 /** The exact public label for each deployment kind. Copy is fixed by CLAUDE.md honesty rules. */
 export function deploymentLabel(kind: DeploymentKind): string {
+  if (e2e) return 'Sandbox with mock OutLayer, not testnet evidence';
   switch (kind) {
     case 'demo':
       return 'Demo Mode - preselected rule';

@@ -16,6 +16,10 @@ dist/
 pkg/
 test-results/
 playwright-report/
+/apps/web/public/CONTEXT.md
+/apps/web/public/llms.txt
+/apps/web/public/grammar.json
+/apps/web/public/docs/
 
 # OS and editor junk
 .DS_Store

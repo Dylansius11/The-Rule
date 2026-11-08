@@ -6,6 +6,10 @@
     "node": ">=22.22.2"
   },
   "scripts": {
+    "docs:build": "node scripts/docs/build.mjs",
+    "docs:lint": "node scripts/docs/build.mjs --lint",
+    "predev": "pnpm docs:build",
+    "prebuild": "pnpm docs:build",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",

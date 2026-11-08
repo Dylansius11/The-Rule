@@ -6,6 +6,8 @@ import { toUiError } from '@/chain/errors';
 import { getFinalBlock, view } from '@/chain/rpc';
 import * as views from '@/chain/views';
 import { active } from '@/config/env';
+import { sendCall } from '@/chain/wallet';
+import { TEAM_NAME_HINT, validTeamName } from './team-name';
 import { commitHash, encodeRuleHex } from '@/verify';
 import type { ActionState, CanonicalRule, Mode, SavedGuess } from './types';
 
@@ -63,7 +65,10 @@ export function useClaimActions(mode: Mode, roundId: number) {
 
 export function useTeamActions() {
   return {
-    create: useAction(calls.createTeam),
+    create: useAction<string>(async name => {
+      if (!validTeamName(name)) throw new Error(TEAM_NAME_HINT);
+      return calls.createTeam(name);
+    }),
     invite: useAction(calls.invite),
     join: useAction(calls.joinTeam),
     leave: useAction<void>(() => calls.leaveTeam()),
@@ -80,6 +85,9 @@ export function useLockActions(mode: Mode, roundId: number) {
     unlock: useAction<void>(() => calls.unlock(mode, roundId)),
     retry: useAction(calls.retryTokenOperation),
     register: useAction<void>(() => calls.registerToken()),
+    storage: useAction<bigint>(minimum =>
+      sendCall(active.token, 'storage_deposit', { registration_only: true }, minimum),
+    ),
   };
 }
 

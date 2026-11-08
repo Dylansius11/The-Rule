@@ -4,7 +4,11 @@ const noCharge = 'No game charge was applied; transaction gas may apply.';
 const retry = 'Check the round and try again when the action is available.';
 const messages: Record<string, Pick<UiError, 'title' | 'funds' | 'next'>> = {
   E10: { title: 'The round is not in the right phase', funds: noCharge, next: retry },
-  E11: { title: 'The input is invalid', funds: noCharge, next: retry },
+  E11: {
+    title: 'The input is invalid',
+    funds: noCharge,
+    next: 'Check the field constraints. Team names need 3–24 ASCII lowercase letters, digits or hyphens.',
+  },
   E12: { title: 'That play is already pending', funds: noCharge, next: retry },
   E13: { title: 'A play is already pending', funds: noCharge, next: retry },
   E14: { title: 'The attempt limit was reached', funds: noCharge, next: retry },

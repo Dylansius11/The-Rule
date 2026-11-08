@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTeamActions } from '@/game';
+import { TEAM_NAME_HINT, validTeamName } from '@/game/team-name';
 import { ActionSlip } from '@/ui/ActionSlip';
 import { Button } from '@/ui/Button';
 import { InkBox } from '@/ui/InkBox';
@@ -17,13 +18,21 @@ export function NoTeam() {
         <p className="mb-3 mt-2 font-semibold">
           Up to five members share one vault, one attempt limit and one line. You become captain.
         </p>
-        <TextField id="team-name" label="Team name" value={name} onChange={setName} placeholder="Ink Gang" />
+        <TextField
+          id="team-name"
+          label="Team name"
+          value={name}
+          onChange={setName}
+          placeholder="ink-gang"
+          hint={TEAM_NAME_HINT}
+          error={name !== '' && !validTeamName(name) ? TEAM_NAME_HINT : undefined}
+        />
         <div className="mt-3">
           <Button
             variant="red"
-            disabled={name.trim() === ''}
+            disabled={!validTeamName(name)}
             busy={busy(actions.create.state)}
-            onClick={() => actions.create.run(name.trim())}
+            onClick={() => validTeamName(name) && actions.create.run(name)}
           >
             Create team
           </Button>

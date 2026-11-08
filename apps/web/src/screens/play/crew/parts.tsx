@@ -7,6 +7,7 @@ export function TextField({
   onChange,
   placeholder,
   hint,
+  error,
 }: {
   id: string;
   label: string;
@@ -14,6 +15,7 @@ export function TextField({
   onChange: (v: string) => void;
   placeholder?: string;
   hint?: string;
+  error?: string;
 }) {
   return (
     <div>
@@ -26,9 +28,19 @@ export function TextField({
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
+        aria-invalid={!!error}
+        aria-describedby={error || hint ? `${id}-hint` : undefined}
         autoComplete="off"
       />
-      {hint ? <p className="mt-1 text-[14px] font-semibold text-ink-soft">{hint}</p> : null}
+      {error || hint ? (
+        <p
+          id={`${id}-hint`}
+          role={error ? 'alert' : undefined}
+          className="mt-1 text-[14px] font-semibold text-ink-soft"
+        >
+          {error ?? hint}
+        </p>
+      ) : null}
     </div>
   );
 }

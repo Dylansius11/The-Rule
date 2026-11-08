@@ -319,7 +319,8 @@ impl Game {
         let args = json!({
             "source": {"WasmUrl": {"url": params.referee.urls[0], "hash": params.referee.hash, "build_target": params.referee.build_target}},
             "resource_limits": {"max_instructions": limits.instructions, "max_memory_mb": limits.memory_mb, "max_execution_seconds": limits.execution_seconds},
-            "input_data": serde_json::to_string(request).expect("request serialization"), "secrets_ref": null,
+            "input_data": serde_json::to_string(request).expect("request serialization"),
+            "secrets_ref": params.referee.demo_secrets_ref,
             "response_format": "Json", "payer_account_id": null, "params": null
         });
         Promise::new(outlayer)
@@ -347,6 +348,7 @@ impl Game {
     #[init]
     pub fn new(params: Params, demo: bool) -> Self {
         near_sdk::require!(params::bounded_config(&params), "E11");
+        near_sdk::require!(demo || params.referee.demo_secrets_ref.is_none(), "E11");
         near_sdk::require!((1..=5).contains(&params.max_team_size), "E11");
         near_sdk::require!(
             !params.referee.urls.is_empty() && params.referee.build_target == "wasm32-wasip2",

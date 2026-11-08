@@ -1,6 +1,10 @@
 # Testnet rehearsal deployment and execution
 
-**Preparation evidence (2026-11-06):** five Python boundary tests passed, then the actual offline CLI accepted the reviewed current game/token and published referee artifacts. Generated commands and exact hashes were inspected; the planner itself sent no transaction. The exact-token local quote returned a 0.00125-NEAR registration minimum and 0.00256 NEAR per retained operation. Recheck the live token quote before registration. Only matching `game-rN.therule.testnet` and `token-rN.therule.testnet` accounts are targeted; both retain keys. `--execute` sends four testnet transactions through the isolated WSL `near-rule` wrapper and requires founder authorization. D32 originally granted a bounded rehearsal, now completed, not production deployment or key deletion.
+The shared planner requires `deployment_kind`: `rehearsal` uses only matching `game-rN`/`token-rN` and a non-demo referee; `demo` uses a separate matching `demo-game`/`demo-token` pair and demo-feature referee. The contract's `demo` boolean controls compressed scheduling, not deployment identity. See [Demo Mode preparation](../demo/README.md) for the exact label, reset and secret-routing prerequisite. Plans never contain the selected rule. Every referee build log must explicitly record `Feature: production` or `Feature: demo` alongside the matching caller/hash.
+
+The planner requires positive Investigation and offsets below the period for both kinds. For `demo: false` it also enforces the contract's Investigation-plus-Reveal bound (at most one period and 24 hours) and checked first-slot period arithmetic. It cannot predict the block timestamp at actual initialization.
+
+**Preparation evidence (2026-11-06):** five Python boundary tests passed, then the actual offline CLI accepted the reviewed current game/token and published referee artifacts. Generated commands and exact hashes were inspected; the planner itself sent no transaction. The exact-token local quote returned a 0.00125-NEAR registration minimum and 0.00256 NEAR per retained operation. Recheck the live token quote before registration. Rehearsal plans target only matching `game-rN.therule.testnet` and `token-rN.therule.testnet` accounts; both retain keys. `--execute` sends four testnet transactions through the isolated WSL `near-rule` wrapper and requires founder authorization. D32 originally granted a bounded rehearsal, now completed, not production deployment or key deletion.
 
 **CLI execution correction (2026-11-06):** near-cli-rs 0.30.1 rejected the planner's raw `"100000000000000 gas"` unit before signing or broadcast. The planner now converts integer gas exactly to decimal **Tgas** without floats, including sub-Tgas precision. The corrected generated commands deployed the reviewed token and game successfully, funded token outcomes and registered the game; live quotes and initialized parameters matched. Token deploy tx `FvwCc8iw1XSd8Z7VQrsWm7GuECCbnFCUFmLBdodANz6s`; game deploy tx `2TH4gvFLPxVa5wHpRCCbxwyGjyhMBf6iMGdNH8U91EqR`. Public `view_code` SHA-256 matched the reviewed bytes for both. Five offline boundary regressions passed after the correction; full gameplay acceptance remains separate.
 
@@ -72,7 +76,7 @@ for name in ('game', 'token', 'referee'):
 h = hashlib.sha256((p / 'referee.wasm').read_bytes()).hexdigest()
 c['referee_sha256'] = c['params']['referee']['hash'] = h
 c['referee_build_log'] = str(p / 'referee-build.log')
-(p / 'referee-build.log').write_text(f"Caller: {c['game_account']}\n{h}  {p / 'referee.wasm'}\n")
+(p / 'referee-build.log').write_text(f"Caller: {c['game_account']}\nFeature: production\n{h}  {p / 'referee.wasm'}\n")
 (p / 'config.json').write_text(json.dumps(c))
 PY
 python3 scripts/deploy/rehearsal.py scratch/deploy/smoke/config.json

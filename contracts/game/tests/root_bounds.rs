@@ -17,6 +17,10 @@ fn active_round_capacity_rejects_atomically_and_cancel_releases_room() {
     p.referee.outlayer = "o".repeat(64);
     p.token = "t".repeat(64);
     p.platform = "p".repeat(64);
+    p.referee.demo_secrets_ref = Some(protocol::params::SecretsRef {
+        profile: "d".repeat(64),
+        account_id: format!("{}.testnet", "a".repeat(56)),
+    });
     p.lock_tiers = vec![
         protocol::params::LockTier {
             amount: protocol::params::Amount(u128::MAX),

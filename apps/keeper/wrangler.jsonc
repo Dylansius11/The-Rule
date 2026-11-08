@@ -3,5 +3,23 @@
   "main": "src/worker.ts",
   "compatibility_date": "2026-11-04",
   "compatibility_flags": ["nodejs_compat"],
-  "triggers": { "crons": ["*/2 * * * *"] }
+  "triggers": { "crons": ["*/2 * * * *"] },
+  "env": {
+    "qualification": {
+      "account_id": "ec31758cbebe819f854974885edf5379",
+      "workers_dev": false,
+      "preview_urls": false,
+      "triggers": { "crons": [] },
+      "observability": { "enabled": true, "head_sampling_rate": 1 },
+      "vars": {
+        "NEAR_NETWORK": "testnet",
+        "NEAR_RPC_URL": "https://test.rpc.fastnear.com",
+        "GAME_ACCOUNT": "game-r3.therule.testnet",
+        "KEEPER_ACCOUNT": "keeper-p6.therule.testnet",
+        "KEEPER_MODES": "0",
+        "LAST_ROUND_ID": "0",
+        "MAINTAIN_SEASONS": "false"
+      }
+    }
+  }
 }

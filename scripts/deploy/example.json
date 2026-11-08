@@ -1,5 +1,6 @@
 {
   "network": "testnet",
+  "deployment_kind": "rehearsal",
   "game_account": "game-r2.therule.testnet",
   "token_account": "token-r2.therule.testnet",
   "game_wasm": "scratch/deploy/game.wasm",

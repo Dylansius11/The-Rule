@@ -23,6 +23,7 @@ const router = createBrowserRouter([
       { path: 'guess', element: page(() => import('@/screens/GuessPage'), 'GuessPage') },
       { path: 'reveal', element: page(() => import('@/screens/RevealPage'), 'RevealPage') },
       { path: 'team', element: page(() => import('@/screens/TeamPage'), 'TeamPage') },
+      { path: 'wallet', element: page(() => import('@/screens/WalletPage'), 'WalletPage') },
       { path: '*', element: page(() => import('@/screens/NotFound'), 'NotFound') },
     ],
   },

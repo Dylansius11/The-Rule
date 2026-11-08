@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-08: cross-platform package execution must not reconcile a shared workspace
+
+- **What happened:** P6's Linux `pnpm exec wrangler` entered a four-package workspace dependency reconciliation instead of starting the local Worker promptly. After the stopped command, the real keeper smoke reported a missing `@noble/curves`. Offline frozen restoration repopulated 96 packages; the separate workerd build-script approval stayed unapproved. No frontend source, dependency versions or build permission was changed.
+- **Root cause:** WSL resolved the Windows Corepack/pnpm shim against a shared Windows workspace and a different package-store path. A package-manager wrapper is not an isolated binary invocation.
+- **Rule:** launch the installed Wrangler binary with its matching Node platform; keep temporary private config inside ignored project scratch and remove it. The actual Windows Node/workerd scheduled smoke then passed against the genuine WSL sandbox without cloud auth or a fake chain ID. Do not change workspace trust policy merely to make installation quiet.
+
 ### 2026-11-08: removing a worktree followed a node_modules junction into the real tree
 
 - **What happened:** to typecheck each web commit, `scratch/wt-check/apps/web/node_modules` was a junction to the main `apps/web/node_modules`. `cmd //c rmdir` from Git Bash did not run (it opened a shell and exited), so `git worktree remove --force` deleted through the junction. Tracked `verifier/wasm/*` files (reached through the `@the-rule/verifier-wasm` workspace link), the web packages in the pnpm store and `verifier/wasm/pkg` were emptied. `git restore`, `pnpm install --force --frozen-lockfile` and a wasm-bindgen 0.2.130 rebuild recovered everything; the web suite (27) and keeper suite (12) passed again.

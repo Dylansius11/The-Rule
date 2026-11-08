@@ -46,6 +46,7 @@ export function parseName(name, file = name) {
 export function plainText(text) {
   return text
     .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*:?-*:?\s*\|?\s*$/gm, ' ')
     .replace(/!?(?:\[([^\]]*)\])\([^)]*\)/g, '$1')
     .replace(/<[^>]*>/g, ' ')
     .replace(/[`*_~#>|]/g, ' ')

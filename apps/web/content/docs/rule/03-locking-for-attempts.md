@@ -5,11 +5,13 @@ summary: RULE lock thresholds, caps, transfer message and return path.
 
 ## Thresholds
 
-| RULE locked | Extra attempts |
-| --- | --- |
-| 1,000 | 25 |
-| 5,000 | 50 |
-| 20,000 | 100 |
+| Tier in the app | RULE locked | Extra attempts |
+| --- | --- | --- |
+| Ribbon | 1,000 | 25 |
+| Wax | 5,000 | 50 |
+| Signet | 20,000 | 100 |
+
+The names are only labels the app gives the contract's three thresholds, in order of amount. They carry no rank, status or price.
 
 Only the highest threshold reached applies. Solo starts at 25 attempts with a cap of 125; Team starts at 50 with a cap of 250. Team thresholds sum the locked roster's member-owned locks. Extra attempts still pay the usual play fee and storage charge.
 

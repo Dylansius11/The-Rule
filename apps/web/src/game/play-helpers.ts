@@ -51,9 +51,11 @@ export function detectRefund(
   playerPending: boolean | undefined,
   before: bigint | undefined,
   after: bigint | undefined,
+  observedPendingOrDebit: boolean,
 ): boolean {
   return (
     ack.status === 'Pending' &&
+    observedPendingOrDebit &&
     !entityPending &&
     playerPending === false &&
     before != null &&

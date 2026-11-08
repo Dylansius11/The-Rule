@@ -115,6 +115,8 @@ export function usePlay(mode: Mode, roundId: number) {
         }
         if (!ack) throw new UnknownPlayAcknowledgement(txHash);
         dispatch({ type: 'pending', txHash, sinceMs: Date.now() });
+        let observedPendingOrDebit = false;
+        const deadline = Date.now() + 120_000;
 
         while (!signal.aborted) {
           const [currentEntity, currentPlayer] = await Promise.all([
@@ -143,10 +145,24 @@ export function usePlay(mode: Mode, roundId: number) {
             mode === 1 && player?.teamId != null ? await views.getTeam(player.teamId) : null;
           if (signal.aborted) return;
           const currentBalance = mode === 0 ? currentPlayer?.credit : currentTeam?.vault;
-          if (detectRefund(ack, currentEntity.pending, currentPlayer?.pendingPlay, balance, currentBalance)) {
+          observedPendingOrDebit ||=
+            currentEntity.pending ||
+            currentPlayer?.pendingPlay === true ||
+            (balance != null && currentBalance != null && currentBalance < balance);
+          if (
+            detectRefund(
+              ack,
+              currentEntity.pending,
+              currentPlayer?.pendingPlay,
+              balance,
+              currentBalance,
+              observedPendingOrDebit,
+            )
+          ) {
             dispatch({ type: 'refund' });
             break;
           }
+          if (Date.now() >= deadline) throw new UnknownPlayAcknowledgement(txHash);
           await waitForPoll(signal);
         }
         if (!signal.aborted) await query.invalidateQueries();

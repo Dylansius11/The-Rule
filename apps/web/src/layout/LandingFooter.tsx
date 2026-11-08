@@ -1,13 +1,11 @@
 import { Art } from '@/art/Art';
-import { config, REPLAY_LIMIT, TRUST_SENTENCE } from '@/config/env';
-import { useMotionPrefs } from '@/motion/prefs';
+import { active, REPLAY_LIMIT, TRUST_SENTENCE } from '@/config/env';
 import { HashText } from '@/ui/HashText';
 import { Letters } from '@/ui/Letters';
 import { WaveEdge } from '@/ui/WaveEdge';
 
-/** Sign-off: trust sentence, replay limit, testnet and no-price note, Blot in the pool giving a thumbs-up. */
-export function Footer() {
-  const { userReduced, setUserReduced } = useMotionPrefs();
+/** The landing sign-off: trust sentence, replay limit, testnet and no-price note, accounts, Blot in the pool. */
+export function LandingFooter() {
   return (
     <footer className="relative overflow-x-clip bg-paper px-4 pb-10 pt-16 text-center md:pt-24">
       <WaveEdge fill="#FFFBEA" seed={6} amp={12} />
@@ -27,25 +25,16 @@ export function Footer() {
           <div className="flex items-center gap-2">
             <dt>game</dt>
             <dd>
-              <HashText value={config.main.game} kind="account" full label="game account" />
+              <HashText value={active.game} kind="account" full label="game account" />
             </dd>
           </div>
           <div className="flex items-center gap-2">
             <dt>token</dt>
             <dd>
-              <HashText value={config.main.token} kind="account" full label="token account" />
+              <HashText value={active.token} kind="account" full label="token account" />
             </dd>
           </div>
         </dl>
-        <label className="mt-4 inline-flex min-h-[44px] items-center gap-3 font-extrabold">
-          <input
-            type="checkbox"
-            className="h-6 w-6 accent-tomato"
-            checked={userReduced}
-            onChange={e => setUserReduced(e.target.checked)}
-          />
-          Reduce motion
-        </label>
       </div>
     </footer>
   );

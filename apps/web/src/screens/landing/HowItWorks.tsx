@@ -1,5 +1,7 @@
 import { Art } from '@/art/Art';
 import type { ArtName } from '@/art/manifest';
+import { useGuide } from '@/layout/guide';
+import { Button } from '@/ui/Button';
 import { Doodle } from '@/ui/Doodle';
 import { InkBox } from '@/ui/InkBox';
 
@@ -21,7 +23,7 @@ const STEPS: { art: ArtName; title: string; body: string; note: string; tilt: nu
   {
     art: 'scenes/envelope',
     title: 'Guess',
-    body: 'Think you have it? Seal your guess as a hash, then open it later. The earliest correct guess wins the pot. A wrong one gets half its stake back.',
+    body: 'Think you have it? Seal your guess as a hash, then open it later. The earliest correct guess wins 40% of the pot. A wrong one gets half its stake back.',
     note: 'commit, then reveal',
     tilt: -0.8,
   },
@@ -36,6 +38,7 @@ const STEPS: { art: ArtName; title: string; body: string; note: string; tilt: nu
 
 /** Four steps, each with its scene. */
 export function HowItWorks() {
+  const { show } = useGuide();
   return (
     <div className="wrap">
       <div className="relative mb-9 text-center">
@@ -61,6 +64,14 @@ export function HowItWorks() {
           </li>
         ))}
       </ol>
+      <div className="mt-10 flex flex-wrap items-center justify-center gap-5">
+        <Button to="/play" variant="red" size="lg">
+          Enter the game
+        </Button>
+        <Button variant="paper" size="lg" onClick={show}>
+          Open the guide
+        </Button>
+      </div>
     </div>
   );
 }

@@ -1,10 +1,13 @@
 import { lazy, Suspense, type ComponentType, type ReactNode } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router';
 import { AppShell } from '@/layout/AppShell';
+import { LandingShell } from '@/layout/LandingShell';
+import { Root } from '@/layout/Root';
 import { MotionPrefsProvider } from '@/motion/prefs';
-import { Home } from '@/screens/Home';
+import { Landing } from '@/screens/landing/Landing';
+import { RouteError } from './RouteError';
 
-/** Load a named page export on first visit, so Home ships alone in the first chunk. */
+/** Load a named page export on first visit, so the landing page ships alone in the first chunk. */
 function page<K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K): ReactNode {
   const Page = lazy<ComponentType>(() => load().then(module => ({ default: module[name] })));
   return (
@@ -20,17 +23,25 @@ const devRoutes = import.meta.env.DEV
 
 const router = createBrowserRouter([
   {
-    element: <AppShell />,
+    element: <Root />,
     children: [
-      { index: true, element: <Home /> },
-      { path: 'log', element: page(() => import('@/screens/LogPage'), 'LogPage') },
-      { path: 'guess', element: page(() => import('@/screens/GuessPage'), 'GuessPage') },
-      { path: 'reveal', element: page(() => import('@/screens/RevealPage'), 'RevealPage') },
-      { path: 'team', element: page(() => import('@/screens/TeamPage'), 'TeamPage') },
-      { path: 'wallet', element: page(() => import('@/screens/WalletPage'), 'WalletPage') },
-      { path: 'season', element: page(() => import('@/screens/SeasonPage'), 'SeasonPage') },
-      ...devRoutes,
-      { path: '*', element: page(() => import('@/screens/NotFound'), 'NotFound') },
+      {
+        element: <LandingShell />,
+        children: [{ index: true, element: <Landing />, errorElement: <RouteError /> }],
+      },
+      {
+        element: <AppShell />,
+        children: [
+          { path: 'log', element: page(() => import('@/screens/LogPage'), 'LogPage') },
+          { path: 'guess', element: page(() => import('@/screens/GuessPage'), 'GuessPage') },
+          { path: 'reveal', element: page(() => import('@/screens/RevealPage'), 'RevealPage') },
+          { path: 'team', element: page(() => import('@/screens/TeamPage'), 'TeamPage') },
+          { path: 'wallet', element: page(() => import('@/screens/WalletPage'), 'WalletPage') },
+          { path: 'season', element: page(() => import('@/screens/season/SeasonPage'), 'SeasonPage') },
+          ...devRoutes,
+          { path: '*', element: page(() => import('@/screens/NotFound'), 'NotFound') },
+        ],
+      },
     ],
   },
 ]);

@@ -1,3 +1,4 @@
+import { roomPath } from '@/app/paths';
 import { shortHash } from '@/chain/format';
 import { useLatestRevealedRound } from '@/game';
 import { Art } from '@/art/Art';
@@ -60,7 +61,7 @@ export function LastLaw() {
               </div>
             </dl>
             <div className="mt-6">
-              <Button to={`/reveal?mode=${round.mode}&round=${round.roundId}`} variant="red" size="lg">
+              <Button to={roomPath(round.mode, 'verify', round.roundId)} variant="red" size="lg">
                 Replay every verdict
               </Button>
             </div>

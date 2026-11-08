@@ -22,6 +22,7 @@ const router = createBrowserRouter([
       { path: 'log', element: page(() => import('@/screens/LogPage'), 'LogPage') },
       { path: 'guess', element: page(() => import('@/screens/GuessPage'), 'GuessPage') },
       { path: 'reveal', element: page(() => import('@/screens/RevealPage'), 'RevealPage') },
+      { path: 'team', element: page(() => import('@/screens/TeamPage'), 'TeamPage') },
       { path: '*', element: page(() => import('@/screens/NotFound'), 'NotFound') },
     ],
   },

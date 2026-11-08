@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { formatRule } from '@/chain/format';
 import { useLatestRound, useLock, useLockActions, useParams, useWallet } from '@/game';
+import { nameTiers } from '@/game/tiers';
 import type { Mode } from '@/game/types';
 import { ActionSlip } from '@/ui/ActionSlip';
 import { Button } from '@/ui/Button';
@@ -20,7 +21,7 @@ export function LockPanel() {
   const lockQ = useLock(mode, round?.roundId ?? null, accountId);
   const actions = useLockActions(mode, round?.roundId ?? 0);
   const [tier, setTier] = useState<number | null>(null);
-  const tiers = params.data?.lockTiers ?? [];
+  const tiers = nameTiers(params.data?.lockTiers ?? []);
   const chosen = tier === null ? null : (tiers[tier] ?? null);
   const scheduled = round?.phase === 'Scheduled';
   const locked = lockQ.data ?? 0n;
@@ -59,7 +60,7 @@ export function LockPanel() {
             small
             options={tiers.map((t, i) => ({
               value: i,
-              label: `${formatRule(t.amount)} RULE → +${t.extraAttempts}`,
+              label: `${t.name} · ${formatRule(t.amount)} RULE → +${t.extraAttempts}`,
             }))}
           />
         </div>

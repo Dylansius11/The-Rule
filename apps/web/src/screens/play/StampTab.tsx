@@ -7,6 +7,8 @@ import { isActive, isPlayable } from '@/screens/shared/round';
 import { Band } from '@/ui/Band';
 import { StarField } from '@/ui/Doodle';
 import { ErrorCard } from '@/ui/ErrorCard';
+import { Term } from '@/ui/Term';
+import { CostPayout } from './CostPayout';
 import { MiniLog } from './MiniLog';
 import { NoRoundOpen } from './NoRoundOpen';
 import { PlayDesk } from './PlayDesk';
@@ -43,6 +45,10 @@ export function StampTab() {
           art="stickers/stamping"
           artWidth={120}
         />
+        <p className="mt-4 max-w-[62ch] text-[16px] font-semibold">
+          Every paid play uses one <Term term="attempt" /> and adds a row to the public <Term term="ledger" />
+          . Each unique play also counts as one <Term term="contributor share" /> of the final pot.
+        </p>
         <div className="mt-6">
           <RoundStrip
             mode={mode}
@@ -87,6 +93,9 @@ export function StampTab() {
             <NoRoundOpen mode={mode} round={round} />
           </div>
         )}
+        <div className="wrap mt-8">
+          <CostPayout mode={mode} round={round} className="mx-auto max-w-[920px]" />
+        </div>
       </Band>
 
       <Band tone="paper" id="ledger" label="Newest plays" seed={3} amp={10} className="pb-24 pt-24 md:pb-28">

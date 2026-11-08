@@ -58,7 +58,7 @@ export function PastRounds({ teamIdGuess }: { teamIdGuess: number | null }) {
         <ActionSlip
           state={claims.claimTeam.state}
           onReset={claims.claimTeam.reset}
-          doneText="Claim sent. The payout transfer is a separate step: check your wallet NEAR in a moment."
+          doneText="Reward added to your play credit. Withdraw credit separately to move it to your wallet."
         />
       </div>
     </InkBox>

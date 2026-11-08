@@ -21,7 +21,7 @@ export function Payouts({ round }: { round: Round }) {
         {solved
           ? `winner ${part(40n)}, contributors ${part(40n)}, rollover ${part(10n)}, platform ${part(10n)}`
           : `contributors ${part(40n)}, rollover ${part(50n)}, platform ${part(10n)}`}
-        . Claims are pulled from the Wallet page.
+        . Claims are added to your play credit from the Account page; withdrawing to your wallet is a separate action.
       </div>
     </dl>
   );

@@ -41,7 +41,11 @@ function ClaimRow({ mode, roundId }: { mode: Mode; roundId: number }) {
           <ActionSlip
             state={claim.state}
             onReset={claim.reset}
-            doneText={`Claim sent for ${formatNear(amount, 4)} NEAR. The payout transfer is a separate step: check your wallet NEAR in a moment.`}
+            doneText={
+              claim.state.kind === 'done' && typeof claim.state.value === 'string'
+                ? `${formatNear(BigInt(claim.state.value), 4)} NEAR added to your play credit. Withdraw credit separately to move it to your wallet.`
+                : 'Claim submitted. Check your play credit; withdrawal is a separate action.'
+            }
           />
         </div>
       ) : null}

@@ -12,11 +12,12 @@ import { HashText } from '@/ui/HashText';
 import { InkBox } from '@/ui/InkBox';
 import { Tag } from '@/ui/Tag';
 import { Link } from 'react-router';
-import { ClaimsPanel } from './wallet/ClaimsPanel';
-import { CreditPanel } from './wallet/CreditPanel';
-import { LockPanel } from './wallet/LockPanel';
-import { TokenRecovery } from './wallet/TokenRecovery';
-import { PageHead } from './shared/PageHead';
+import { roomPath } from '@/app/paths';
+import { ClaimsPanel } from './ClaimsPanel';
+import { CreditPanel } from './CreditPanel';
+import { LockPanel } from './LockPanel';
+import { TokenRecovery } from './TokenRecovery';
+import { PageHead } from '@/screens/shared/PageHead';
 
 function Balance({
   label,
@@ -52,8 +53,8 @@ function PendingSlip({ label, active, text }: { label: string; active: boolean; 
   );
 }
 
-/** S6: wallet NEAR vs game credit vs Team vault, separate pending slips, RULE and locks, claims, token recovery. */
-export function WalletPage() {
+/** The account page: wallet NEAR vs game credit vs Team vault, separate pending slips, RULE and locks, claims, token recovery. */
+export function AccountPage() {
   const { wallet, connect, busy, error, clear } = useConnect();
   const account = wallet.accountId;
   const near = useNearBalance(account);
@@ -70,11 +71,11 @@ export function WalletPage() {
   }
   if (wallet.status !== 'connected' || !account) {
     return (
-      <div className="wrap pb-20 pt-8 md:pt-12">
+      <div className="wrap pb-20 pt-7 md:pt-10">
         <PageHead
           title={
             <>
-              Your <span className="text-grape">wallet</span>
+              Your <span className="text-grape">account</span>
             </>
           }
           kicker="your turn"
@@ -109,11 +110,11 @@ export function WalletPage() {
 
   const p = player.data;
   return (
-    <div className="wrap pb-20 pt-8 md:pt-12">
+    <div className="wrap pb-20 pt-7 md:pt-10">
       <PageHead
         title={
           <>
-            Your <span className="text-grape">wallet</span>
+            Your <span className="text-grape">account</span>
           </>
         }
         kicker="three pots, kept apart"
@@ -192,8 +193,11 @@ export function WalletPage() {
           )}
           {p?.teamId != null ? (
             <div className="mt-1 text-[16px]">
-              <Link to="/team" className="font-sans text-[15px] font-extrabold underline decoration-2">
-                Open Team desk
+              <Link
+                to={roomPath(1, 'crew')}
+                className="font-sans text-[15px] font-extrabold underline decoration-2"
+              >
+                Open the crew desk
               </Link>
             </div>
           ) : null}

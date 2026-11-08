@@ -1,4 +1,5 @@
 import { Link } from 'react-router';
+import { roomPath } from '@/app/paths';
 import { toUiError } from '@/chain/errors';
 import { usePlayer, useTeam, useWallet } from '@/game';
 import { useConnect } from '@/layout/useConnect';
@@ -6,13 +7,13 @@ import { Button } from '@/ui/Button';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorCard } from '@/ui/ErrorCard';
 import { HashText } from '@/ui/HashText';
-import { PageHead } from './shared/PageHead';
-import { InTeam } from './play/crew/InTeam';
-import { NoTeam } from './play/crew/NoTeam';
-import { PastRounds } from './play/crew/PastRounds';
+import { PageHead } from '@/screens/shared/PageHead';
+import { InTeam } from './crew/InTeam';
+import { NoTeam } from './crew/NoTeam';
+import { PastRounds } from './crew/PastRounds';
 
-/** S5: the heron's team desk. */
-export function TeamPage() {
+/** The crew desk: roster, vault, locks, settle. Reached from the Team room's Crew tab. */
+export function CrewTab() {
   const { wallet, connect, busy: connecting, error, clear } = useConnect();
   const { accountId } = useWallet();
   const player = usePlayer(accountId);
@@ -20,7 +21,7 @@ export function TeamPage() {
   const team = useTeam(teamId);
 
   return (
-    <div className="wrap pb-20 pt-8 md:pt-12">
+    <div className="wrap pb-20 pt-7 md:pt-10">
       <PageHead
         title={
           <>
@@ -55,7 +56,7 @@ export function TeamPage() {
             }
           >
             Teams, vaults and rewards belong to an account. You can still read every Team round on the{' '}
-            <Link to="/log?mode=1" className="font-extrabold underline decoration-2">
+            <Link to={roomPath(1, 'ledger')} className="font-extrabold underline decoration-2">
               ledger
             </Link>
             .

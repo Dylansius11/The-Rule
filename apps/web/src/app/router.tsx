@@ -71,14 +71,14 @@ const router = createBrowserRouter([
                   {
                     path: 'crew',
                     loader: crewLoader,
-                    element: page(() => import('@/screens/TeamPage'), 'TeamPage'),
+                    element: page(() => import('@/screens/play/CrewTab'), 'CrewTab'),
                   },
                 ],
               },
               { path: 'season', element: page(() => import('@/screens/season/SeasonPage'), 'SeasonPage') },
               {
                 path: 'account',
-                element: page(() => import('@/screens/WalletPage'), 'WalletPage'),
+                element: page(() => import('@/screens/account/AccountPage'), 'AccountPage'),
               },
               { path: 'log', loader: legacyRoom('ledger') },
               { path: 'guess', loader: legacyRoom('guess') },

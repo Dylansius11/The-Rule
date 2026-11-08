@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router';
-import { roomPath, useNavMode } from '@/app/paths';
+import { DOCS_PATH, roomPath, useNavMode } from '@/app/paths';
 import { Button } from '@/ui/Button';
 import { Dialog } from '@/ui/Dialog';
 import { useDeploymentChoice } from './demo';
@@ -20,7 +20,10 @@ export function TabBar() {
   useEffect(() => setMoreOpen(false), [pathname]);
 
   const moreActive =
-    pathname.startsWith('/season') || pathname.startsWith('/account') || pathname.endsWith('/crew');
+    pathname.startsWith('/season') ||
+    pathname.startsWith('/account') ||
+    pathname.startsWith(DOCS_PATH) ||
+    pathname.endsWith('/crew');
   return (
     <>
       <nav
@@ -72,6 +75,14 @@ export function TabBar() {
               <NavLink to="/account" className="more-link">
                 <span className="display text-[26px] leading-none">Account</span>
                 <span className="text-[15px] font-semibold">Wallet, credit, RULE and claims.</span>
+              </NavLink>
+            </li>
+            <li>
+              <NavLink to={DOCS_PATH} className="more-link">
+                <span className="display text-[26px] leading-none">Docs</span>
+                <span className="text-[15px] font-semibold">
+                  Guides, costs, trust and a file for your agent.
+                </span>
               </NavLink>
             </li>
             <li>

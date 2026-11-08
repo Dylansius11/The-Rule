@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Link } from 'react-router';
+import { DOCS_PATH } from '@/app/paths';
 import { REPLAY_LIMIT, TRUST_SENTENCE } from '@/config/env';
 import { Button } from '@/ui/Button';
 import { Dialog } from '@/ui/Dialog';
@@ -10,6 +12,13 @@ export function AppFooter() {
     <footer className="border-t-[3px] border-ink bg-paper-2 px-4 py-2 text-center">
       <p className="mono text-[13px] font-bold">
         Testnet play money ·{' '}
+        <Link
+          to={DOCS_PATH}
+          className="inline-flex min-h-[44px] items-center px-1 font-extrabold underline decoration-2 underline-offset-2"
+        >
+          Docs
+        </Link>{' '}
+        ·{' '}
         <button
           type="button"
           className="min-h-[44px] px-1 font-extrabold underline decoration-2 underline-offset-2"

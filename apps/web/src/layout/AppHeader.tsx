@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router';
-import { roomPath, useNavMode } from '@/app/paths';
+import { DOCS_PATH, roomPath, useNavMode } from '@/app/paths';
 import { Brand } from './Brand';
 import { useGuide } from './guide';
 import { SettingsPopover } from './SettingsPopover';
@@ -13,7 +13,7 @@ export function AppHeader() {
   return (
     <StickyHeader>
       <Brand />
-      <nav className="ml-auto hidden items-center gap-5 md:flex lg:gap-7" aria-label="Main">
+      <nav className="ml-auto hidden items-center gap-3.5 md:flex lg:gap-7" aria-label="Main">
         <NavLink to={roomPath(mode)} className="nav-link">
           Play
         </NavLink>
@@ -22,6 +22,9 @@ export function AppHeader() {
         </NavLink>
         <NavLink to="/account" className="nav-link">
           Account
+        </NavLink>
+        <NavLink to={DOCS_PATH} className="nav-link">
+          Docs
         </NavLink>
       </nav>
       <button type="button" className="icon-btn hidden lg:grid" aria-label="How to play" onClick={show}>

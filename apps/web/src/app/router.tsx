@@ -80,6 +80,16 @@ const router = createBrowserRouter([
                 path: 'account',
                 element: page(() => import('@/screens/account/AccountPage'), 'AccountPage'),
               },
+              {
+                path: 'docs',
+                element: page(() => import('@/screens/docs'), 'DocsLayout'),
+                children: [
+                  { index: true, element: page(() => import('@/screens/docs'), 'DocsHome') },
+                  { path: ':section', element: page(() => import('@/screens/docs'), 'DocsSection') },
+                  { path: ':section/:slug', element: page(() => import('@/screens/docs'), 'DocsArticle') },
+                  { path: '*', element: page(() => import('@/screens/docs'), 'DocsMissing') },
+                ],
+              },
               { path: 'log', loader: legacyRoom('ledger') },
               { path: 'guess', loader: legacyRoom('guess') },
               { path: 'reveal', loader: legacyRoom('verify') },

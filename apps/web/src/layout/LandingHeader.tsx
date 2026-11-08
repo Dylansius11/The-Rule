@@ -1,3 +1,5 @@
+import { Link } from 'react-router';
+import { DOCS_PATH } from '@/app/paths';
 import { Button } from '@/ui/Button';
 import { Brand } from './Brand';
 import { StickyHeader } from './StickyHeader';
@@ -19,6 +21,9 @@ export function LandingHeader() {
             {a.label}
           </a>
         ))}
+        <Link to={DOCS_PATH} className="nav-link">
+          Docs
+        </Link>
       </nav>
       <div className="ml-auto lg:ml-2">
         <Button to="/play" variant="red" size="sm">

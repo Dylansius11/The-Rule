@@ -1,5 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
+import { Link } from 'react-router';
+import { DOCS_PATH } from '@/app/paths';
 import { useSound } from '@/audio';
 import { Art } from '@/art/Art';
 import type { ArtName } from '@/art/manifest';
@@ -137,6 +139,17 @@ function Steps({ onDone }: { onDone: () => void }) {
         </h2>
         <p className="mt-3 min-h-[5.5em] max-w-[52ch] text-[17px] font-semibold leading-snug md:min-h-[4.2em] md:text-[18px]">
           {step.body}
+        </p>
+        <p className="mt-2 min-h-[44px] text-[16px] font-bold">
+          {last ? (
+            <Link
+              to={`${DOCS_PATH}/play/how-to-play`}
+              onClick={onDone}
+              className="inline-flex min-h-[44px] items-center underline decoration-2 underline-offset-4"
+            >
+              Read the docs: costs, the grammar and what replay proves
+            </Link>
+          ) : null}
         </p>
       </div>
 

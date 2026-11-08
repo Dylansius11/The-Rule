@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Band } from '@/ui/Band';
 import { StarField } from '@/ui/Doodle';
 import { Marquee } from '@/ui/Marquee';
@@ -6,6 +7,9 @@ import { HowItWorks } from './HowItWorks';
 import { LiveStrip } from './LiveStrip';
 import { SealedStory } from './SealedStory';
 import { SeasonTeaser } from './SeasonTeaser';
+
+/** Below the fold and not needed for the first paint: its own small chunk, so the landing's first load stays lean. */
+const ForAgents = lazy(() => import('./ForAgents').then(m => ({ default: m.ForAgents })));
 
 const RIBBON = [
   "Don't think of the rule.",
@@ -44,6 +48,19 @@ export function Landing() {
 
       <Band tone="grape" id="season" label="Season" seed={3} amp={12} className="pb-24 pt-28 md:pb-28">
         <SeasonTeaser />
+      </Band>
+
+      <Band
+        tone="paper2"
+        id="docs"
+        label="For humans and agents"
+        seed={7}
+        amp={10}
+        className="pb-16 pt-20 md:pb-20"
+      >
+        <Suspense fallback={<div className="min-h-[300px] md:min-h-[220px]" aria-hidden="true" />}>
+          <ForAgents />
+        </Suspense>
       </Band>
     </>
   );

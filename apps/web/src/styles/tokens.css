@@ -1,0 +1,51 @@
+/* THE RULE design tokens. Binding contract: docs/DESIGN.md. Tailwind 4 reads @theme into utilities. */
+@theme {
+  --color-ink: #141210;
+  --color-ink-soft: #3a342c;
+  --color-paper: #fffbea;
+  --color-paper-2: #f6efd3;
+  --color-tomato: #ff3b1f;
+  --color-tomato-deep: #c92b14;
+  --color-tomato-lip: #b8240f;
+  --color-sun: #ffe814;
+  --color-sun-lip: #d9b800;
+  --color-grape: #6e3bff;
+  --color-grape-lip: #4a22c9;
+  --color-bubblegum: #ff7fa8;
+  --color-lime: #34d46f;
+  --color-lime-lip: #1e9e4d;
+  --color-lime-ink: #0d7a35;
+  --color-focus: #1a3cff;
+
+  --font-display: 'Londrina Solid', Impact, 'Arial Narrow', sans-serif;
+  --font-hand: 'Delicious Handrawn', 'Comic Sans MS', cursive;
+  --font-sans: 'Nunito Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Mono', monospace;
+
+  --ease-spring: cubic-bezier(0.34, 1.7, 0.5, 1);
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --radius-blob: 14px 18px 12px 20px / 18px 12px 20px 14px;
+  --radius-blob-lg: 20px 24px 18px 26px / 24px 18px 26px 20px;
+  --radius-slab: 8px 14px 9px 15px / 14px 8px 15px 9px;
+  --radius-slip: 6px 10px 5px 12px / 10px 5px 12px 6px;
+  --radius-pill: 999px 999px 999px 999px / 40px 34px 40px 34px;
+
+  --breakpoint-xs: 30rem;
+}
+
+:root {
+  --ink-w: 3.5px;
+  --header-bar-h: 64px;
+  --header-h: 96px;
+  --chrome-bottom: 68px;
+  --tabbar-h: 68px;
+}
+
+@media (min-width: 900px) {
+  :root {
+    --chrome-bottom: 0px;
+    --header-bar-h: 72px;
+    --header-h: 104px;
+  }
+}

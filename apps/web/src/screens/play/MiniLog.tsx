@@ -68,7 +68,9 @@ export function MiniLog({ mode, round, log }: { mode: Mode; round: Round | null;
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={5}>No plays yet in this round.</td>
+                  <td colSpan={5}>
+                    {log.status === 'idle' ? 'No plays yet: no round exists.' : 'No plays yet in this round.'}
+                  </td>
                 </tr>
               ) : (
                 rows.map(r => (

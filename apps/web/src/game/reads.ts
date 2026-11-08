@@ -75,10 +75,17 @@ export function useLog(mode: Mode, roundId: number | null | undefined, options: 
     total,
     loaded: rows.length,
     complete: !!query.data && rows.length === total,
-    status: query.isError ? ('error' as const) : query.data ? ('ready' as const) : ('loading' as const),
+    status:
+      roundId == null
+        ? ('idle' as const)
+        : query.isError
+          ? ('error' as const)
+          : query.data
+            ? ('ready' as const)
+            : ('loading' as const),
     error: query.error ? toUiError(query.error) : null,
     retry: () => {
-      void query.refetch();
+      if (roundId != null) void query.refetch();
     },
   };
 }
@@ -153,6 +160,24 @@ export const useLock = (mode: Mode, roundId: number | null | undefined, account:
     queryKey: ['lock', mode, roundId, account],
     queryFn: () => v.getLock(mode, roundId!, account!),
     enabled: roundId != null && !!account,
+    refetchInterval: 4000,
   });
 export const useSeason = (mode: Mode, season: number) =>
   useQuery({ queryKey: ['season', mode, season], queryFn: () => v.getSeason(mode, season) });
+
+export const useTokenStorage = (account: string | null) =>
+  useQuery({
+    queryKey: ['tokenStorage', account],
+    queryFn: () => v.getTokenStorage(account!),
+    enabled: !!account,
+    refetchInterval: 4000,
+  });
+export const useTokenStorageMinimum = () =>
+  useQuery({ queryKey: ['tokenStorageMinimum'], queryFn: v.getTokenStorageMinimum });
+export const useTokenState = (account: string | null) =>
+  useQuery({
+    queryKey: ['tokenState', account],
+    queryFn: () => v.getTokenState(account!),
+    enabled: !!account,
+    refetchInterval: 4000,
+  });

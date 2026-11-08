@@ -42,7 +42,7 @@ export function AtomPicker({ label, atoms, atomId, negated, onChange, taken }: A
         autoComplete="off"
       />
       <div
-        className="mt-2 max-h-[210px] overflow-auto rounded-lg border-[3px] border-ink bg-white"
+        className="mt-2 max-h-[260px] overflow-auto rounded-lg border-[3px] border-ink bg-white"
         role="radiogroup"
         aria-label={`${label} atoms`}
       >
@@ -58,7 +58,7 @@ export function AtomPicker({ label, atoms, atomId, negated, onChange, taken }: A
               aria-checked={on}
               disabled={blocked}
               onClick={() => onChange(a.id, negated)}
-              className={`flex min-h-[44px] w-full items-center gap-2 border-b-2 border-dashed border-ink/30 px-3 py-1.5 text-left text-[16px] font-bold ${on ? 'bg-sun' : 'hover:bg-sun/40'} disabled:opacity-40`}
+              className={`flex min-h-[44px] w-full items-center gap-2.5 border-b-2 border-dashed border-ink/30 px-3 py-1.5 text-left text-[16px] font-bold ${on ? 'bg-sun' : 'hover:bg-sun/40'} disabled:opacity-40`}
             >
               <span
                 aria-hidden="true"
@@ -66,8 +66,12 @@ export function AtomPicker({ label, atoms, atomId, negated, onChange, taken }: A
               >
                 {on ? '✓' : ''}
               </span>
-              <span className="min-w-0 flex-1">{a.english}</span>
-              <code className="mono hidden text-[12px] text-ink-soft sm:inline">{a.dsl}</code>
+              <span data-atom-text className="min-w-0 flex-1 break-words">
+                <span className="block">{a.english}</span>
+                <code className="mono mt-0.5 hidden break-all text-[12px] font-semibold leading-snug text-ink-soft sm:block">
+                  {a.dsl}
+                </code>
+              </span>
             </button>
           );
         })}

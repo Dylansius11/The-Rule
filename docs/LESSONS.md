@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-09: a read-only browser suite passed while the signed paths had real bugs
+
+- **What happened:** the v2 web app passed 39 Playwright tests against live r2 reads, yet the first wallet-signed run against a local sandbox found seven defects: `get_season` still sent the old argument shape, a disabled log query showed "Loading plays" forever, the team form suggested a name the contract rejects (E11), claim copy promised a wallet transfer while the contract credits play credit, locks were only offered for rounds the contract does not require, a fresh player could not register token storage, and a play refund could be inferred from views that had not moved yet (inferred, not reproduced).
+- **Root cause:** no live round existed and no signing was authorized, so every test exercised read paths only; a green read suite says nothing about calls, finality or argument shapes. The sandbox fixture also had no token storage for the game account, so RULE locks failed until it was registered: a deployment prerequisite, not just a test detail.
+- **Rule:** a feature that signs is not tested until a signer drives it against real contract code at HEAD. Run `pnpm --dir apps/web e2e:sandbox` before calling any signed web flow done, label it sandbox, never call it testnet evidence, and register the game account's storage on the token before any lock is expected to work.
+
 ### 2026-11-08: cross-platform package execution must not reconcile a shared workspace
 
 - **What happened:** P6's Linux `pnpm exec wrangler` entered a four-package workspace dependency reconciliation instead of starting the local Worker promptly. After the stopped command, the real keeper smoke reported a missing `@noble/curves`. Offline frozen restoration repopulated 96 packages; the separate workerd build-script approval stayed unapproved. No frontend source, dependency versions or build permission was changed.

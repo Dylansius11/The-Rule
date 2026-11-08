@@ -1,0 +1,318 @@
+/* Motion vocabulary. Curves: --ease-spring for pops, --ease-out for settles. Reduced motion collapses all of it (index.css). */
+
+@keyframes twinkle {
+  0%,
+  100% {
+    transform: scale(1) rotate(0);
+  }
+  50% {
+    transform: scale(1.18) rotate(8deg);
+  }
+}
+@keyframes slam {
+  0% {
+    transform: rotate(-8deg) scale(2.6);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(-8deg) scale(1);
+  }
+}
+@keyframes slam-sm {
+  0% {
+    transform: rotate(-5deg) scale(1.6);
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(-5deg) scale(1);
+  }
+}
+@keyframes dot {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-9px);
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes rollup {
+  from {
+    transform: translateY(60%);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes rolldn {
+  from {
+    transform: translateY(-60%);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes fresh {
+  from {
+    background: var(--color-sun);
+  }
+  to {
+    background: transparent;
+  }
+}
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  50% {
+    transform: scale(0.985, 1.03);
+  }
+}
+@keyframes hop {
+  0% {
+    transform: scale(1.12, 0.8);
+  }
+  35% {
+    transform: translateY(-14%) scale(0.92, 1.1);
+  }
+  70% {
+    transform: translateY(0) scale(1.1, 0.88);
+  }
+  100% {
+    transform: scale(1, 1);
+  }
+}
+@keyframes hop-shadow {
+  0% {
+    transform: scale(1.1);
+    opacity: 0.35;
+  }
+  35% {
+    transform: scale(0.55);
+    opacity: 0.12;
+  }
+  70% {
+    transform: scale(1.15);
+    opacity: 0.35;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+}
+@keyframes squish {
+  0% {
+    transform: scale(1.15, 0.78);
+  }
+  60% {
+    transform: scale(0.97, 1.03);
+  }
+  100% {
+    transform: scale(1, 0.97);
+  }
+}
+@keyframes shiver {
+  0%,
+  100% {
+    transform: translateX(-2px) rotate(-0.6deg);
+  }
+  50% {
+    transform: translateX(2px) rotate(0.6deg);
+  }
+}
+@keyframes wobble-pending {
+  0%,
+  100% {
+    transform: rotate(-2.5deg) translateY(0);
+  }
+  50% {
+    transform: rotate(2.5deg) translateY(-3px);
+  }
+}
+@keyframes thump {
+  0% {
+    transform: translateY(0);
+  }
+  35% {
+    transform: translateY(5px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--rot, 0deg));
+  }
+  50% {
+    transform: translateY(-8px) rotate(calc(var(--rot, 0deg) + 3deg));
+  }
+}
+@keyframes peek-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(2px);
+  }
+}
+@keyframes sweat {
+  0% {
+    transform: translateY(-4px);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(18px);
+    opacity: 0;
+  }
+}
+@keyframes tick {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes slap {
+  0% {
+    transform: scale(2.2) rotate(18deg);
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(8deg);
+  }
+}
+@keyframes crack {
+  0% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.12) rotate(-3deg);
+  }
+  60% {
+    transform: scale(0.96) rotate(2deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+@keyframes caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+.blot-stage {
+  position: relative;
+  display: block;
+}
+.blot-body {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 100%;
+}
+.blot-body[data-anim='idle'] {
+  animation: breathe 3.6s ease-in-out infinite;
+}
+.blot-body[data-anim='yes'] {
+  animation: hop 0.9s var(--ease-spring) both;
+}
+.blot-body[data-anim='no'] {
+  animation: squish 0.7s var(--ease-spring) both;
+}
+.blot-body[data-anim='pending'] {
+  animation: shiver 0.16s linear infinite;
+}
+.blot-body[data-anim='reveal'] {
+  animation: crack 0.8s var(--ease-spring) both;
+}
+.blot-expr {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: 50% 100%;
+  opacity: 0;
+  transition: opacity 0.18s ease-out;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.blot-expr[data-on='true'] {
+  opacity: 1;
+}
+.blot-shadow {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: -2%;
+  height: 7%;
+  border-radius: 50%;
+  background: var(--color-ink);
+  opacity: 0.3;
+  transform-origin: 50% 50%;
+}
+.blot-shadow[data-anim='yes'] {
+  animation: hop-shadow 0.9s var(--ease-spring) both;
+}
+.blot-shadow[data-anim='idle'] {
+  animation: hop-shadow 3.6s ease-in-out infinite;
+  animation-name: breathe-shadow;
+}
+@keyframes breathe-shadow {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.96);
+  }
+}
+.peek-bob {
+  animation: peek-bob 3.4s ease-in-out infinite;
+}
+.letter-pop {
+  display: inline-block;
+  transition: transform 0.25s var(--ease-spring);
+}
+.twinkle {
+  animation: twinkle var(--t, 3.2s) ease-in-out infinite;
+  animation-delay: var(--d, 0s);
+}
+.float-y {
+  animation: float-y var(--t, 5s) ease-in-out infinite;
+  animation-delay: var(--d, 0s);
+}
+.fresh-row td {
+  animation: fresh 1.6s ease-out;
+}
+.thump {
+  animation: thump 0.22s var(--ease-out);
+}
+.caret::after {
+  content: '▍';
+  margin-left: 1px;
+  animation: caret 1s steps(1) infinite;
+}

@@ -163,6 +163,7 @@ The founder's reference and mascot art feed `docs/DESIGN.md`. Stack: D2 (decided
 - [ ] **P7.3** S3 Guess and S4 Reveal: commit, reveal, statuses; browser replay in a worker matches `rule verify`.
 - [ ] **P7.4** S5 Team, S7 Season, S8 Demo toggle with the permanent label.
 - [ ] **P7.5** Accessibility and state matrix: keyboard, focus, reduced motion, 390 px and 1280 px; Playwright e2e against sandbox plus one testnet smoke.
+  - **Status 2026-11-08 (locally exercised against live r2 views, no transactions):** `apps/web` implements S1 to S8 in the Hand-Inked direction with the founder's art (49 cuts via `scripts/web/cut-art.py`). `tsc --noEmit` clean; Vitest 27 passed (format, view decoding, E-code mapping, play state machine and helpers, replay); `vite build` passes with route-level code splitting. Headless Chromium at 1280 and 390 px: every route renders live r2 data without console errors and with zero horizontal overflow. Browser replay of real Solo round 0 in the worker: commitment matches, 52 of 52 verdicts, log complete; the same captured rows give native CLI PASS 52/52 and 11/11 (Team). Not yet exercised, so no box is ticked: wallet connect and any signed play/deposit/guess/team/lock action (no live round exists and no signing was authorized), a 10k-row log, keyboard/state-matrix audit and Playwright e2e. The demo toggle stays disabled until a demo instance is deployed.
 
 ## Phase 8: hardening and delivery (2026-11-11 to 2026-11-14)
 

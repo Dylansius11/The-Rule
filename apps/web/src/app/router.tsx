@@ -14,6 +14,10 @@ function page<K extends string>(load: () => Promise<Record<K, ComponentType>>, n
   );
 }
 
+const devRoutes = import.meta.env.DEV
+  ? [{ path: 'dev/states', element: page(() => import('@/screens/DevStates'), 'DevStates') }]
+  : [];
+
 const router = createBrowserRouter([
   {
     element: <AppShell />,
@@ -24,6 +28,8 @@ const router = createBrowserRouter([
       { path: 'reveal', element: page(() => import('@/screens/RevealPage'), 'RevealPage') },
       { path: 'team', element: page(() => import('@/screens/TeamPage'), 'TeamPage') },
       { path: 'wallet', element: page(() => import('@/screens/WalletPage'), 'WalletPage') },
+      { path: 'season', element: page(() => import('@/screens/SeasonPage'), 'SeasonPage') },
+      ...devRoutes,
       { path: '*', element: page(() => import('@/screens/NotFound'), 'NotFound') },
     ],
   },

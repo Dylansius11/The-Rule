@@ -12,7 +12,7 @@ fn register(f: &mut Fx, name: &str) {
 }
 
 fn begin_team(f: &mut Fx) {
-    let begin = f.game.start_round(Mode::Team);
+    let begin = f.game.start_round(Mode::Team, None);
     let commit = protocol::round_commitment(&f.rule, &ROUND_SALT);
     let response = json!({"commit":commit,"header":{"tier":"daily","bucket":"rare","grammar":"22".repeat(32)}});
     deliver_env(
@@ -185,11 +185,11 @@ fn departing_depositor_receives_weighted_credit_and_captain_changes() {
 
 fn finish_team(f: &mut Fx, valid_open: bool) {
     f.at(10, INVESTIGATION_END);
-    f.game.advance(Mode::Team);
+    f.game.advance(Mode::Team, None);
     let round =
         near_sdk::serde_json::to_value(f.game.get_round(Mode::Team, Some(0)).unwrap()).unwrap();
     f.at(11, round["reveal_deadline_ns"].as_u64().unwrap());
-    let request = f.game.finalize(Mode::Team).expect("open request");
+    let request = f.game.finalize(Mode::Team, None).expect("open request");
     let response = if valid_open {
         f.open_ok()
     } else {
@@ -292,7 +292,7 @@ fn team_guess_is_actor_bound_and_returns_stake_to_vault() {
     let round =
         near_sdk::serde_json::to_value(f.game.get_round(Mode::Team, Some(0)).unwrap()).unwrap();
     f.at(4, round["reveal_deadline_ns"].as_u64().unwrap());
-    let request = f.game.finalize(Mode::Team).unwrap();
+    let request = f.game.finalize(Mode::Team, None).unwrap();
     let response = f.open_ok();
     f.on_open(request, response);
     assert_eq!(f.game.settle_team(id).0, 100);
@@ -400,12 +400,12 @@ fn cancelled_team_round_refunds_vault_before_withdrawal() {
     };
     f.verdict(request, 0);
     f.at(10, INVESTIGATION_END);
-    f.game.advance(Mode::Team);
+    f.game.advance(Mode::Team, None);
     let round =
         near_sdk::serde_json::to_value(f.game.get_round(Mode::Team, Some(0)).unwrap()).unwrap();
     let deadline = round["reveal_deadline_ns"].as_u64().unwrap();
     f.at(11, deadline);
-    let open = f.game.finalize(Mode::Team).unwrap();
+    let open = f.game.finalize(Mode::Team, None).unwrap();
     f.on_open(open, PromiseResult::Failed);
     f.at(12, deadline + params().open_timeout_ns);
     f.game.cancel(Mode::Team, 0);

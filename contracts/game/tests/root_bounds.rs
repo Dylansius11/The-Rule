@@ -28,7 +28,7 @@ fn active_round_capacity_rejects_atomically_and_cancel_releases_room() {
     for id in 0..10u32 {
         if id > 0 {
             fx.at(100 + u64::from(id) * 10, u64::from(id) * PERIOD);
-            let request = fx.game.start_round(Mode::Solo);
+            let request = fx.game.start_round(Mode::Solo, None);
             let begin = json!({"commit":protocol::round_commitment(&fx.rule, &ROUND_SALT),"header":{"tier":"daily","bucket":"rare","grammar":"22".repeat(32)}});
             deliver_env(
                 &fx.ctx,
@@ -41,14 +41,14 @@ fn active_round_capacity_rejects_atomically_and_cancel_releases_room() {
             101 + u64::from(id) * 10,
             r["investigation_end_ns"].as_u64().unwrap(),
         );
-        fx.game.advance(Mode::Solo);
+        fx.game.advance(Mode::Solo, None);
         let r = to_value(fx.game.get_round(Mode::Solo, Some(id)).unwrap()).unwrap();
         fx.at(
             102 + u64::from(id) * 10,
             r["reveal_deadline_ns"].as_u64().unwrap(),
         );
         testing_env!(fx.ctx.build());
-        let request = fx.game.finalize(Mode::Solo).unwrap();
+        let request = fx.game.finalize(Mode::Solo, None).unwrap();
         fx.on_open(request, PromiseResult::Failed);
     }
     assert_eq!(fx.game.get_active_rounds().len(), 10);
@@ -65,7 +65,7 @@ fn active_round_capacity_rejects_atomically_and_cancel_releases_room() {
     let before_slot = fx.game.get_next_slot(Mode::Solo);
     assert!(
         panic_text(|| {
-            fx.game.start_round(Mode::Solo);
+            fx.game.start_round(Mode::Solo, None);
         })
         .contains("E23")
     );
@@ -75,10 +75,10 @@ fn active_round_capacity_rejects_atomically_and_cancel_releases_room() {
     fx.at(400, 102 * PERIOD);
     fx.game.cancel(Mode::Solo, 0);
     testing_env!(fx.ctx.build());
-    let request = fx.game.start_round(Mode::Solo);
+    let request = fx.game.start_round(Mode::Solo, None);
     assert_eq!(fx.game.get_active_rounds().len(), 10);
     assert_eq!(
-        to_value(fx.game.get_round(Mode::Solo, Some(10)).unwrap()).unwrap()["phase"],
+        to_value(fx.game.get_round(Mode::Solo, Some(102)).unwrap()).unwrap()["phase"],
         "Sealing"
     );
     deliver_env(&fx.ctx, PromiseResult::Failed);
@@ -119,7 +119,7 @@ fn production_operator_budget_never_borrows_player_or_pot_money() {
     let before = to_value(game.get_ledger()).unwrap();
     assert!(
         panic_text(|| {
-            game.start_round(Mode::Solo);
+            game.start_round(Mode::Solo, None);
         })
         .contains("E24")
     );
@@ -128,13 +128,13 @@ fn production_operator_budget_never_borrows_player_or_pot_money() {
     // An unallocated direct top-up, not another player's credit or a seed, pays the budget.
     ctx.account_balance(NearToken::from_yoctonear(principal + required));
     testing_env!(ctx.build());
-    let first = game.start_round(Mode::Solo);
+    let first = game.start_round(Mode::Solo, None);
     let ledger = to_value(game.get_ledger()).unwrap();
     assert_eq!(num(&ledger["operator_storage_required"]), required);
     deliver_env(&ctx, PromiseResult::Failed);
     game.on_begin(first);
     testing_env!(ctx.build());
-    game.start_round(Mode::Solo); // retry uses the already reserved round, not another 1024 B
+    game.start_round(Mode::Solo, None); // retry uses the already reserved round, not another 1024 B
     let ledger = to_value(game.get_ledger()).unwrap();
     assert_eq!(num(&ledger["operator_storage_required"]), required);
     assert_eq!(
@@ -197,7 +197,7 @@ fn refunded_native_principal_is_not_operator_collateral_before_callback() {
         assert_eq!(num(&pending["pending_native_payments"]), 500);
         assert!(
             panic_text(|| {
-                fx.game.start_round(Mode::Team);
+                fx.game.start_round(Mode::Team, None);
             })
             .contains("E24"),
             "pending native refund was borrowed as operator collateral, platform={platform}"

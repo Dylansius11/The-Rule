@@ -95,15 +95,19 @@ impl Game {
     }
 
     /// The only round of `mode` that may still receive locks: the one being sealed or the next one.
-    fn lockable_round(&self, mode: u8) -> u32 {
+    fn lockable_round(&self, mode: u8, p: &Params) -> u32 {
         match self.current[mode as usize] {
-            None => 0,
+            None => self.next_round_id(mode, p),
             Some(id) => {
                 let sealing = self
                     .rounds
                     .get(&(mode, id))
                     .is_some_and(|r| r.phase == Phase::Sealing);
-                if sealing { id } else { id.saturating_add(1) }
+                if sealing {
+                    id
+                } else {
+                    self.next_round_id(mode, p)
+                }
             }
         }
     }
@@ -125,7 +129,7 @@ impl Game {
         if m == 1 && !self.team_membership.contains_key(&sender) {
             return reject("E32");
         }
-        if amount.0 == 0 || lock.round_id != self.lockable_round(m) {
+        if amount.0 == 0 || lock.round_id != self.lockable_round(m, &p) {
             return reject("E41");
         }
         let key = (m, lock.round_id, sender.clone());

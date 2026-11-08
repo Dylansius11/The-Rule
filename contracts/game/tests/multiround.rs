@@ -91,13 +91,13 @@ fn run_case(seed: u128, ops: &[(usize, bool)], retry_begin: bool, retry_open: bo
         if id == 1 {
             fx.at(100, PERIOD);
             testing_env!(fx.ctx.build());
-            let first = fx.game.start_round(Mode::Solo);
+            let first = fx.game.start_round(Mode::Solo, None);
             spent += receipt_spend();
             if retry_begin {
                 deliver_env(&fx.ctx, PromiseResult::Failed);
                 fx.game.on_begin(first);
                 testing_env!(fx.ctx.build());
-                let second = fx.game.start_round(Mode::Solo);
+                let second = fx.game.start_round(Mode::Solo, None);
                 spent += receipt_spend();
                 begin(&mut fx, second);
                 begin(&mut fx, first); // stale result must not replace the new round
@@ -137,7 +137,7 @@ fn run_case(seed: u128, ops: &[(usize, bool)], retry_begin: bool, retry_open: bo
             .as_u64()
             .unwrap();
         fx.at(200 + id as u64, end);
-        fx.game.advance(Mode::Solo);
+        fx.game.advance(Mode::Solo, None);
         if retry_begin {
             assert!(fx.game.expire_request(late));
             assert!(!fx.game.expire_request(late));
@@ -149,7 +149,7 @@ fn run_case(seed: u128, ops: &[(usize, bool)], retry_begin: bool, retry_open: bo
             .unwrap();
         fx.at(210 + id as u64, deadline);
         testing_env!(fx.ctx.build());
-        opens[id] = fx.game.finalize(Mode::Solo).unwrap();
+        opens[id] = fx.game.finalize(Mode::Solo, None).unwrap();
         spent += receipt_spend();
         check_principal(&fx, inputs, spent);
     }
@@ -368,7 +368,7 @@ fn seeded_team_roster_vault_and_terminal_rights() {
                 fx.game.seed_pot(Mode::Team);
                 fx.ctx.attached_deposit(NearToken::from_yoctonear(0));
                 testing_env!(fx.ctx.build());
-                let request = fx.game.start_round(Mode::Team);
+                let request = fx.game.start_round(Mode::Team, None);
                 begin(&mut fx, request);
                 for i in 0..plays {
                     fx.actor(MEMBERS[i % 5]);
@@ -385,7 +385,7 @@ fn seeded_team_roster_vault_and_terminal_rights() {
                 testing_env!(fx.ctx.build());
                 assert!(panic_text(|| fx.game.leave_team()).contains("E30"));
                 fx.at(10, INVESTIGATION_END);
-                fx.game.advance(Mode::Team);
+                fx.game.advance(Mode::Team, None);
                 let round =
                     near_sdk::serde_json::to_value(fx.game.get_round(Mode::Team, Some(0)).unwrap())
                         .unwrap();
@@ -393,7 +393,7 @@ fn seeded_team_roster_vault_and_terminal_rights() {
                 assert_eq!(num(&round["pot"]), pot);
                 fx.at(11, round["reveal_deadline_ns"].as_u64().unwrap());
                 testing_env!(fx.ctx.build());
-                let open = fx.game.finalize(Mode::Team).unwrap();
+                let open = fx.game.finalize(Mode::Team, None).unwrap();
                 let response = if void {
                     fx.open_with([4; 32])
                 } else {

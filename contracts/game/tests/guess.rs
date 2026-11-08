@@ -47,7 +47,7 @@ fn commit_requires_investigation() {
     testing_env!(ctx.build());
     let mut game = Game::new(params(), true);
     game.deposit_credit();
-    game.start_round(Mode::Solo);
+    game.start_round(Mode::Solo, None);
     game.commit_guess(Mode::Solo, Hex32([1; 32]));
 }
 

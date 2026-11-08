@@ -79,13 +79,13 @@ fn reserved_lifecycle_slots_and_full_finalize_are_atomic() {
     }
     let requests = fill_plays(&mut fx);
     testing_env!(fx.ctx.build());
-    let team_begin = fx.game.start_round(Mode::Team);
+    let team_begin = fx.game.start_round(Mode::Team, None);
     assert_eq!(count(&fx), 9);
     fx.run_to_finalize(10);
-    assert!(fx.game.finalize(Mode::Solo).is_none());
+    assert!(fx.game.finalize(Mode::Solo, None).is_none());
     testing_env!(fx.ctx.build());
     // The pending Team begin and Solo open consume both reserved slots.
-    let open = fx.game.finalize(Mode::Solo).unwrap();
+    let open = fx.game.finalize(Mode::Solo, None).unwrap();
     assert_eq!(count(&fx), 10);
     fx.at(11, params().round_period_ns);
     let before = borsh::to_vec(&fx.game).unwrap();
@@ -93,7 +93,7 @@ fn reserved_lifecycle_slots_and_full_finalize_are_atomic() {
     let round = fx.round();
     assert!(
         panic_text(|| {
-            fx.game.start_round(Mode::Solo);
+            fx.game.start_round(Mode::Solo, None);
         })
         .contains("E23")
     );
@@ -115,7 +115,7 @@ fn reserved_lifecycle_slots_and_full_finalize_are_atomic() {
 fn full_capacity_rejects_finalize_before_any_commit_sweep() {
     let mut fx = fixture(params());
     testing_env!(fx.ctx.build());
-    let team_begin = fx.game.start_round(Mode::Team);
+    let team_begin = fx.game.start_round(Mode::Team, None);
     let begin = near_sdk::serde_json::json!({
         "commit": "11".repeat(32),
         "header": {"tier":"daily","bucket":"rare","grammar":"22".repeat(32)}
@@ -131,13 +131,13 @@ fn full_capacity_rejects_finalize_before_any_commit_sweep() {
     }
     fill_plays(&mut fx);
     fx.at(10, INVESTIGATION_END);
-    fx.game.advance(Mode::Solo);
-    fx.game.advance(Mode::Team);
+    fx.game.advance(Mode::Solo, None);
+    fx.game.advance(Mode::Team, None);
     fx.at(11, INVESTIGATION_END + params().reveal_window_ns);
-    let team_open = fx.game.finalize(Mode::Team).unwrap();
+    let team_open = fx.game.finalize(Mode::Team, None).unwrap();
     assert_eq!(count(&fx), 9);
     fx.at(12, params().round_period_ns);
-    let next_team_begin = fx.game.start_round(Mode::Team);
+    let next_team_begin = fx.game.start_round(Mode::Team, None);
     assert_eq!(count(&fx), 10);
     let before = borsh::to_vec(&fx.game).unwrap();
     let ledger = fx.ledger();
@@ -145,7 +145,7 @@ fn full_capacity_rejects_finalize_before_any_commit_sweep() {
     let commits = fx.commits();
     assert!(
         panic_text(|| {
-            fx.game.finalize(Mode::Solo);
+            fx.game.finalize(Mode::Solo, None);
         })
         .contains("E23")
     );
@@ -156,7 +156,7 @@ fn full_capacity_rejects_finalize_before_any_commit_sweep() {
     fx.on_open(team_open, PromiseResult::Failed);
     assert_eq!(count(&fx), 9);
     testing_env!(fx.ctx.build());
-    assert!(fx.game.finalize(Mode::Solo).is_none());
+    assert!(fx.game.finalize(Mode::Solo, None).is_none());
     assert!(fx.commits()[..20].iter().all(|c| status(c) == "Unrevealed"));
     assert_eq!(status(&fx.commits()[20]), "Committed");
     deliver_env(&fx.ctx, PromiseResult::Failed);
@@ -171,7 +171,7 @@ fn full_capacity_rejects_open_retry_without_mutation() {
     let period = p.round_period_ns;
     let mut fx = fixture(p);
     testing_env!(fx.ctx.build());
-    let begin = fx.game.start_round(Mode::Team);
+    let begin = fx.game.start_round(Mode::Team, None);
     let response = near_sdk::serde_json::json!({
         "commit": "11".repeat(32),
         "header": {"tier":"daily","bucket":"rare","grammar":"22".repeat(32)}
@@ -182,16 +182,16 @@ fn full_capacity_rejects_open_retry_without_mutation() {
     );
     fx.game.on_begin(begin);
     fx.at(10, INVESTIGATION_END);
-    fx.game.advance(Mode::Solo);
-    fx.game.advance(Mode::Team);
+    fx.game.advance(Mode::Solo, None);
+    fx.game.advance(Mode::Team, None);
     fx.at(11, INVESTIGATION_END + params().reveal_window_ns);
-    let solo_open = fx.game.finalize(Mode::Solo).unwrap();
+    let solo_open = fx.game.finalize(Mode::Solo, None).unwrap();
     testing_env!(fx.ctx.build());
-    let team_open = fx.game.finalize(Mode::Team).unwrap();
+    let team_open = fx.game.finalize(Mode::Team, None).unwrap();
     fx.on_open(solo_open, PromiseResult::Failed);
     fx.on_open(team_open, PromiseResult::Failed);
     fx.at(12, period);
-    let next_solo = fx.game.start_round(Mode::Solo);
+    let next_solo = fx.game.start_round(Mode::Solo, None);
     deliver_env(
         &fx.ctx,
         PromiseResult::Successful(response.to_string().into_bytes()),
@@ -199,7 +199,7 @@ fn full_capacity_rejects_open_retry_without_mutation() {
     fx.game.on_begin(next_solo);
     fill_plays(&mut fx);
     testing_env!(fx.ctx.build());
-    let next_team = fx.game.start_round(Mode::Team);
+    let next_team = fx.game.start_round(Mode::Team, None);
     testing_env!(fx.ctx.build());
     let retry = fx.game.retry_open(Mode::Solo, 0);
     assert_eq!(count(&fx), 10);

@@ -71,7 +71,7 @@ fn expired_guess_refunds_stake_and_unblocks_finalization_without_late_winner() {
     testing_env!(fx.ctx.build());
     fx.game.withdraw_credit(near_sdk::json_types::U128(1));
     fx.run_to_finalize(10);
-    assert!(fx.game.finalize(Mode::Solo).is_some());
+    assert!(fx.game.finalize(Mode::Solo, None).is_some());
     assert_eq!(fx.round()["outcome"]["kind"], "Unsolved");
 }
 
@@ -84,7 +84,7 @@ fn begin_expiry_allows_retry_then_timeout_cancel_and_fences_the_old_response() {
     testing_env!(ctx.build());
     let mut game = Game::new(params(), true);
     game.seed_pot(Mode::Solo);
-    let first = game.start_round(Mode::Solo);
+    let first = game.start_round(Mode::Solo, None);
     assert_eq!(
         near_sdk::serde_json::to_value(game.get_ledger()).unwrap()["pending_referee_requests"],
         1
@@ -96,7 +96,7 @@ fn begin_expiry_allows_retry_then_timeout_cancel_and_fences_the_old_response() {
         near_sdk::serde_json::to_value(game.get_ledger()).unwrap()["pending_referee_requests"],
         0
     );
-    let retry = game.start_round(Mode::Solo);
+    let retry = game.start_round(Mode::Solo, None);
     assert_eq!(
         near_sdk::serde_json::to_value(game.get_ledger()).unwrap()["pending_referee_requests"],
         1
@@ -130,7 +130,7 @@ fn open_expiry_allows_retry_or_cancel_but_not_a_late_settlement() {
         let mut fx = fixture(params());
         fx.run_to_finalize(10);
         let started = fx.ctx.build().block_timestamp;
-        let request = fx.game.finalize(Mode::Solo).unwrap();
+        let request = fx.game.finalize(Mode::Solo, None).unwrap();
         assert_eq!(fx.ledger()["pending_referee_requests"], 1);
         fx.at(11, started + TIMEOUT);
         assert!(fx.game.expire_request(request));

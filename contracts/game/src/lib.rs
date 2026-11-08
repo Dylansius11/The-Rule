@@ -9,6 +9,7 @@ pub mod params;
 mod play;
 mod recovery;
 mod round;
+mod season;
 mod settle;
 mod storage;
 #[cfg(test)]
@@ -259,6 +260,7 @@ pub struct Game {
     rounds: LookupMap<(u8, u32), Round>,
     current: [Option<u32>; 2],
     active_rounds: Vec<(u8, u32)>,
+    retained_rounds: u64,
     carry: [u128; 2],
     pending: LookupMap<u64, Request>,
     pending_referee_requests: u32,
@@ -270,6 +272,10 @@ pub struct Game {
     next_team: u32,
     total_vault: u128,
     entities: LookupMap<(u8, u32, Entity), EntityRound>,
+    season_headers: LookupMap<(u8, u32), season::SeasonHeader>,
+    season_candidates: LookupMap<(u8, u32, u32), Entity>,
+    season_entries: LookupMap<(u8, u32, Entity), season::SeasonEntry>,
+    season_ranks: near_sdk::store::TreeMap<season::RankKey, ()>,
     seen: LookupMap<(u8, u32, u64), u32>,
     log: LookupMap<(u8, u32, u32), String>,
     next_player: u32,
@@ -419,12 +425,25 @@ impl Game {
             near_sdk::require!(params::funded_storage(&params), "E11");
             const HOUR: u64 = 3_600_000_000_000;
             const MINUTE: u64 = 60_000_000_000;
+            let duration = params
+                .investigation_max_ns
+                .checked_add(params.reveal_window_ns);
             let earliest = env::block_timestamp()
                 .checked_add(2 * HOUR)
                 .unwrap_or_else(|| env::panic_str("E11"));
             near_sdk::require!(
                 params.genesis_ns >= earliest
                     && params.round_period_ns >= HOUR
+                    && params.investigation_max_ns > 0
+                    && duration.is_some_and(|n| n <= params.round_period_ns && n <= 24 * HOUR)
+                    && params.mode_offset_ns.iter().all(|&offset| {
+                        offset < params.round_period_ns
+                            && params
+                                .genesis_ns
+                                .checked_add(offset)
+                                .and_then(|slot| slot.checked_add(params.round_period_ns))
+                                .is_some()
+                    })
                     && params.reveal_window_ns >= 10 * MINUTE
                     && params.begin_timeout_ns >= 10 * MINUTE
                     && params.open_timeout_ns >= 10 * MINUTE,
@@ -436,6 +455,7 @@ impl Game {
             demo,
             rounds: LookupMap::new(b"r"),
             current: [None, None],
+            retained_rounds: 0,
             active_rounds: Vec::new(),
             carry: [0, 0],
             pending: LookupMap::new(b"p"),
@@ -448,6 +468,10 @@ impl Game {
             next_team: 0,
             total_vault: 0,
             entities: LookupMap::new(b"e"),
+            season_headers: LookupMap::new(&b"sh"[..]),
+            season_candidates: LookupMap::new(&b"sc"[..]),
+            season_entries: LookupMap::new(&b"se"[..]),
+            season_ranks: near_sdk::store::TreeMap::new(&b"sr"[..]),
             seen: LookupMap::new(b"s"),
             log: LookupMap::new(b"l"),
             next_player: 0,
@@ -487,15 +511,15 @@ impl Game {
     pub fn seed_pot(&mut self, mode: Mode) {
         self.seed_pot_inner(mode);
     }
-    pub fn start_round(&mut self, mode: Mode) -> u64 {
-        self.start_round_inner(mode)
+    pub fn start_round(&mut self, mode: Mode, round_id: Option<u32>) -> u64 {
+        self.start_round_inner(mode, round_id)
     }
     #[private]
     pub fn on_begin(&mut self, request_id: u64) {
         self.on_begin_inner(request_id);
     }
-    pub fn advance(&mut self, mode: Mode) {
-        self.advance_inner(mode);
+    pub fn advance(&mut self, mode: Mode, round_id: Option<u32>) {
+        self.advance_inner(mode, round_id);
     }
     pub fn get_round(&self, mode: Mode, id: Option<u32>) -> Option<RoundView> {
         self.get_round_inner(mode, id)

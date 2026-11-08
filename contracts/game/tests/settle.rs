@@ -17,7 +17,7 @@ fn round_value(fx: &Fx, key: &str) -> Value {
 /// Close Investigation by time and wait out the reveal window.
 fn to_finalize(fx: &mut Fx, block: u64) {
     fx.at(block, INVESTIGATION_END);
-    fx.game.advance(Mode::Solo);
+    fx.game.advance(Mode::Solo, None);
     let deadline = round_value(fx, "reveal_deadline_ns").as_u64().unwrap();
     fx.at(block + 1, deadline);
 }
@@ -278,7 +278,7 @@ fn an_open_that_keeps_failing_is_cancelled_after_the_timeout_and_refunds() {
 fn finalize_and_claim_enforce_phase_deadline_and_pending_checks() {
     let mut fx = fixture(params());
     let early = panic_text(|| {
-        fx.game.finalize(Mode::Solo);
+        fx.game.finalize(Mode::Solo, None);
     });
     assert!(early.contains("E10"), "{early}");
     let unfinished = panic_text(|| {
@@ -291,14 +291,14 @@ fn finalize_and_claim_enforce_phase_deadline_and_pending_checks() {
     fx.at(12, 0);
     let check = fx.reveal(0);
     fx.at(14, INVESTIGATION_END);
-    fx.game.advance(Mode::Solo);
+    fx.game.advance(Mode::Solo, None);
     let too_early = panic_text(|| {
-        fx.game.finalize(Mode::Solo);
+        fx.game.finalize(Mode::Solo, None);
     });
     assert!(too_early.contains("E50"), "{too_early}");
     fx.at(15, INVESTIGATION_END + REVEAL_WINDOW);
     let pending = panic_text(|| {
-        fx.game.finalize(Mode::Solo);
+        fx.game.finalize(Mode::Solo, None);
     });
     assert!(
         pending.contains("E50"),
@@ -399,7 +399,7 @@ proptest! {
         block += 3;
         if fx.round()["phase"] == "Investigation" {
             fx.at(block, INVESTIGATION_END);
-            fx.game.advance(Mode::Solo);
+            fx.game.advance(Mode::Solo, None);
         }
         let deadline = round_value(&fx, "reveal_deadline_ns").as_u64().unwrap();
         fx.at(block + 3, deadline);
@@ -490,11 +490,11 @@ fn lifecycle_phase_guards_reject_without_changing_round_or_money() {
             let before = (fx.round(), fx.ledger(), fx.commits());
             let error = panic_text(|| match method {
                 "start_round" => {
-                    fx.game.start_round(Mode::Solo);
+                    fx.game.start_round(Mode::Solo, None);
                 }
-                "advance" => fx.game.advance(Mode::Solo),
+                "advance" => fx.game.advance(Mode::Solo, None),
                 "finalize" => {
-                    fx.game.finalize(Mode::Solo);
+                    fx.game.finalize(Mode::Solo, None);
                 }
                 "retry_open" => {
                     fx.game.retry_open(Mode::Solo, 0);
@@ -547,7 +547,7 @@ fn solo_and_team_slots_reject_before_boundary_then_admit_exactly_once() {
         let before = serde_json::to_value(game.get_ledger()).unwrap();
         assert!(
             panic_text(|| {
-                game.start_round(mode);
+                game.start_round(mode, None);
             })
             .contains("E50")
         );
@@ -556,14 +556,14 @@ fn solo_and_team_slots_reject_before_boundary_then_admit_exactly_once() {
         assert!(near_sdk::test_utils::get_created_receipts().is_empty());
         ctx.block_timestamp(due);
         testing_env!(ctx.build());
-        game.start_round(mode);
+        game.start_round(mode, None);
         let admitted = serde_json::to_value(game.get_round(mode, None).unwrap()).unwrap();
         assert_eq!(admitted["slot_ns"], due);
         assert_eq!(admitted["phase"], "Sealing");
         testing_env!(ctx.build());
         assert!(
             panic_text(|| {
-                game.start_round(mode);
+                game.start_round(mode, None);
             })
             .contains("E50")
         );

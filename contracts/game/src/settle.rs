@@ -65,8 +65,8 @@ impl Game {
     /// Close Reveal: sweep unrevealed commits, then ask the referee to open the rule.
     /// Returns the `open` request id once the round is Opening; `None` means call again
     /// (more commits to sweep).
-    pub fn finalize(&mut self, mode: Mode) -> Option<u64> {
-        self.finalize_inner(mode)
+    pub fn finalize(&mut self, mode: Mode, round_id: Option<u32>) -> Option<u64> {
+        self.finalize_inner(mode, round_id)
     }
 
     #[private]
@@ -143,9 +143,10 @@ impl Game {
         self.close_commit(mode, round, commit.entity);
     }
 
-    fn finalize_inner(&mut self, mode: Mode) -> Option<u64> {
+    fn finalize_inner(&mut self, mode: Mode, round_id: Option<u32>) -> Option<u64> {
         let m = mode as u8;
         let id = self.current[m as usize].unwrap_or_else(|| env::panic_str("E10"));
+        near_sdk::require!(round_id.is_none_or(|target| target == id), "E50");
         let p = self.params();
         let now = env::block_timestamp();
         let (count, cursor) = {
@@ -372,6 +373,7 @@ impl Game {
         self.carry[mode as usize] += rollover;
         self.platform_accrued += platform;
         self.total_claimable += winner + paid_shares - team_dust;
+        self.season_changed(mode, round);
         event(
             "round_settled",
             &json!({"mode":mode,"round_id":round,"pot":U128(pot),"winner_amount":U128(winner),"per_share":U128(per_share),"rollover":U128(rollover),"platform":U128(platform),"solved":solved}),
@@ -388,6 +390,7 @@ impl Game {
         self.total_pots -= pot;
         self.carry[mode as usize] += base;
         self.total_claimable += pot - base;
+        self.season_changed(mode, round);
         if phase == Phase::Cancelled {
             event("round_cancelled", &json!({"mode":mode,"round_id":round}));
         }

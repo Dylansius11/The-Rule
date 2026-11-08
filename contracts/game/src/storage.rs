@@ -9,15 +9,9 @@ const REFUNDABLE_REQUEST_BYTES: u64 = 1024;
 
 impl Game {
     pub(crate) fn operator_storage_required(&self, additional_rounds: u64) -> u128 {
-        let retained_rounds: u64 = self
-            .current
-            .iter()
-            .flatten()
-            .map(|id| u64::from(*id) + 1)
-            .sum();
         let bytes = u128::from(self.base_storage_bytes)
             + u128::from(ROOT_BYTES)
-            + u128::from(retained_rounds + additional_rounds) * u128::from(ROUND_BYTES)
+            + u128::from(self.retained_rounds + additional_rounds) * u128::from(ROUND_BYTES)
             + u128::from(MAX_PENDING_REFEREE_REQUESTS) * u128::from(REFUNDABLE_REQUEST_BYTES);
         bytes * env::storage_byte_cost().as_yoctonear()
     }

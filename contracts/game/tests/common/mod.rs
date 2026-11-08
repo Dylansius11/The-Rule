@@ -127,7 +127,7 @@ pub fn fixture_with(
     let (rule, _) = rule_core::sample(b"guess-tests");
     let commit = protocol::round_commitment(&rule, &ROUND_SALT);
     let begin = json!({"commit":commit,"header":{"tier":"daily","bucket":bucket,"grammar":"2222222222222222222222222222222222222222222222222222222222222222"}});
-    let request = game.start_round(Mode::Solo);
+    let request = game.start_round(Mode::Solo, None);
     deliver_env(
         &ctx,
         PromiseResult::Successful(begin.to_string().into_bytes()),
@@ -232,7 +232,7 @@ impl Fx {
         let mut calls = 0;
         loop {
             calls += 1;
-            if let Some(request) = self.game.finalize(Mode::Solo) {
+            if let Some(request) = self.game.finalize(Mode::Solo, None) {
                 return (calls, request);
             }
             assert!(calls < 100, "finalize never completed");
@@ -242,7 +242,7 @@ impl Fx {
     /// Let Investigation end by time and wait out the reveal window (no commits needed).
     pub fn run_to_finalize(&mut self, block: u64) {
         self.at(block, INVESTIGATION_END);
-        self.game.advance(Mode::Solo);
+        self.game.advance(Mode::Solo, None);
         let deadline = self.round()["reveal_deadline_ns"].as_u64().unwrap();
         self.at(block + 1, deadline);
     }

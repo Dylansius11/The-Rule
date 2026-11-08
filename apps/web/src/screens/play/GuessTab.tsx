@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { toUiError } from '@/chain/errors';
 import { useCommits, useGuessActions, useLog, useParams, usePlayer, useWallet } from '@/game';
-import type { Mode, Round } from '@/game/types';
+import { stakeFor } from '@/game/cost';
 import { roomPath } from '@/app/paths';
 import { useGuide } from '@/layout/guide';
 import { PageHead } from '@/screens/shared/PageHead';
@@ -10,12 +10,15 @@ import { Button } from '@/ui/Button';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorCard } from '@/ui/ErrorCard';
 import { InkBox } from '@/ui/InkBox';
+import { CostPayout } from './CostPayout';
 import { CommitStep } from './guess/CommitStep';
+import { GuessSummary } from './guess/GuessSummary';
 import { HypothesisStep } from './guess/HypothesisStep';
 import { RevealStep } from './guess/RevealStep';
 import { StepNav, type GuessStep } from './guess/StepNav';
 import { TestStep } from './guess/TestStep';
 import { useGuessDraft } from './guess/useGuessDraft';
+import { useWide } from './guess/useWide';
 import { useRoom } from './room';
 
 const STEPS: readonly GuessStep[] = [
@@ -32,11 +35,6 @@ const HEADINGS = [
   'Reveal it',
 ];
 
-function stakeFor(round: Round, mode: Mode, bps: [number, number], min: bigint) {
-  const pct = (round.pot * BigInt(bps[mode])) / 10_000n;
-  return pct < min ? min : pct;
-}
-
 /** The guess tab: four steps from a hunch to a revealed commit. The newest round of the room's mode is the one guessed on. */
 export function GuessTab() {
   const { mode, latest } = useRoom();
@@ -52,8 +50,10 @@ export function GuessTab() {
   const [step, setStep] = useState(0);
 
   const open = isPlayable(round);
+  const wide = useWide();
+  const committing = actions.commit.state.kind === 'signing' || actions.commit.state.kind === 'pending';
   const stake =
-    round && params.data ? stakeFor(round, mode, params.data.stakeBps, params.data.stakeMin) : null;
+    round && params.data ? stakeFor(round.pot, params.data.stakeBps[mode], params.data.stakeMin) : null;
   const needsTeam =
     mode === 1 && status === 'connected' && player.isSuccess && (player.data?.teamId ?? null) === null;
   const reachable = (i: number) => i === 0 || i === 3 || draft.rule !== null;
@@ -99,52 +99,65 @@ export function GuessTab() {
         </div>
       ) : null}
 
-      <InkBox className="mx-auto mt-8 max-w-[920px] p-5 md:p-8" fill="#fff" tilt={-0.3}>
-        <StepNav steps={STEPS} current={step} reachable={reachable} onGo={setStep} />
-        <div className="mt-6">
-          <span className="hand -rotate-1 block text-[24px] leading-none text-tomato-deep">
-            step {step + 1} of {STEPS.length} · {STEPS[step]!.note}
-          </span>
-          <h2 className="display mt-1 text-[clamp(34px,6vw,52px)] leading-[0.92]">{HEADINGS[step]}</h2>
-        </div>
-        <div className="mt-4">
-          {step === 0 ? <HypothesisStep draft={draft} /> : null}
-          {step === 1 ? <TestStep draft={draft} log={log} /> : null}
-          {step === 2 ? (
-            <CommitStep draft={draft} actions={actions} open={open} stake={stake} needsTeam={needsTeam} />
-          ) : null}
-          {step === 3 ? (
-            <RevealStep actions={actions} commits={commits} round={round} account={accountId} />
-          ) : null}
-        </div>
-        <div className="mt-6 flex items-center justify-between gap-3 border-t-[3px] border-dashed border-ink/40 pt-5">
-          <Button variant="paper" size="sm" disabled={step === 0} onClick={() => setStep(step - 1)}>
-            Back
-          </Button>
-          {last ? null : (
-            <Button
-              variant={step === 2 ? 'paper' : 'red'}
-              size="sm"
-              disabled={!reachable(step + 1)}
-              onClick={() => setStep(step + 1)}
-            >
-              {step === 2 ? 'Skip to reveal' : 'Next'}
-            </Button>
-          )}
-        </div>
-      </InkBox>
+      <div
+        className={wide ? 'mt-8 grid grid-cols-[minmax(300px,360px)_minmax(0,1fr)] items-start gap-8' : ''}
+      >
+        {wide ? <GuessSummary draft={draft} mode={mode} round={round} committing={committing} /> : null}
+        <div className="min-w-0">
+          <InkBox
+            className="mx-auto mt-8 max-w-[920px] p-5 md:p-8 xl:mt-0 xl:max-w-none"
+            fill="#fff"
+            tilt={-0.3}
+          >
+            <StepNav steps={STEPS} current={step} reachable={reachable} onGo={setStep} />
+            <div className="mt-6">
+              <span className="hand -rotate-1 block text-[24px] leading-none text-tomato-deep">
+                step {step + 1} of {STEPS.length} · {STEPS[step]!.note}
+              </span>
+              <h2 className="display mt-1 text-[clamp(34px,6vw,52px)] leading-[0.92]">{HEADINGS[step]}</h2>
+            </div>
+            <div className="mt-4">
+              {step === 0 ? <HypothesisStep draft={draft} /> : null}
+              {step === 1 ? <TestStep draft={draft} log={log} /> : null}
+              {step === 2 ? (
+                <CommitStep draft={draft} actions={actions} open={open} stake={stake} needsTeam={needsTeam} />
+              ) : null}
+              {step === 3 ? (
+                <RevealStep actions={actions} commits={commits} round={round} account={accountId} />
+              ) : null}
+            </div>
+            <div className="mt-6 flex items-center justify-between gap-3 border-t-[3px] border-dashed border-ink/40 pt-5">
+              <Button variant="paper" size="sm" disabled={step === 0} onClick={() => setStep(step - 1)}>
+                Back
+              </Button>
+              {last ? null : (
+                <Button
+                  variant={step === 2 ? 'paper' : 'red'}
+                  size="sm"
+                  disabled={!reachable(step + 1)}
+                  onClick={() => setStep(step + 1)}
+                >
+                  {step === 2 ? 'Skip to reveal' : 'Next'}
+                </Button>
+              )}
+            </div>
+          </InkBox>
 
-      <p className="mx-auto mt-5 max-w-[920px] text-[14px] font-semibold text-ink-soft">
-        New to this?{' '}
-        <button
-          type="button"
-          onClick={show}
-          className="min-h-[44px] font-extrabold underline decoration-2 underline-offset-2"
-        >
-          How to play
-        </button>
-        . Commit order decides ties: the earliest correct commit wins.
-      </p>
+          {wide ? null : <CostPayout mode={mode} round={round} className="mx-auto mt-5 max-w-[920px]" />}
+
+          <p className="mx-auto mt-5 max-w-[920px] text-[14px] font-semibold text-ink-soft xl:mx-0 xl:max-w-none">
+            New to this?{' '}
+            <button
+              type="button"
+              onClick={show}
+              className="min-h-[44px] font-extrabold underline decoration-2 underline-offset-2"
+            >
+              How to play
+            </button>
+            . Commit order decides ties: the earliest correct commit wins.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

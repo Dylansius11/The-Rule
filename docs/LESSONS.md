@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-08: removing a worktree followed a node_modules junction into the real tree
+
+- **What happened:** to typecheck each web commit, `scratch/wt-check/apps/web/node_modules` was a junction to the main `apps/web/node_modules`. `cmd //c rmdir` from Git Bash did not run (it opened a shell and exited), so `git worktree remove --force` deleted through the junction. Tracked `verifier/wasm/*` files (reached through the `@the-rule/verifier-wasm` workspace link), the web packages in the pnpm store and `verifier/wasm/pkg` were emptied. `git restore`, `pnpm install --force --frozen-lockfile` and a wasm-bindgen 0.2.130 rebuild recovered everything; the web suite (27) and keeper suite (12) passed again.
+- **Root cause:** Windows junctions are followed by recursive deletes, and the removal command was never checked.
+- **Rule:** before removing a worktree that has a junction, remove the junction with `os.rmdir` (it removes the link only), confirm it is gone, and confirm the target still exists. Only then run `git worktree remove`.
+
 ### 2026-11-08: vault principal is not the signing wallet's gas balance
 
 - **What happened:** D36 funded a 3-NEAR Team vault, but a member with 0.149085480732098956410234 NEAR in its wallet had a signed 300-Tgas play rejected against a 0.300919159630831-NEAR transaction-cost quote. The nonce had not advanced. The already-planned low-gas E30 roster guard then consumed that exact nonce before parent gas sponsorship of 0.4/0.1 NEAR; the original signed play was never resent.

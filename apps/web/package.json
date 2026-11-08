@@ -6,6 +6,7 @@
     "node": ">=22.22.2"
   },
   "scripts": {
+    "audio:music": "node scripts/audio/generate-music.mjs",
     "docs:build": "node scripts/docs/build.mjs",
     "docs:lint": "node scripts/docs/build.mjs --lint",
     "predev": "pnpm docs:build",

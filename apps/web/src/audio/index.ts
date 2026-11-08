@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { canPlay, clampVolume, DEFAULT_SETTINGS, parseSettings } from './settings';
+import type { MusicEngine } from './music';
 
 export type SoundName =
   | 'tap'
@@ -37,6 +38,9 @@ type SoundControls = {
   setEnabled: (on: boolean) => void;
   volume: number;
   setVolume: (v: number) => void;
+  music: { enabled: boolean; volume: number };
+  setMusicEnabled: (on: boolean) => void;
+  setMusicVolume: (v: number) => void;
 };
 
 const KEY = 'the-rule:sound';
@@ -82,6 +86,8 @@ export function SoundProvider({ children }: { children: ReactNode }) {
   const voices = useRef(0);
   const mounted = useRef(false);
   const resumed = useRef<Promise<void> | null>(null);
+  const music = useRef<MusicEngine | null>(null);
+  const musicLoading = useRef(false);
 
   const load = useCallback((context: AudioContext, name: SoundName) => {
     let buffer = buffers.current.get(name);
@@ -113,6 +119,19 @@ export function SoundProvider({ children }: { children: ReactNode }) {
         if (firstUnlock) {
           for (const name of Object.keys(GAINS) as SoundName[]) void load(context, name);
         }
+        if (!music.current && !musicLoading.current) {
+          musicLoading.current = true;
+          void import('./music')
+            .then(({ createMusic }) => {
+              if (mounted.current && audio.current === context) {
+                music.current = createMusic(context, current.current.music);
+              }
+            })
+            .catch(() => {})
+            .finally(() => {
+              musicLoading.current = false;
+            });
+        }
       } catch {
         /* Audio is unavailable; the interface remains usable. */
       }
@@ -126,6 +145,8 @@ export function SoundProvider({ children }: { children: ReactNode }) {
       const context = audio.current;
       audio.current = null;
       buffers.current.clear();
+      music.current?.dispose();
+      music.current = null;
       if (context) void context.close().catch(() => {});
     };
   }, [load]);
@@ -137,6 +158,10 @@ export function SoundProvider({ children }: { children: ReactNode }) {
       /* Storage is optional. */
     }
   }, [settings]);
+
+  useEffect(() => {
+    void music.current?.update(settings.music);
+  }, [settings.music]);
 
   const play = useCallback(
     (name: SoundName) => {
@@ -173,6 +198,7 @@ export function SoundProvider({ children }: { children: ReactNode }) {
             source.disconnect();
             gain.disconnect();
           };
+          music.current?.duck();
           source.start();
         } catch {
           voices.current--;
@@ -186,9 +212,21 @@ export function SoundProvider({ children }: { children: ReactNode }) {
     (volume: number) => setSettings(value => ({ ...value, volume: clampVolume(volume) })),
     [],
   );
+  const setMusicEnabled = useCallback(
+    (enabled: boolean) => setSettings(value => ({ ...value, music: { ...value.music, enabled } })),
+    [],
+  );
+  const setMusicVolume = useCallback(
+    (volume: number) =>
+      setSettings(value => ({
+        ...value,
+        music: { ...value.music, volume: clampVolume(volume, DEFAULT_SETTINGS.music.volume) },
+      })),
+    [],
+  );
   return createElement(
     SoundContext.Provider,
-    { value: { play, ...settings, setEnabled, setVolume } },
+    { value: { play, ...settings, setEnabled, setVolume, setMusicEnabled, setMusicVolume } },
     children,
   );
 }

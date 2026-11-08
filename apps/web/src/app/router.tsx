@@ -19,6 +19,7 @@ const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { index: true, element: <Home /> },
+      { path: 'log', element: page(() => import('@/screens/LogPage'), 'LogPage') },
       { path: '*', element: page(() => import('@/screens/NotFound'), 'NotFound') },
     ],
   },

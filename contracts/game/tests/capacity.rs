@@ -253,7 +253,12 @@ fn expiration_and_non_referee_requests_do_not_release_other_slots() {
     assert_eq!(count(&fx), 1);
     fx.at(10, 600_000_000_000);
     assert!(!fx.game.expire_request(withdraw));
-    assert!(!fx.game.expire_request(register));
+    assert!(fx.game.expire_request(register));
+    assert_eq!(count(&fx), 1, "registration expiry released a referee slot");
+    assert_eq!(
+        fx.game.get_token_state("carol.near".parse().unwrap()),
+        "none"
+    );
     assert!(fx.game.expire_request(request));
     assert_eq!(count(&fx), 0);
     fx.actor("bob.near");

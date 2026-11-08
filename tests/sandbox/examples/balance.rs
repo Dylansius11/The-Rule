@@ -46,7 +46,7 @@ fn rpc(worker: &Worker<Sandbox>, method: &str, params: Value) -> Res<Value> {
         .args([
             "--silent",
             "--show-error",
-            "--fail",
+            "--fail-with-body",
             "--max-time",
             "15",
             "--noproxy",
@@ -59,7 +59,12 @@ fn rpc(worker: &Worker<Sandbox>, method: &str, params: Value) -> Res<Value> {
         .arg(worker.rpc_addr())
         .output()?;
     if !out.status.success() {
-        return Err(format!("{method}: {}", String::from_utf8_lossy(&out.stderr)).into());
+        return Err(format!(
+            "{method} {body}: {}; response={}",
+            String::from_utf8_lossy(&out.stderr),
+            String::from_utf8_lossy(&out.stdout)
+        )
+        .into());
     }
     let response: Value = serde_json::from_slice(&out.stdout)?;
     if let Some(error) = response.get("error") {
@@ -256,6 +261,13 @@ fn payment_history(
         )?;
         let ledger = ledger_from_view(worker, game, &view)?;
         let restored = !succeeds && h >= completed;
+        let pending_native = amount(&ledger, "pending_native_payments")?;
+        if pending_native != if h < completed { principal } else { 0 } {
+            return Err(format!(
+                "block {h}: native reservation {pending_native} does not match callback completion"
+            )
+            .into());
+        }
         delta(
             "historical payment",
             before,
@@ -390,7 +402,7 @@ async fn wait_player(game: &Contract, player: &Account, pending: bool) -> Res<()
             .args_json(json!({"account":player.id()}))
             .await?
             .json()?;
-        if p["pending"] == pending {
+        if p["pending_play"] == pending && p["pending_withdrawal"] == pending {
             return Ok(());
         }
         tokio::time::sleep(Duration::from_millis(200)).await;
@@ -433,6 +445,7 @@ async fn main() -> Res<()> {
         .dev_deploy(&std::fs::read(sandbox_tests::artifact("token"))?)
         .await?;
     token.call("new").args_json(json!({"minter":game.id(),"cap":"1000000000000000000000000000","metadata":{"spec":"ft-1.0.0","name":"THE RULE","symbol":"RULE","decimals":18}})).transact().await?.into_result()?;
+    fund_token_operations(&token).await?;
     let mut params = sandbox_tests::params(mock.id().as_str());
     params["token"] = json!(token.id());
     params["platform"] = json!(platform_id);

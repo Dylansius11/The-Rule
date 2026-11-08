@@ -61,11 +61,27 @@ impl Game {
         round: u32,
         account: &AccountId,
     ) -> u16 {
-        let locked = self
-            .locks
-            .get(&(mode, round, account.clone()))
-            .copied()
-            .unwrap_or(0);
+        let locked = if mode == 0 {
+            self.locks
+                .get(&(mode, round, account.clone()))
+                .copied()
+                .unwrap_or(0)
+        } else {
+            self.team_membership
+                .get(account)
+                .and_then(|id| self.teams.get(id))
+                .map_or(0, |team| {
+                    team.members
+                        .iter()
+                        .map(|member| {
+                            self.locks
+                                .get(&(mode, round, member.clone()))
+                                .copied()
+                                .unwrap_or(0)
+                        })
+                        .sum()
+                })
+        };
         let bonus = p
             .lock_tiers
             .iter()
@@ -106,7 +122,7 @@ impl Game {
             return reject("E11");
         };
         let m = lock.mode as u8;
-        if m != 0 {
+        if m == 1 && !self.team_membership.contains_key(&sender) {
             return reject("E32");
         }
         if amount.0 == 0 || lock.round_id != self.lockable_round(m) {
@@ -175,36 +191,29 @@ impl Game {
                 amount,
             },
         );
-        let token: AccountId = p.token.parse().expect("validated at init");
-        Promise::new(token)
-            .function_call(
-                "ft_transfer",
-                serde_json::to_vec(&json!({"receiver_id":actor,"amount":U128(amount)}))
-                    .expect("arguments serialization"),
-                NearToken::from_yoctonear(1),
-                Gas::from_gas(p.gas_mint),
-            )
-            .then(Promise::new(env::current_account_id()).function_call(
-                "on_unlock",
-                serde_json::to_vec(&json!({"request_id":id})).expect("callback serialization"),
-                NearToken::from_yoctonear(0),
-                Gas::from_gas(p.gas_callback),
-            ))
-            .detach();
+        if let Some(operation) = self.get_token_operation(id) {
+            self.schedule_token_operation(operation);
+        }
     }
 
-    /// A failed transfer puts the lock back: locked RULE is never forfeited.
+    /// Unknown transport outcomes leave custody pending; terminal rejection restores it.
     fn on_unlock_inner(&mut self, request_id: u64) {
+        use protocol::token::{TokenOperationKind, TokenOperationStatus};
+        let Some(status) = self.token_outcome(request_id, TokenOperationKind::Unlock) else {
+            return;
+        };
         let Some(Request::Unlock {
             mode,
             round,
             actor,
             amount,
-        }) = self.pending.remove(&request_id)
+        }) = self.pending.get(&request_id)
         else {
             return;
         };
-        if env::promise_result_checked(0, 0).is_ok() {
+        let (mode, round, actor, amount) = (*mode, *round, actor.clone(), *amount);
+        if status == TokenOperationStatus::Applied {
+            self.pending.remove(&request_id);
             event(
                 "lock_released",
                 &json!({"mode":mode,"round_id":round,"account":actor,"amount":U128(amount)}),
@@ -212,7 +221,16 @@ impl Game {
             return;
         }
         let key = (mode, round, actor);
-        let restored = self.locks.get(&key).copied().unwrap_or(0) + amount;
+        let Some(restored) = self
+            .locks
+            .get(&key)
+            .copied()
+            .unwrap_or(0)
+            .checked_add(amount)
+        else {
+            return;
+        };
         self.locks.insert(key, restored);
+        self.pending.remove(&request_id);
     }
 }

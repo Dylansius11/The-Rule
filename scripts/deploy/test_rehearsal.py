@@ -1,7 +1,12 @@
 """Offline artifact-boundary regressions; synthetic modules are never deployment evidence."""
 import unittest
+import copy
+import hashlib
+import json
+import tempfile
+from pathlib import Path
 
-from rehearsal import referee_manifest
+from rehearsal import ROOT, prepare, referee_manifest
 
 MODULE = b'\0asm\x01\0\0\0'
 COMPONENT = b'\0asm\x0d\0\x01\0'
@@ -65,6 +70,43 @@ class RefereeManifestTests(unittest.TestCase):
         ):
             with self.subTest(artifact=artifact[:24]), self.assertRaises(ValueError):
                 referee_manifest(artifact)
+
+
+class OperationFundingPlanTests(unittest.TestCase):
+    def setUp(self):
+        (ROOT / 'scratch').mkdir(exist_ok=True)
+        self.tmp = tempfile.TemporaryDirectory(dir=ROOT / 'scratch')
+        self.addCleanup(self.tmp.cleanup)
+        root = Path(self.tmp.name)
+        self.config = json.loads((ROOT / 'scripts/deploy/example.json').read_text())
+        bound = (ROOT / 'enclave/referee/manifest.json').read_text().strip().replace(
+            '<GAME_ACCOUNT_PLACEHOLDER>', self.config['game_account']).encode()
+        referee = MODULE + manifest(bound)
+        for name in ('game', 'token', 'referee'):
+            path = root / (name + '.wasm')
+            path.write_bytes(referee if name == 'referee' else MODULE + b'fixture')
+            self.config[name + '_wasm'] = str(path)
+        digest = hashlib.sha256(referee).hexdigest()
+        self.config['referee_sha256'] = self.config['params']['referee']['hash'] = digest
+        log = root / 'build.log'
+        log.write_text(f"Caller: {self.config['game_account']}\n{digest}  referee.wasm\n")
+        self.config['referee_build_log'] = str(log)
+
+
+    def test_missing_or_invalid_funding_is_rejected(self):
+        for key, value in [('token_operation_funding', '0'),
+                           ('token_operation_funding', '01'),
+                           ('operation_funding_payer', 'mainnet'),
+                           ('operation_funding_gas', 0),
+                           ('operation_funding_gas', 300_000_000_000_001)]:
+            config = copy.deepcopy(self.config)
+            config[key] = value
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                prepare(config)
+        config = copy.deepcopy(self.config)
+        del config['token_operation_funding']
+        with self.assertRaises(ValueError):
+            prepare(config)
 
 
 if __name__ == '__main__':

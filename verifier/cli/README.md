@@ -6,12 +6,12 @@ From the repository root in WSL:
 
 ```sh
 make verify ROUND=solo/0
-make verify ROUND=team/0 GAME_ACCOUNT=game-r1.therule.testnet NEAR_RPC_URL=https://rpc.testnet.near.org
+make verify ROUND=team/0 NEAR_RPC_URL=https://test.rpc.fastnear.com
 ```
 
-The target runs the existing CLI in the `fast` profile, always selects testnet, and propagates FAIL as a nonzero make exit. `ROUND` is required; use `solo/<u32>` or `team/<u32>`. `GAME_ACCOUNT` defaults to the planned rehearsal account `game-r1.therule.testnet` and `NEAR_RPC_URL` to the public testnet RPC. It does not load `.env`, deploy, sign or fund anything. A successful real-round replay still requires that the selected account and settled round actually exist; the default address is not a deployment claim.
+The target runs the existing CLI in the `fast` profile, always selects testnet, and propagates FAIL as a nonzero make exit. `ROUND` is required; use `solo/<u32>` or `team/<u32>`. `GAME_ACCOUNT` defaults to the fresh hardened rehearsal account `game-r2.therule.testnet` and `NEAR_RPC_URL` to the public testnet RPC. It does not load `.env`, deploy, sign or fund anything. A successful replay requires that the selected round actually settled and opened. Historical r1 rounds remain available by explicitly selecting their account.
 
-Local evidence (2026-11-05): the actual make target returned PASS on the existing four-row golden export served by a mock RPC, returned nonzero for its tampered-verdict vector, forwarded both mode selectors, and rejected missing/invalid selectors before RPC. The real referee testnet rehearsal remains P2.9.
+Observed testnet evidence (2026-11-07 UTC): actual default-account commands with `NEAR_RPC_URL=https://test.rpc.fastnear.com` selected `game-r2.therule.testnet`. Solo `ROUND=solo/0` printed `PASS: 52 of 52 verdicts match`; Team `ROUND=team/0` printed `PASS: 11 of 11 verdicts match`, each after a real OutLayer Solved ending. Both portable exports also passed the actual offline CLI. Keys remain retained and scheduling is compressed; this is rehearsal evidence, not a keyless launch. Earlier mock-RPC checks covered tampered-verdict failure, mode forwarding and invalid selectors. Public transaction anchors and the independent payment audits are recorded in [SMART-CONTRACT](../../docs/technical/SMART-CONTRACT.md).
 
 The portable JSON export has `{ "round": ROUND_VIEW, "rows": [LOG_ROW, ...] }`. The round view needs `phase`, `log_len`, `rule`, `salt`, and `commit`; the verifier reads each row's `log_idx`, `seq`, `play_key`, `play`, and `verdict` and ignores other view fields. The decimal `play_key` must match the key computed from `play`. Salt and commitment are lowercase hex32, the rule and play use the shared protocol grammar. The web export shape remains provisional until the web exporter is implemented.
 

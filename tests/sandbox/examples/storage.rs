@@ -35,6 +35,7 @@ async fn start_storage(
         .transact()
         .await?
         .into_result()?;
+    fund_token_operations(&token).await?;
     let mut config = sandbox_tests::params(mock.id().as_str());
     config["base_attempts"][0] = json!(10);
     config["token"] = json!(token.id());
@@ -249,6 +250,12 @@ async fn main() -> Res<()> {
     );
 
     let config: Value = game.view("get_params").await?.json()?;
+    let referee_cap = config["max_pending_referee_requests"]
+        .as_u64()
+        .ok_or("missing max_pending_referee_requests")?;
+    let user_limit = config["user_referee_request_limit"]
+        .as_u64()
+        .ok_or("missing user_referee_request_limit")?;
     let account_charge: u128 = config["storage_charge_account"]
         .as_str()
         .ok_or("missing account charge")?
@@ -707,7 +714,8 @@ async fn main() -> Res<()> {
         growth.max(0) as u128 * byte_cost
     );
     println!(
-        "RESERVE: byte_cost * max(0, base and round bytes + retained bytes + pending bytes - retained-charge bytes); pending includes V verdict records <= V*{verdict_record_bound} B and G guess records = G*{guess_record_bound} B, plus seen/entity and other request/callback growth. No global request cap exists: this sample supplies no fixed concurrency ceiling. Each Solo entity has at most one pending play and three open guesses per round, but many entities and overlapping rounds can exist."
+        "RESERVE: byte_cost * max(0, base and round bytes + retained bytes + pending bytes - retained-charge bytes). Observed get_params: tracked referee cap={referee_cap}, user admission limit={user_limit} (new play/guess requires a tracked total below this limit). The largest referee request-only bound is {verdict_record_bound} B, so {referee_cap} * {verdict_record_bound} = {} B bounds those tracked request records only. Add seen/entity and callback growth; token/payment requests and retained rounds are not bounded by the referee cap. Local expiry also does not bound physical OutLayer work. For all Request variants run cargo run -p game --profile fast --example storage-bounds.",
+        u128::from(referee_cap) * verdict_record_bound as u128
     );
     resolve(&mock, 8, json!({"v":0}), false).await?;
     plays.remove(0).await?.into_result()?;

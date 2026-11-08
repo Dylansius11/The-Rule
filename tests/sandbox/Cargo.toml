@@ -10,10 +10,12 @@ serde_json = "=1.0.154"
 
 
 [dev-dependencies]
+base64 = "=0.22.1"
 near-workspaces = "=0.24.0"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 protocol = { path = "../../crates/protocol" }
 rule-core = { path = "../../crates/rule-core" }
+wasmparser = "=0.240.0"
 
 [lints]
 workspace = true

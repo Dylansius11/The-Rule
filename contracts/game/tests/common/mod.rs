@@ -58,6 +58,15 @@ pub fn deliver_env(ctx: &VMContextBuilder, result: PromiseResult) {
     );
 }
 
+pub fn token_ack(game: &Game, id: u64, status: &str) -> PromiseResult {
+    let operation = game
+        .get_token_operation(id)
+        .expect("pending token operation");
+    PromiseResult::Successful(
+        near_sdk::serde_json::to_vec(&json!({"operation":operation,"status":status})).unwrap(),
+    )
+}
+
 pub fn fixture(p: Params) -> Fx {
     fixture_seeded(p, 0)
 }

@@ -1,7 +1,7 @@
 {
   "network": "testnet",
-  "game_account": "game-r1.therule.testnet",
-  "token_account": "token-r1.therule.testnet",
+  "game_account": "game-r2.therule.testnet",
+  "token_account": "token-r2.therule.testnet",
   "game_wasm": "scratch/deploy/game.wasm",
   "token_wasm": "scratch/deploy/token.wasm",
   "referee_wasm": "scratch/deploy/referee.wasm",
@@ -14,12 +14,15 @@
   "token_storage_deposit": "1250000000000000000000",
   "registration_payer": "therule.testnet",
   "registration_gas": 30000000000000,
+  "token_operation_funding": "1000000000000000000000000",
+  "operation_funding_payer": "therule.testnet",
+  "operation_funding_gas": 30000000000000,
   "params": {
     "play_fee": "10000000000000000000000",
     "fee_split_bps": [8000, 1500, 500],
-    "storage_charge_per_play": "7680000000000000000000",
-    "storage_charge_account": "1600000000000000000000",
-    "storage_charge_team": "5000000000000000000000",
+    "storage_charge_per_play": "20480000000000000000000",
+    "storage_charge_account": "5120000000000000000000",
+    "storage_charge_team": "20480000000000000000000",
     "stake_bps": [100, 200],
     "stake_min": "100000000000000000000000",
     "wrong_return_bps": 5000,
@@ -51,7 +54,7 @@
     "gas_outlayer": 100000000000000,
     "gas_callback": 60000000000000,
     "gas_mint": 10000000000000,
-    "token": "token-r1.therule.testnet",
+    "token": "token-r2.therule.testnet",
     "platform": "therule.testnet",
     "chain_id": "testnet"
   }

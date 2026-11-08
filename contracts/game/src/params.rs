@@ -10,18 +10,47 @@ const RULE: u128 = 1_000_000_000_000_000_000;
 const MINUTE: u64 = 60_000_000_000;
 const HOUR: u64 = 60 * MINUTE;
 
+/// Conservative lifetime byte ceilings, including associated transient records.
+pub(crate) const ACCOUNT_STORAGE_BYTES: usize = 512;
+pub(crate) const ACTION_STORAGE_BYTES: usize = 2048;
+pub(crate) const TEAM_STORAGE_BYTES: usize = 2048;
+
+/// Bound immutable variable-length data embedded in the root state loaded by every callback.
+pub(crate) fn bounded_config(params: &Params) -> bool {
+    params.chain_id == "testnet"
+        && (1..=2).contains(&params.referee.urls.len())
+        && params.referee.urls.iter().all(|url| url.len() <= 2048)
+        && params.lock_tiers.len() <= 3
+}
+
+/// Production admission must not accept caller-supplied charges below the proven byte ceilings.
+pub(crate) fn funded_storage(params: &Params) -> bool {
+    let cost = near_sdk::env::storage_byte_cost().as_yoctonear();
+    [
+        (params.storage_charge_account.0, ACCOUNT_STORAGE_BYTES),
+        (params.storage_charge_per_play.0, ACTION_STORAGE_BYTES),
+        (params.storage_charge_team.0, TEAM_STORAGE_BYTES),
+    ]
+    .into_iter()
+    .all(|(charge, bytes)| {
+        cost.checked_mul(bytes as u128)
+            .is_some_and(|minimum| charge >= minimum)
+    })
+}
+
 /// Fill the published production economics; deployment-specific fields are retained.
-/// [I] Provisional allowances: 160 bytes per account and 768 per play/commit/lock.
-/// A 64-character account used 135 bytes; sampled first YES + entity used 472,
-/// repeat YES 426, first commit + entity 276 and lock 130 (local sandbox 2026-11-05).
-/// These are not all-state/concurrency bounds. The 500-byte team estimate is
-/// from the specification, not a measured maximum; re-measure in P4.
+/// Provisional lifetime ceilings: account 512 bytes; action/lock and team 2048 bytes.
+/// The private actual-Borsh proof covers max-width retained records and associated
+/// requests, including five-member snapshots. Code/base state and retained rounds
+/// remain separately operator-funded; these charges are not a complete solvency proof.
 pub fn production_defaults(mut params: Params) -> Params {
     params.play_fee = Amount(NEAR / 100);
     params.fee_split_bps = [8000, 1500, 500];
-    params.storage_charge_account = Amount(160 * 10_000_000_000_000_000_000);
-    params.storage_charge_per_play = Amount(768 * 10_000_000_000_000_000_000);
-    params.storage_charge_team = Amount(500 * 10_000_000_000_000_000_000);
+    params.storage_charge_account =
+        Amount(ACCOUNT_STORAGE_BYTES as u128 * 10_000_000_000_000_000_000);
+    params.storage_charge_per_play =
+        Amount(ACTION_STORAGE_BYTES as u128 * 10_000_000_000_000_000_000);
+    params.storage_charge_team = Amount(TEAM_STORAGE_BYTES as u128 * 10_000_000_000_000_000_000);
     params.stake_bps = [100, 200];
     params.stake_min = Amount(NEAR / 10);
     params.wrong_return_bps = 5000;

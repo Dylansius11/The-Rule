@@ -1,0 +1,1110 @@
+{
+  "round": {
+    "demo": true,
+    "mode": 0,
+    "round_id": 0,
+    "slot_ns": 0,
+    "sealing_started_ns": 1794052384896081616,
+    "begin_status": "ok",
+    "investigation_end_ns": 1794059592753238491,
+    "freeze_ns": 1794054824926523848,
+    "pending_checks": 0,
+    "opening_started_ns": 1794055443125223476,
+    "open_status": "ok",
+    "outcome": {
+      "kind": "Solved",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "account": "therule.testnet"
+    },
+    "phase": "Settled",
+    "start_ns": 1794052384896081616,
+    "seed": "9a5bacd9ca40f27dae6c7379ddda57a47eb91eaf4076369955509ec3a8ce3dc1",
+    "commit": "e85e38f0d995d6a1832f063f93744e0b9700e89a0bd83e24e0db8a7ad8b75233",
+    "header": {
+      "tier": "daily",
+      "bucket": "common",
+      "grammar": "4a519883ffe383dfe2a57dc7a1f50eae52db3aa8046d926111742f22b4f32913"
+    },
+    "pot": "716000000000000000000000",
+    "allowance_left": "499550191199009561161403",
+    "reveal_deadline_ns": 1794055424926523848,
+    "log_len": 52,
+    "rule": {
+      "v": "g1",
+      "form": 0,
+      "lits": [[22, 1]]
+    },
+    "salt": "ef959b820d712f62a5998d0d5f1dcb085a1d9fc63d0ffd5ac221e173c6f008a2"
+  },
+  "rows": [
+    {
+      "log_idx": 0,
+      "seq": 0,
+      "play_key": "475072",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 960,
+        "word_id": 79,
+        "minute_digit": 3,
+        "prev": null
+      },
+      "verdict": true,
+      "minted": "25000000000000000000"
+    },
+    {
+      "log_idx": 1,
+      "seq": 1,
+      "play_key": "620667",
+      "entity_tag": 0,
+      "entity_id": 1,
+      "actor": 1,
+      "account": "probe-other.therule.testnet",
+      "play": {
+        "number": 123,
+        "word_id": 94,
+        "minute_digit": 4,
+        "prev": null
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 2,
+      "seq": 2,
+      "play_key": "655360",
+      "entity_tag": 0,
+      "entity_id": 2,
+      "actor": 2,
+      "account": "probe-game.therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 5,
+        "prev": null
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 3,
+      "seq": 3,
+      "play_key": "893087759421",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 61,
+        "word_id": 111,
+        "minute_digit": 6,
+        "prev": {
+          "number": 960,
+          "word_id": 79,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 4,
+      "seq": 4,
+      "play_key": "848119",
+      "entity_tag": 0,
+      "entity_id": 1,
+      "actor": 1,
+      "account": "probe-other.therule.testnet",
+      "play": {
+        "number": 247,
+        "word_id": 60,
+        "minute_digit": 6,
+        "prev": null
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 5,
+      "seq": 5,
+      "play_key": "830773",
+      "entity_tag": 0,
+      "entity_id": 2,
+      "actor": 2,
+      "account": "probe-game.therule.testnet",
+      "play": {
+        "number": 309,
+        "word_id": 43,
+        "minute_digit": 6,
+        "prev": null
+      },
+      "verdict": true,
+      "minted": "24998750000000000000"
+    },
+    {
+      "log_idx": 6,
+      "seq": 6,
+      "play_key": "893087785250",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 290,
+        "word_id": 8,
+        "minute_digit": 7,
+        "prev": {
+          "number": 960,
+          "word_id": 79,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 7,
+      "seq": 7,
+      "play_key": "1008961",
+      "entity_tag": 0,
+      "entity_id": 1,
+      "actor": 1,
+      "account": "probe-other.therule.testnet",
+      "play": {
+        "number": 321,
+        "word_id": 89,
+        "minute_digit": 7,
+        "prev": null
+      },
+      "verdict": true,
+      "minted": "24997500062500000000"
+    },
+    {
+      "log_idx": 8,
+      "seq": 8,
+      "play_key": "735738636647",
+      "entity_tag": 0,
+      "entity_id": 2,
+      "actor": 2,
+      "account": "probe-game.therule.testnet",
+      "play": {
+        "number": 359,
+        "word_id": 42,
+        "minute_digit": 8,
+        "prev": {
+          "number": 309,
+          "word_id": 43,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": true,
+      "minted": "24996250187496875000"
+    },
+    {
+      "log_idx": 9,
+      "seq": 9,
+      "play_key": "893088001282",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 258,
+        "word_id": 91,
+        "minute_digit": 8,
+        "prev": {
+          "number": 960,
+          "word_id": 79,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 10,
+      "seq": 10,
+      "play_key": "933357601636",
+      "entity_tag": 0,
+      "entity_id": 1,
+      "actor": 1,
+      "account": "probe-other.therule.testnet",
+      "play": {
+        "number": 868,
+        "word_id": 48,
+        "minute_digit": 9,
+        "prev": {
+          "number": 321,
+          "word_id": 89,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": true,
+      "minted": "24995000374987500156"
+    },
+    {
+      "log_idx": 11,
+      "seq": 11,
+      "play_key": "731653518610",
+      "entity_tag": 0,
+      "entity_id": 2,
+      "actor": 2,
+      "account": "probe-game.therule.testnet",
+      "play": {
+        "number": 274,
+        "word_id": 45,
+        "minute_digit": 9,
+        "prev": {
+          "number": 359,
+          "word_id": 42,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 12,
+      "seq": 12,
+      "play_key": "893088076508",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 732,
+        "word_id": 36,
+        "minute_digit": 9,
+        "prev": {
+          "number": 960,
+          "word_id": 79,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": true,
+      "minted": "24993750624968750781"
+    },
+    {
+      "log_idx": 13,
+      "seq": 13,
+      "play_key": "759557069955",
+      "entity_tag": 0,
+      "entity_id": 1,
+      "actor": 1,
+      "account": "probe-other.therule.testnet",
+      "play": {
+        "number": 131,
+        "word_id": 71,
+        "minute_digit": 0,
+        "prev": {
+          "number": 868,
+          "word_id": 48,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 14,
+      "seq": 14,
+      "play_key": "731652398636",
+      "entity_tag": 0,
+      "entity_id": 2,
+      "actor": 2,
+      "account": "probe-game.therule.testnet",
+      "play": {
+        "number": 556,
+        "word_id": 103,
+        "minute_digit": 0,
+        "prev": {
+          "number": 359,
+          "word_id": 42,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": true,
+      "minted": "24992500937437502343"
+    },
+    {
+      "log_idx": 15,
+      "seq": 15,
+      "play_key": "707446983522",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 866,
+        "word_id": 18,
+        "minute_digit": 0,
+        "prev": {
+          "number": 732,
+          "word_id": 36,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": true,
+      "minted": "24991251312390630468"
+    },
+    {
+      "log_idx": 16,
+      "seq": 16,
+      "play_key": "759557155187",
+      "entity_tag": 0,
+      "entity_id": 1,
+      "actor": 1,
+      "account": "probe-other.therule.testnet",
+      "play": {
+        "number": 371,
+        "word_id": 26,
+        "minute_digit": 1,
+        "prev": {
+          "number": 868,
+          "word_id": 48,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": true,
+      "minted": "24990001749825010937"
+    },
+    {
+      "log_idx": 17,
+      "seq": 17,
+      "play_key": "994471794982",
+      "entity_tag": 0,
+      "entity_id": 2,
+      "actor": 2,
+      "account": "probe-game.therule.testnet",
+      "play": {
+        "number": 294,
+        "word_id": 86,
+        "minute_digit": 1,
+        "prev": {
+          "number": 556,
+          "word_id": 103,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 18,
+      "seq": 18,
+      "play_key": "630699851776",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 2,
+        "prev": {
+          "number": 866,
+          "word_id": 18,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 19,
+      "seq": 19,
+      "play_key": "662983409664",
+      "entity_tag": 0,
+      "entity_id": 1,
+      "actor": 1,
+      "account": "probe-other.therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 2,
+        "prev": {
+          "number": 371,
+          "word_id": 26,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 20,
+      "seq": 20,
+      "play_key": "994471847345",
+      "entity_tag": 0,
+      "entity_id": 2,
+      "actor": 2,
+      "account": "probe-game.therule.testnet",
+      "play": {
+        "number": 433,
+        "word_id": 9,
+        "minute_digit": 2,
+        "prev": {
+          "number": 556,
+          "word_id": 103,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": true,
+      "minted": "24988752249737519686"
+    },
+    {
+      "log_idx": 21,
+      "seq": 21,
+      "play_key": "630700106222",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 494,
+        "word_id": 120,
+        "minute_digit": 3,
+        "prev": {
+          "number": 866,
+          "word_id": 18,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": true,
+      "minted": "24987502812125032810"
+    },
+    {
+      "log_idx": 22,
+      "seq": 22,
+      "play_key": "662983629418",
+      "entity_tag": 0,
+      "entity_id": 1,
+      "actor": 1,
+      "account": "probe-other.therule.testnet",
+      "play": {
+        "number": 618,
+        "word_id": 86,
+        "minute_digit": 3,
+        "prev": {
+          "number": 371,
+          "word_id": 26,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": true,
+      "minted": "24986253436984426558"
+    },
+    {
+      "log_idx": 23,
+      "seq": 23,
+      "play_key": "590229214888",
+      "entity_tag": 0,
+      "entity_id": 2,
+      "actor": 2,
+      "account": "probe-game.therule.testnet",
+      "play": {
+        "number": 680,
+        "word_id": 69,
+        "minute_digit": 3,
+        "prev": {
+          "number": 433,
+          "word_id": 9,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": true,
+      "minted": "24985004124312577337"
+    },
+    {
+      "log_idx": 24,
+      "seq": 24,
+      "play_key": "1067226498976",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 928,
+        "word_id": 1,
+        "minute_digit": 4,
+        "prev": {
+          "number": 494,
+          "word_id": 120,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": true,
+      "minted": "24983754874106361708"
+    },
+    {
+      "log_idx": 25,
+      "seq": 25,
+      "play_key": "921717818333",
+      "entity_tag": 0,
+      "entity_id": 1,
+      "actor": 1,
+      "account": "probe-other.therule.testnet",
+      "play": {
+        "number": 989,
+        "word_id": 112,
+        "minute_digit": 4,
+        "prev": {
+          "number": 618,
+          "word_id": 86,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": true,
+      "minted": "24982505686362656390"
+    },
+    {
+      "log_idx": 26,
+      "seq": 26,
+      "play_key": "848963543524",
+      "entity_tag": 0,
+      "entity_id": 2,
+      "actor": 2,
+      "account": "probe-game.therule.testnet",
+      "play": {
+        "number": 484,
+        "word_id": 104,
+        "minute_digit": 5,
+        "prev": {
+          "number": 680,
+          "word_id": 69,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": true,
+      "minted": "24981256561078338257"
+    },
+    {
+      "log_idx": 27,
+      "seq": 27,
+      "play_key": "557945847808",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 5,
+        "prev": {
+          "number": 928,
+          "word_id": 1,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 28,
+      "seq": 28,
+      "play_key": "1034943070208",
+      "entity_tag": 0,
+      "entity_id": 1,
+      "actor": 1,
+      "account": "probe-other.therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 5,
+        "prev": {
+          "number": 989,
+          "word_id": 112,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 29,
+      "seq": 29,
+      "play_key": "998465339392",
+      "entity_tag": 0,
+      "entity_id": 2,
+      "actor": 2,
+      "account": "probe-game.therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 6,
+        "prev": {
+          "number": 484,
+          "word_id": 104,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 30,
+      "seq": 30,
+      "play_key": "557946036678",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 454,
+        "word_id": 56,
+        "minute_digit": 6,
+        "prev": {
+          "number": 928,
+          "word_id": 1,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": true,
+      "minted": "24980007498250284340"
+    },
+    {
+      "log_idx": 31,
+      "seq": 31,
+      "play_key": "998465732608",
+      "entity_tag": 0,
+      "entity_id": 2,
+      "actor": 2,
+      "account": "probe-game.therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 9,
+        "prev": {
+          "number": 484,
+          "word_id": 104,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 32,
+      "seq": 32,
+      "play_key": "792180293632",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 0,
+        "prev": {
+          "number": 454,
+          "word_id": 56,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 33,
+      "seq": 33,
+      "play_key": "1034942414848",
+      "entity_tag": 0,
+      "entity_id": 1,
+      "actor": 1,
+      "account": "probe-other.therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 0,
+        "prev": {
+          "number": 989,
+          "word_id": 112,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 34,
+      "seq": 34,
+      "play_key": "998464684032",
+      "entity_tag": 0,
+      "entity_id": 2,
+      "actor": 2,
+      "account": "probe-game.therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 1,
+        "prev": {
+          "number": 484,
+          "word_id": 104,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 35,
+      "seq": 35,
+      "play_key": "792180424704",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 1,
+        "prev": {
+          "number": 454,
+          "word_id": 56,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 36,
+      "seq": 36,
+      "play_key": "1034942676992",
+      "entity_tag": 0,
+      "entity_id": 1,
+      "actor": 1,
+      "account": "probe-other.therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 2,
+        "prev": {
+          "number": 989,
+          "word_id": 112,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 37,
+      "seq": 37,
+      "play_key": "998464946176",
+      "entity_tag": 0,
+      "entity_id": 2,
+      "actor": 2,
+      "account": "probe-game.therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 3,
+        "prev": {
+          "number": 484,
+          "word_id": 104,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 38,
+      "seq": 38,
+      "play_key": "792180686848",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 3,
+        "prev": {
+          "number": 454,
+          "word_id": 56,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 39,
+      "seq": 39,
+      "play_key": "1034942939136",
+      "entity_tag": 0,
+      "entity_id": 1,
+      "actor": 1,
+      "account": "probe-other.therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 4,
+        "prev": {
+          "number": 989,
+          "word_id": 112,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 40,
+      "seq": 40,
+      "play_key": "998465077248",
+      "entity_tag": 0,
+      "entity_id": 2,
+      "actor": 2,
+      "account": "probe-game.therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 4,
+        "prev": {
+          "number": 484,
+          "word_id": 104,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 41,
+      "seq": 41,
+      "play_key": "792180948992",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 5,
+        "prev": {
+          "number": 454,
+          "word_id": 56,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 42,
+      "seq": 42,
+      "play_key": "1034943183933",
+      "entity_tag": 0,
+      "entity_id": 1,
+      "actor": 1,
+      "account": "probe-other.therule.testnet",
+      "play": {
+        "number": 61,
+        "word_id": 111,
+        "minute_digit": 5,
+        "prev": {
+          "number": 989,
+          "word_id": 112,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 43,
+      "seq": 43,
+      "play_key": "792180538429",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 61,
+        "word_id": 111,
+        "minute_digit": 1,
+        "prev": {
+          "number": 454,
+          "word_id": 56,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 44,
+      "seq": 44,
+      "play_key": "1034942545920",
+      "entity_tag": 0,
+      "entity_id": 1,
+      "actor": 1,
+      "account": "probe-other.therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 1,
+        "prev": {
+          "number": 989,
+          "word_id": 112,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 45,
+      "seq": 45,
+      "play_key": "998464815104",
+      "entity_tag": 0,
+      "entity_id": 2,
+      "actor": 2,
+      "account": "probe-game.therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 2,
+        "prev": {
+          "number": 484,
+          "word_id": 104,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 46,
+      "seq": 46,
+      "play_key": "792180800573",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 61,
+        "word_id": 111,
+        "minute_digit": 3,
+        "prev": {
+          "number": 454,
+          "word_id": 56,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 47,
+      "seq": 47,
+      "play_key": "1034942808064",
+      "entity_tag": 0,
+      "entity_id": 1,
+      "actor": 1,
+      "account": "probe-other.therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 3,
+        "prev": {
+          "number": 989,
+          "word_id": 112,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 48,
+      "seq": 48,
+      "play_key": "998465190973",
+      "entity_tag": 0,
+      "entity_id": 2,
+      "actor": 2,
+      "account": "probe-game.therule.testnet",
+      "play": {
+        "number": 61,
+        "word_id": 111,
+        "minute_digit": 4,
+        "prev": {
+          "number": 484,
+          "word_id": 104,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 49,
+      "seq": 49,
+      "play_key": "792180817920",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 4,
+        "prev": {
+          "number": 454,
+          "word_id": 56,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    },
+    {
+      "log_idx": 50,
+      "seq": 51,
+      "play_key": "792180600117",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 309,
+        "word_id": 43,
+        "minute_digit": 2,
+        "prev": {
+          "number": 454,
+          "word_id": 56,
+          "gap_bucket": 1
+        }
+      },
+      "verdict": true,
+      "minted": "24978758497875371826"
+    },
+    {
+      "log_idx": 51,
+      "seq": 52,
+      "play_key": "185981992960",
+      "entity_tag": 0,
+      "entity_id": 0,
+      "actor": 0,
+      "account": "therule.testnet",
+      "play": {
+        "number": 0,
+        "word_id": 0,
+        "minute_digit": 2,
+        "prev": {
+          "number": 309,
+          "word_id": 43,
+          "gap_bucket": 0
+        }
+      },
+      "verdict": false,
+      "minted": "0"
+    }
+  ]
+}

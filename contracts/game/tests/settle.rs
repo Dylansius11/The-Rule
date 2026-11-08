@@ -2,7 +2,7 @@ mod common;
 
 use common::*;
 use near_sdk::PromiseResult;
-use near_sdk::serde_json::Value;
+use near_sdk::serde_json::{self, Value};
 use proptest::prelude::*;
 use protocol::Mode;
 
@@ -440,5 +440,137 @@ proptest! {
         prop_assert_eq!(fx.term("open_stakes"), 0);
         prop_assert_eq!(fx.term("round_pots"), 0);
         prop_assert_eq!(fx.money(), money);
+    }
+}
+
+#[test]
+fn lifecycle_phase_guards_reject_without_changing_round_or_money() {
+    for phase in [
+        "Investigation",
+        "Reveal",
+        "Opening",
+        "Settled",
+        "Void",
+        "Cancelled",
+    ] {
+        let mut fx = fixture(params());
+        if phase != "Investigation" {
+            fx.run_to_finalize(10);
+            if phase == "Reveal" {
+                fx.at(11, INVESTIGATION_END + REVEAL_WINDOW - 1);
+            } else {
+                let (_, open) = fx.finalize_all();
+                match phase {
+                    "Settled" => fx.on_open(open, fx.open_ok()),
+                    "Void" => fx.on_open(open, fx.open_with([9; 32])),
+                    "Cancelled" => {
+                        fx.on_open(open, PromiseResult::Failed);
+                        let started = fx.round()["opening_started_ns"].as_u64().unwrap();
+                        fx.at(12, started + OPEN_TIMEOUT);
+                        fx.game.cancel(Mode::Solo, 0);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        assert_eq!(fx.round()["phase"], phase);
+        for method in [
+            "start_round",
+            "advance",
+            "finalize",
+            "retry_open",
+            "cancel",
+            "play",
+            "commit_guess",
+        ] {
+            if phase == "Investigation" && matches!(method, "play" | "commit_guess") {
+                continue;
+            }
+            near_sdk::testing_env!(fx.ctx.build());
+            let before = (fx.round(), fx.ledger(), fx.commits());
+            let error = panic_text(|| match method {
+                "start_round" => {
+                    fx.game.start_round(Mode::Solo);
+                }
+                "advance" => fx.game.advance(Mode::Solo),
+                "finalize" => {
+                    fx.game.finalize(Mode::Solo);
+                }
+                "retry_open" => {
+                    fx.game.retry_open(Mode::Solo, 0);
+                }
+                "cancel" => fx.game.cancel(Mode::Solo, 0),
+                "play" => {
+                    fx.game.play(Mode::Solo, 1, "otter".into());
+                }
+                "commit_guess" => {
+                    fx.game.commit_guess(Mode::Solo, protocol::Hex32([0; 32]));
+                }
+                _ => unreachable!(),
+            });
+            let expected = match (phase, method) {
+                ("Investigation", "advance")
+                | ("Reveal", "finalize")
+                | ("Opening" | "Settled" | "Void" | "Cancelled", "start_round")
+                | ("Opening", "cancel") => "E50",
+                _ => "E10",
+            };
+            assert!(error.contains(expected), "{phase}/{method}: {error}");
+            assert_eq!(
+                (fx.round(), fx.ledger(), fx.commits()),
+                before,
+                "{phase}/{method}"
+            );
+            assert!(
+                near_sdk::test_utils::get_created_receipts().is_empty(),
+                "{phase}/{method}"
+            );
+        }
+    }
+}
+
+#[test]
+fn solo_and_team_slots_reject_before_boundary_then_admit_exactly_once() {
+    use game::Game;
+    use near_sdk::{test_utils::VMContextBuilder, testing_env};
+    for mode in [Mode::Solo, Mode::Team] {
+        near_sdk::mock::with_mocked_blockchain(|b| drop(b.take_storage()));
+        let mut p = params();
+        p.genesis_ns = 100;
+        p.mode_offset_ns = [7, 13];
+        let due = p.genesis_ns + p.mode_offset_ns[mode as usize];
+        let mut ctx = VMContextBuilder::new();
+        ctx.prepaid_gas(near_sdk::Gas::from_tgas(300))
+            .block_timestamp(due - 1);
+        testing_env!(ctx.build());
+        let mut game = Game::new(p, true);
+        let before = serde_json::to_value(game.get_ledger()).unwrap();
+        assert!(
+            panic_text(|| {
+                game.start_round(mode);
+            })
+            .contains("E50")
+        );
+        assert!(game.get_round(mode, None).is_none());
+        assert_eq!(serde_json::to_value(game.get_ledger()).unwrap(), before);
+        assert!(near_sdk::test_utils::get_created_receipts().is_empty());
+        ctx.block_timestamp(due);
+        testing_env!(ctx.build());
+        game.start_round(mode);
+        let admitted = serde_json::to_value(game.get_round(mode, None).unwrap()).unwrap();
+        assert_eq!(admitted["slot_ns"], due);
+        assert_eq!(admitted["phase"], "Sealing");
+        testing_env!(ctx.build());
+        assert!(
+            panic_text(|| {
+                game.start_round(mode);
+            })
+            .contains("E50")
+        );
+        assert_eq!(
+            serde_json::to_value(game.get_round(mode, None).unwrap()).unwrap(),
+            admitted
+        );
+        assert!(near_sdk::test_utils::get_created_receipts().is_empty());
     }
 }

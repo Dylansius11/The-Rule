@@ -18,7 +18,8 @@ impl Game {
                 Player {
                     index,
                     credit: 0,
-                    pending: false,
+                    pending_play: false,
+                    pending_withdrawal: false,
                     checking_guesses: 0,
                     token: TokenState::None,
                 },
@@ -37,11 +38,19 @@ impl Game {
             .players
             .get_mut(&actor)
             .unwrap_or_else(|| env::panic_str("E20"));
-        near_sdk::require!(!player.pending && player.checking_guesses == 0, "E21");
+        near_sdk::require!(
+            !player.pending_play && !player.pending_withdrawal && player.checking_guesses == 0,
+            "E21"
+        );
         near_sdk::require!(player.credit >= amount.0, "E20");
+        let pending_native = self
+            .pending_native_payments
+            .checked_add(amount.0)
+            .expect("E11");
         player.credit -= amount.0;
-        player.pending = true;
+        player.pending_withdrawal = true;
         self.total_credit -= amount.0;
+        self.pending_native_payments = pending_native;
         let id = self.next_request_id;
         self.next_request_id = id.checked_add(1).expect("E50");
         self.pending.insert(
@@ -63,11 +72,18 @@ impl Game {
     }
 
     pub(crate) fn on_withdraw_inner(&mut self, request_id: u64) {
+        if !matches!(
+            self.pending.get(&request_id),
+            Some(Request::Withdraw { .. })
+        ) {
+            return;
+        }
         let Some(Request::Withdraw { actor, amount }) = self.pending.remove(&request_id) else {
             return;
         };
+        self.pending_native_payments -= amount;
         if let Some(player) = self.players.get_mut(&actor) {
-            player.pending = false;
+            player.pending_withdrawal = false;
             if env::promise_result_checked(0, 0).is_err() {
                 player.credit += amount;
                 self.total_credit += amount;

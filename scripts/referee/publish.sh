@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# This checks bytes only. Hosting and upload are pending D28.
+# Verify artifact bytes locally or at a public URL; this script never uploads.
 set -euo pipefail
 if [ "$#" -ne 1 ] && [ "$#" -ne 3 ]; then
     echo "Usage: $0 FILE.wasm [--verify-url https://HOST/PATH]" >&2

@@ -2,6 +2,84 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-08: removing a worktree followed a node_modules junction into the real tree
+
+- **What happened:** to typecheck each web commit, `scratch/wt-check/apps/web/node_modules` was a junction to the main `apps/web/node_modules`. `cmd //c rmdir` from Git Bash did not run (it opened a shell and exited), so `git worktree remove --force` deleted through the junction. Tracked `verifier/wasm/*` files (reached through the `@the-rule/verifier-wasm` workspace link), the web packages in the pnpm store and `verifier/wasm/pkg` were emptied. `git restore`, `pnpm install --force --frozen-lockfile` and a wasm-bindgen 0.2.130 rebuild recovered everything; the web suite (27) and keeper suite (12) passed again.
+- **Root cause:** Windows junctions are followed by recursive deletes, and the removal command was never checked.
+- **Rule:** before removing a worktree that has a junction, remove the junction with `os.rmdir` (it removes the link only), confirm it is gone, and confirm the target still exists. Only then run `git worktree remove`.
+
+### 2026-11-08: vault principal is not the signing wallet's gas balance
+
+- **What happened:** D36 funded a 3-NEAR Team vault, but a member with 0.149085480732098956410234 NEAR in its wallet had a signed 300-Tgas play rejected against a 0.300919159630831-NEAR transaction-cost quote. The nonce had not advanced. The already-planned low-gas E30 roster guard then consumed that exact nonce before parent gas sponsorship of 0.4/0.1 NEAR; the original signed play was never resent.
+- **Root cause:** vault/credit funding and expected burnt fees do not establish the wallet liquidity needed for protocol transaction admission. A future top-up must not accidentally make an old rejected signed transaction usable.
+- **Rule:** budget wallet gas separately from Team principal and preserve headroom after deposits. Distinguish a signed validation rejection from an unsigned lookup error; retain the original evidence and verify an appropriate nonce fence before funding. This is transaction-admission fencing, not recovery of an unknown native payment.
+
+### 2026-11-08: a missing CLI hash is not evidence that nothing was sent
+
+- **What happened:** D36's first paid play was FINAL while a later snapshot hit public RPC 429s. Two attempts failed before signing; another was signed but validation-rejected. The E30 roster call executed, but near-cli-rs 0.30.1 printed its error before the id; a read-only shard search recovered it. Later, `--wait-until none` returned a claim hash that never appeared on chain. The installed NEAR serializer reconstructed its exact nonce/hash; a same-key, same-nonce FINAL getter with unchanged game credit excluded the original claim before a replacement.
+- **Root cause:** submission acknowledgement, validation, inclusion and execution are different milestones. [`NONE` returns before node validation](https://docs.near.org/api/rpc/transactions#the-wait_until-field); it is not admission. Repeated snapshots also caused unnecessary RPC bursts, and a provider's extra JSON-RPC `note` was incompatible with the real CLI parser.
+- **Rule:** qualify the actual client, pace reads and reuse genuinely observed snapshots. Persist the signed payload/hash before broadcasting when possible; require inclusion, then FINAL and complete receipts. A missing hash or a fire-and-forget acknowledgement never permits a blind resend. A nonce fence must prove the exact original identity and exclude its execution; it cannot restore an unknown native payment.
+
+### 2026-11-07: context-stalled inference needs a reachable experiment, not another blind guess
+
+- **What happened:** D35 reached 50 real plays but retained four non-equivalent, log-consistent candidates and only three remaining guesses. A common-YES line reset followed by an actual short-gap play reduced the set; the next semantic guess checked Correct. The round ultimately opened and replayed 52/52.
+- **Root cause:** all three prior YES lines had made a contextual predicate observationally redundant. Exhausting number/word inputs at one current context cannot distinguish rules that differ only in previous-number or gap context.
+- **Rule:** use the shared evaluator/equivalence engine, inspect reachable contexts and remaining budgets before signing, and retain actual inclusion context as authoritative. Spend a legal context-changing experiment rather than call one consistent rule proven. Temporary diagnostics must have no signing or secret-rule access and be removed after use.
+
+### 2026-11-07: pending duplicates require the same full play context
+
+- **What happened:** the exact-artifact sandbox round test expected E12 from repeated number/word but received E13 across a minute boundary. The live r2 operator also observed a real inclusion minute differing from its prior advice.
+- **Root cause:** the shared play key includes minute digit and previous-YES context, not just number and word. Different contextual keys correctly reach the entity-pending guard instead of the pending-key guard.
+- **Rule:** test E12/E13 precedence with a controlled clock: same-minute duplicate E12, next-minute E13, and the matching digit ten minutes later E12, all without state or receipt effects. The native regression and actual-WASM round scenario passed; the wall-clock-dependent assertion was removed, not weakened to accept either error. Live inference must consume the actual logged context and never resend a settled play because its advice context drifted.
+
+### 2026-11-07: native-payment incidents need receipt dependencies, not transaction success
+
+- **What happened:** the new read-only diagnostic matched the real D32 withdrawal and platform receipts, while focused regressions preserved a successful transfer alongside a failed callback and kept partial evidence unknown.
+- **Root cause:** an initiating transaction's success does not establish the result of detached transfer and callback receipts. An unrelated or missing completion cannot authenticate a payment outcome.
+- **Rule:** retain the original transaction hash and raw public RPC responses; bind the transfer and callback through their promise-data dependency and check identity, recipient and amount. Diagnose transfer, callback and RPC failures separately. Never turn a diagnostic log into authority to refund or resend an unknown native effect.
+
+### 2026-11-06: payment uncertainty must not own the gameplay lock
+
+- **What happened:** a native regression reproduced E13 for a funded play during withdrawal. After guard separation, actual sandbox WASM paid 0.25 NEAR while its deliberately masked callback failed `MethodNotFound`; later failed/NO experiments still refunded or settled, while payment principal remained reserved.
+- **Root cause:** one `Player.pending` boolean let two unrelated async completion paths own the same admission flag. Reusing remaining credit is independent of establishing a historical native-transfer result.
+- **Rule:** give each operation its own guard and consume matching request ids once; test callback order, withheld/duplicate/late results and credit boundaries. Isolation is not recovery. Never infer refund authority from a callback failure or RPC log; keep the native proof/risk gate open before key deletion.
+
+### 2026-11-06: a consistent hypothesis is not a correct rule
+
+- **What happened:** the real D32 rehearsal reached 22 plays, then four guesses all checked Wrong. The operator still reported 37 consistent canonical candidates before the first inferred guess. The actual opened rule was `AND(NOT atom 46, NOT atom 70)`; dropping the word-group exclusion fit those observations but was not equivalent. The ordinary Unsolved round then opened and replayed PASS 22/22; both native withdrawals and platform payout completed.
+- **Root cause:** a limited adaptive sample did not identify one semantic equivalence class. RPC timeout/429 and redundant local equivalence work consumed the compressed investigation window; these are distinct from contract callback failures, of which none was observed.
+- **Rule:** qualify inference/observation tooling before the paid run, reserve enough real schedule headroom, and do not treat “fits the log” as “equivalent”. Respect authorized guess ceilings even when no solve is obtained. Preserve a truthful Unsolved outcome and leave correct-winner acceptance open rather than inject an answer, silently extend limits or claim callback recovery from successful receipts.
+
+### 2026-11-06: offline command generation does not qualify CLI units
+
+- **What happened:** the first token deploy command was rejected by near-cli-rs 0.30.1 with `Incorrect unit: 100000000000000 gas`, before signing or broadcast. Both newly created accounts remained funded; the token still had no code at final block 276482085.
+- **Root cause:** the planner emitted raw gas with an unsupported unit. Offline generation and boundary tests did not execute the real CLI parser.
+- **Rule:** convert gas exactly to decimal Tgas, preserve integer precision and smoke the actual command path. Corrected token/game deployments succeeded without repeating account creation; deployed bytes and live parameters matched the reviewed plan. An unsigned parser rejection is distinct from an unknown on-chain outcome.
+
+### 2026-11-06: an unknown external effect needs an atomic replay fence
+
+- **What happened:** actual local token mint/unlock effects succeeded while deliberately masked game callback exports failed `MethodNotFound`. Restoring the local artifact and overlapping same-id replays reconciled once without duplicate supply, custody release or storage charge (`scratch/recovery-runtime.log`).
+- **Root cause:** failed callback transport does not reveal whether its preceding effect committed. Timeout restoration would mistake a completed effect for failure.
+- **Rule:** atomically persist an immutable operation outcome with the effect, fund its permanent storage explicitly, and accept only a bounded exact acknowledgement. Reuse the same id for recovery; never infer failure from time or current balance. Native NEAR transfer recovery remains separate because it has no such outcome interface.
+
+### 2026-11-06: returned transfer principal is not free operator collateral
+
+- **What happened:** the native `refunded_native_principal_is_not_operator_collateral_before_callback` model admitted another round using returned withdrawal principal before its failed callback (`scratch/b6-native-reserve-before.log`). This modeled refund-first ordering is not an observed sandbox scheduling failure.
+- **Root cause:** withdrawal/platform initiation removes the original obligation, but a failure refund can return before the matching callback restores it. Subtracting only current ledger obligations overstates operator availability in that interval.
+- **Rule:** reserve pending native principal until matching completion, fence duplicates, and accept conservative admission rejection while principal is escrowed or paid. Native withdrawal/platform ordering regressions now pass; this reservation is not unknown-outcome recovery.
+
+### 2026-11-05: do not mix new Team capital with impaired depositor weights
+
+- **What happened:** the local regression `new_capital_cannot_subsidize_previous_round_losses` failed before the fix because a new deposit was accepted instead of E30 after a Team vault loss (`scratch/b6-team-dilution-before.log`). The fixture's 40,000-yocto original position had a 29,900-yocto vault after settlement.
+- **Root cause:** vault withdrawals use nominal depositor weights to divide the remaining vault pro rata. Adding fresh capital at nominal weight while the vault is below total weight makes the new depositor share prior losses.
+- **Rule:** reject new deposits with E30 while `vault != total_weight`; close old positions to credit before a fresh deposit epoch. The local native regression subsequently passed, and the actual-WASM Team runtime exercised the policy with MOCK OutLayer; this is not testnet evidence.
+
+### 2026-11-05: match callback ownership before consuming a shared request
+
+- **What happened:** native dispatch regressions reproduced a wrong private callback deleting another request: referee admission remained stuck at one and an expected platform restoration stayed zero. The corrected matrix passes for referee completion/expiry and all five token/payment request kinds.
+- **Root cause:** destructuring `pending.remove(id)` consumed the entry before discovering that its enum variant belonged to another callback. A callback's private annotation does not establish ownership of the supplied id.
+- **Rule:** check the expected request kind before removal, then consume exactly once. Exercise the correct completion, expiry where safe, duplicates and replacements after wrong dispatch. Read-only registration may expire without money effects; unknown transfer/mint outcomes still must not be blindly refunded.
+
 ### 2026-11-05: caller binding belongs to the manifest section, not a byte-count heuristic
 
 - **What happened:** the rehearsal planner rejected the actual committed referee even though its caller was correct. Its manifest JSON appeared twice: once in program data and once in `outlayer.manifest`.
@@ -22,9 +100,9 @@ Read the headlines before work. Record actual surprises from this project only, 
 
 ### 2026-11-05: resolve yielded dependencies before awaiting transaction completion
 
-- **What happened:** the first extended storage run reached finalize and was cancelled while waiting before the mock open was resolved. The corrected executable completed settlement and the next round.
-- **Root cause [I]:** awaiting transaction completion before supplying a yielded descendant's result can block the harness. `TransactionStatus` implements `IntoFuture`, not `Future`, so it must be converted before use with `tokio::select!`.
-- **Rule:** race the completion future with the expected mock request, resolve the observed request once, then await completion. Only the expected pre-deadline E50 rejection permits another finalize attempt; do not call a cancelled run passing evidence.
+- **What happened:** the first extended storage run reached finalize and was cancelled while waiting before the mock open was resolved. The corrected executable completed settlement and the next round. On 2026-11-06, the full workspace run exposed the same ordering in the solved Solo test; the corresponding Team path had the same pattern. Both now use one dependency-first helper, and all six guess/Team runtime tests passed (`scratch/recovery-lifecycle.log`).
+- **Root cause:** awaiting transaction completion before supplying a yielded descendant's result blocks the harness. `TransactionStatus` implements `IntoFuture`, not `Future`, so it must be converted before use with `tokio::select!`.
+- **Rule:** race the completion future with the expected mock request, resolve that observed request once, then await completion. Only the expected pre-deadline E50 rejection permits another finalize attempt; check every sibling harness and never call a cancelled run passing evidence.
 
 ### 2026-11-05: balance observations need one block and receipt-defined principal
 
@@ -76,9 +154,9 @@ Read the headlines before work. Record actual surprises from this project only, 
 
 ### 2026-11-04: FastFS testnet upload did not serve the file
 
-- **What happened:** the documented FastFS upload (a deliberately failing 1-gas transaction read by an indexer) was sent, but `https://test.fastfs.io/<signer>/outlayer.testnet/<sha256>.wasm` returned HTTP 404 on every check over about 20 minutes.
-- **Root cause:** unknown [U]. The CLI printed no transaction hash and the indexer is outside our control.
-- **Rule:** never depend on FastFS alone. Probes ran through a Cloudflare quick tunnel (OutLayer fetched and hash-checked the bytes). Production hosting is open decision D28.
+- **What happened:** the earlier gas-1 upload's probe URL returned 404 for about 20 minutes. On 2026-11-06 a separately authorized production upload worked: public GET returned exact bytes while HEAD returned 404. The CLI still omitted its tx hash on expected action failure; access-key nonce/block changes located tx `3XbgZYVddhofieFctrvz154P1zUY5TbsDFkLVgEF6bru`, and final transaction RPC established its cost.
+- **Root cause:** the historical probe failure remains unknown [U]; the later method discrepancy is observed, not a diagnosis of the old failure. Intentional upload action failure alone does not establish availability.
+- **Rule:** verify downloaded GET bytes and hash, not only HEAD or transaction status. Keep independent Cloudflare/FastFS origins, recover exact receipt evidence before resending, and never repeat an upload merely because the CLI reports its expected gas failure. D28 hosting is now published; real worker execution remains P2.9.
 
 ### 2026-11-04: near CLI wrote THE RULE's key into another project's credentials folder
 

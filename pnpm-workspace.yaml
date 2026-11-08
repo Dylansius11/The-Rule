@@ -2,3 +2,6 @@ packages:
   - "apps/*"
   - "verifier/wasm"
   - "bots"
+
+allowBuilds:
+  esbuild: false

@@ -31,7 +31,7 @@ Technical specs define interfaces, PRD defines scope, BUILD-PLAN defines progres
 
 ## Commits
 
-One behavior per commit, about 50 to 400 changed lines excluding lock and generated files. A complete docs or config unit may be smaller. Split by coherent boundary: types, contract logic with tests, CLI, page, fix-ups. Subject `feat|fix|refactor|test|docs|perf|chore(scope): outcome in plain words`; the body gives why and the observed proof (test names, tx hashes). No AI attribution. **Only the lead commits**, sequentially, staging explicit paths (never `git add -A`). Docs describing changed behavior and the satisfied BUILD-PLAN checkbox ride in the same commit. Never commit secrets, `.env`, `.claude/skills/`, `scratch/` or build output. Branch `main`, local only until P8.6 (remote `github.com/Dylansius11/the-rule`, D22). Never force-push.
+One behavior per commit, about 50 to 400 changed lines excluding lock and generated files. A complete docs or config unit may be smaller. Split by coherent boundary: types, contract logic with tests, CLI, page, fix-ups. Subject `feat|fix|refactor|test|docs|perf|chore(scope): outcome in plain words`; the body gives why and the observed proof (test names, tx hashes). No AI attribution. **Only the lead commits**, sequentially, staging explicit paths (never `git add -A`). Docs describing changed behavior and the satisfied BUILD-PLAN checkbox ride in the same commit. Never commit secrets, `.env`, `.claude/skills/`, `scratch/` or build output. Founder authorized origin `https://github.com/Dylansius11/The-Rule.git` and the initial source push on 2026-11-05, superseding the P8.6 remote delay (D22). Work and commits belong on `dev`; feature branches start from and merge into `dev`, and changes reach `main` only through a PR from `dev`. Never commit ongoing work directly to `main` or force-push. This authorization does not change repository visibility, publish referee assets, deploy contracts, delete keys or submit the entry.
 
 ## Docs discipline
 
@@ -53,7 +53,7 @@ Lead (Opus 5.5) owns architecture, founder gates, the `crates/rule-core` and `cr
 | Work | Agent | Required resolved model |
 | --- | --- | --- |
 | Contracts, referee, verifier, keeper, scripts, tests, technical docs, all research | `executor` via `task` | `@task` = `openai-codex/gpt-6.1-terra:high` |
-| Visual UI, interaction, motion, `docs/DESIGN.md` (Phase 7, after B1) | `secondary-executor`, or the lead | `@secondary` = `anthropic/claude-sonnet-5-5:high` |
+| Visual UI, interaction, motion, `docs/DESIGN.md` (Phase 7) | `secondary-executor`, or the lead | `@secondary` = `anthropic/claude-sonnet-5-5:high` |
 
 Before trusting a worker, read the first `model_change` record in its session file and stop on `resolvedModelIsFallback: true`. Each worker gets self-contained context: owned and forbidden paths, interfaces, copied acceptance criteria, evidence rules, no commits, no full suites, no installs outside its owned package. The lead reviews every landed change, then runs proportionate checks once. On a usage limit, keep a short ledger of worker states and continue inline.
 
@@ -90,7 +90,7 @@ Stack-specific (versions in ARCHITECTURE):
 
 ## UX bar
 
-Visual direction is blocked on founder design references (B1); do not pick a UI kit or write `docs/DESIGN.md` before them. When it starts: premium English copy, deliberate hierarchy, a game that feels alive without hiding delays. Every action shows real pending, success and failure states with a recovery path; a pending verdict is never shown as a result. Hashes, links and timestamps appear only once observed; no fixture data shown as live. Keyboard access, visible focus, readable contrast, 390 px and 1280 px layouts, `prefers-reduced-motion`.
+Visual direction is decided (B1 resolved 2026-11-08): follow `docs/DESIGN.md` ("Hand-Inked", mascot Blot) and change it only with the founder. Premium English copy, deliberate hierarchy, a game that feels alive without hiding delays. Every action shows real pending, success and failure states with a recovery path; a pending verdict is never shown as a result. Hashes, links and timestamps appear only once observed; no fixture data shown as live. Keyboard access, visible focus, readable contrast, 390 px and 1280 px layouts, `prefers-reduced-motion`.
 
 ## Testing and safety
 

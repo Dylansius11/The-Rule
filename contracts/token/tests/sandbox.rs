@@ -46,6 +46,141 @@ async fn balance(token: &Contract, account: &Account) -> u128 {
         .unwrap();
     s.parse().unwrap()
 }
+fn operation(id: u64, kind: &str, account: &Account, amount: &str) -> Value {
+    json!({"operation":{"operation_id":id,"kind":kind,"account_id":account.id(),"amount":amount}})
+}
+async fn outcome(account: &Account, token: &Contract, args: Value) -> Value {
+    call(account, token, "execute_operation", args, 0)
+        .await
+        .into_result()
+        .unwrap()
+        .json()
+        .unwrap()
+}
+async fn fund(account: &Account, token: &Contract, count: u128) {
+    let funding: Value = token
+        .view("get_operation_funding")
+        .await
+        .unwrap()
+        .json()
+        .unwrap();
+    let cost: u128 = funding["cost_per_operation"]
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+    call(account, token, "fund_operations", json!({}), cost * count)
+        .await
+        .into_result()
+        .unwrap();
+}
+#[tokio::test]
+async fn operation_funding_retry_and_custody() -> Result<(), Box<dyn std::error::Error>> {
+    let worker = near_workspaces::sandbox().await?;
+    let token = worker.dev_deploy(&std::fs::read(wasm_path())?).await?;
+    let minter = worker.dev_create_account().await?;
+    let alice = worker.dev_create_account().await?;
+    let stranger = worker.dev_create_account().await?;
+    token.call("new").args_json(json!({"minter":minter.id(), "cap":"100", "metadata":{"spec":"ft-1.0.0", "name":"THE RULE", "symbol":"RULE", "icon":null, "reference":null, "reference_hash":null, "decimals":18}})).transact().await?.into_result()?;
+    let bounds: Value = token.view("storage_balance_bounds").await?.json()?;
+    let storage: u128 = bounds["min"].as_str().unwrap().parse()?;
+    call(&minter, &token, "storage_deposit", json!({}), storage)
+        .await
+        .into_result()?;
+    call(&alice, &token, "storage_deposit", json!({}), storage)
+        .await
+        .into_result()?;
+    let mint = operation(u64::MAX, "mint", &minter, "80");
+    assert_rejected(
+        call(&minter, &token, "execute_operation", mint.clone(), 0).await,
+        "E24",
+    );
+    assert_eq!(balance(&token, &minter).await, 0);
+    let absent: Value = token
+        .view("get_operation")
+        .args_json(json!({"operation_id":u64::MAX}))
+        .await?
+        .json()?;
+    assert!(absent.is_null());
+    assert_rejected(
+        call(&stranger, &token, "fund_operations", json!({}), 0).await,
+        "E11",
+    );
+    assert!(call(&minter, &token, "execute_operation", json!({"operation":{"operation_id":8,"kind":"other","account_id":alice.id(),"amount":"1"}}), 0).await.into_result().is_err());
+    assert_rejected(call(&minter, &token, "execute_operation", json!({"operation":{"operation_id":9,"kind":"mint","account_id":"INVALID","amount":"1"}}), 0).await, "E11");
+    let absent: Value = token
+        .view("get_operation")
+        .args_json(json!({"operation_id":9}))
+        .await?
+        .json()?;
+    assert!(absent.is_null());
+    fund(&stranger, &token, 3).await;
+    let first = outcome(&minter, &token, mint.clone()).await;
+    assert_eq!(first["status"], "applied");
+    let funding: Value = token.view("get_operation_funding").await?.json()?;
+    let duplicate = call(&minter, &token, "execute_operation", mint.clone(), 0).await;
+    assert!(duplicate.logs().is_empty());
+    assert_eq!(duplicate.into_result()?.json::<Value>()?, first);
+    let after: Value = token.view("get_operation_funding").await?.json()?;
+    assert_eq!(funding, after);
+    assert_rejected(
+        call(&stranger, &token, "execute_operation", mint, 0).await,
+        "E54",
+    );
+    assert_rejected(
+        call(
+            &minter,
+            &token,
+            "execute_operation",
+            operation(u64::MAX, "mint", &minter, "79"),
+            0,
+        )
+        .await,
+        "E11",
+    );
+    assert_rejected(
+        call(
+            &minter,
+            &token,
+            "storage_unregister",
+            json!({"force":false}),
+            1,
+        )
+        .await,
+        "E53",
+    );
+    assert_rejected(
+        call(
+            &minter,
+            &token,
+            "execute_operation",
+            operation(1, "unlock", &minter, "1"),
+            0,
+        )
+        .await,
+        "E11",
+    );
+    let rejected = outcome(&minter, &token, operation(2, "unlock", &alice, "81")).await;
+    assert_eq!(rejected["status"], "insufficient_balance");
+    assert_eq!(
+        outcome(&minter, &token, operation(3, "unlock", &alice, "30")).await["status"],
+        "applied"
+    );
+    assert_eq!(
+        outcome(&minter, &token, operation(u64::MAX, "mint", &minter, "80")).await,
+        first
+    );
+    assert_eq!(
+        outcome(&minter, &token, operation(2, "unlock", &alice, "81")).await,
+        rejected
+    );
+    assert_eq!(balance(&token, &minter).await, 50);
+    assert_eq!(balance(&token, &alice).await, 30);
+    let supply: String = token.view("ft_total_supply").await?.json()?;
+    assert_eq!(supply, "80");
+    Ok(())
+}
+
 #[tokio::test]
 async fn t_tok_sandbox_initialization_and_supply_overflow() -> Result<(), Box<dyn std::error::Error>>
 {
@@ -79,24 +214,28 @@ async fn t_tok_sandbox_initialization_and_supply_overflow() -> Result<(), Box<dy
     );
     let bounds: Value = token.view("storage_balance_bounds").await?.json()?;
     let storage: u128 = bounds["min"].as_str().unwrap().parse()?;
-    let mint = |amount: &str| json!({"account_id":alice.id(),"amount":amount});
-    assert_rejected(
-        call(&minter, &token, "mint", mint("1"), 0).await,
-        "E52: receiver not registered",
+    fund(&minter, &token, 3).await;
+    assert_eq!(
+        outcome(&minter, &token, operation(1, "mint", &alice, "1")).await["status"],
+        "receiver_unregistered"
     );
     assert!(
         call(&alice, &token, "storage_deposit", json!({}), storage)
             .await
             .is_success()
     );
-    assert!(
-        call(&minter, &token, "mint", mint(&u128::MAX.to_string()), 0)
-            .await
-            .is_success()
+    assert_eq!(
+        outcome(
+            &minter,
+            &token,
+            operation(2, "mint", &alice, &u128::MAX.to_string())
+        )
+        .await["status"],
+        "applied"
     );
-    assert_rejected(
-        call(&minter, &token, "mint", mint("1"), 0).await,
-        "E55: supply overflow",
+    assert_eq!(
+        outcome(&minter, &token, operation(3, "mint", &alice, "1")).await["status"],
+        "cap_exceeded"
     );
     assert_eq!(balance(&token, &alice).await, u128::MAX);
     Ok(())
@@ -114,15 +253,20 @@ async fn t_tok_sandbox_mint_transfer_storage_and_refund() -> Result<(), Box<dyn 
     token.call("new").args_json(json!({"minter":minter.id(), "cap":"100", "metadata":{"spec":"ft-1.0.0", "name":"THE RULE", "symbol":"RULE", "icon":null, "reference":null, "reference_hash":null, "decimals":18}})).transact().await?.into_result()?;
     let bounds: Value = token.view("storage_balance_bounds").await?.json()?;
     let storage: u128 = bounds["min"].as_str().unwrap().parse()?;
-    let mint = |id: &Account, amount: &str| json!({"account_id":id.id(),"amount":amount});
+    fund(&minter, &token, 5).await;
     assert_rejected(
-        call(&stranger, &token, "mint", mint(&alice, "1"), 0).await,
+        call(
+            &stranger,
+            &token,
+            "execute_operation",
+            operation(1, "mint", &alice, "1"),
+            0,
+        )
+        .await,
         "E54: only minter",
     );
-    assert_rejected(
-        call(&minter, &token, "mint", mint(&alice, "1"), 0).await,
-        "E52: receiver not registered",
-    );
+    let rejected = outcome(&minter, &token, operation(1, "mint", &alice, "1")).await;
+    assert_eq!(rejected["status"], "receiver_unregistered");
     assert_rejected(
         call(&alice, &token, "storage_deposit", json!({}), storage - 1).await,
         "The attached deposit is less than the minimum storage balance",
@@ -137,22 +281,25 @@ async fn t_tok_sandbox_mint_transfer_storage_and_refund() -> Result<(), Box<dyn 
             .await
             .is_success()
     );
-    assert_rejected(
-        call(&minter, &token, "mint", mint(&alice, "0"), 0).await,
-        "E11: zero mint",
+    assert_eq!(
+        outcome(&minter, &token, operation(1, "mint", &alice, "1")).await,
+        rejected
     );
-    assert_rejected(
-        call(&minter, &token, "mint", mint(&alice, "101"), 0).await,
-        "E55: cap exceeded",
+    assert_eq!(
+        outcome(&minter, &token, operation(2, "mint", &alice, "0")).await["status"],
+        "invalid_amount"
     );
-    assert!(
-        call(&minter, &token, "mint", mint(&alice, "100"), 0)
-            .await
-            .is_success()
+    assert_eq!(
+        outcome(&minter, &token, operation(3, "mint", &alice, "101")).await["status"],
+        "cap_exceeded"
     );
-    assert_rejected(
-        call(&minter, &token, "mint", mint(&alice, "1"), 0).await,
-        "E55: cap exceeded",
+    assert_eq!(
+        outcome(&minter, &token, operation(4, "mint", &alice, "100")).await["status"],
+        "applied"
+    );
+    assert_eq!(
+        outcome(&minter, &token, operation(5, "mint", &alice, "1")).await["status"],
+        "cap_exceeded"
     );
     let transfer =
         |id: &Account, amount: &str| json!({"receiver_id":id.id(),"amount":amount,"memo":null});
@@ -264,7 +411,10 @@ fn t_abi_1_wasm_exports() {
     let expected: BTreeSet<String> = [
         "contract_source_metadata",
         "new",
-        "mint",
+        "execute_operation",
+        "fund_operations",
+        "get_operation",
+        "get_operation_funding",
         "ft_transfer",
         "ft_transfer_call",
         "ft_total_supply",

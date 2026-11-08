@@ -3,7 +3,8 @@
 ## TL;DR
 
 - **One-liner:** A memecoin with a secret law that nobody knows, not even its creators. Find the rule, win the pot.
-- **Status (2026-11-05):** build authorized (B3); shared core, referee/verifier and Solo game/token paths are implemented and locally tested with mock OutLayer. Phase 0 probe gates passed on testnet; the real game/referee rehearsal remains open. Frontend visuals are blocked on founder design references (B1). BUILD-PLAN tracks unaccepted work.
+- **Status (2026-11-08):** Phase 2/3 and Phase 4 Team testnet acceptance are complete. Fresh r2 contracts completed real-OutLayer Solved Solo (52 plays, Wrong/Correct, replay 52/52) and Team (three members, 11 plays, three Wrong/one Correct, replay 11/11) rounds. Team vault exits, equal historical rewards after roster deletion, native withdrawals and platform payments completed; independent receipt/cash/token/collateral audits passed. The same r2-bound non-demo referee is published on Cloudflare/FastFS. Original acceptance criteria and generated-test counts are unchanged. The founder accepted native stalled-callback residual risk **only for testnet** (D31), not as recovered or production-safe. Production recovery/risk acceptance, B6, freeze and key deletion remain open. The visual direction is decided (B1, `docs/DESIGN.md`) and Phase 7 frontend work started; Phase 6 schedule/keeper qualification remains open. No keyless launch, secrecy proof, load-test result or preselected-rule demo is claimed.
+- **Withdrawal isolation (D34/D35):** pending withdrawal no longer owns the play guard; remaining credit can fund experiments while the exact withdrawn principal stays reserved. Actual local transfer-success/callback-failure isolation passed, and the new Player layout is deployed to fresh r2 state, never over r1. Successful rehearsal payments do not establish recovery of a failed native callback; that residual liveness/architecture gate remains explicit.
 - **Event:** NEAR HACKATHON 2026, memecoins track primary, games secondary. Submission closes **2026-11-14T23:59:00Z** ([V](https://nearhackathon.com/HACKATHON.md), captured 2026-10-22). THE RULE is the founder's second, independent entry. The first is CONSTITUTION, and each README must name the other.
 - **Primary success condition:** one real sealed round on NEAR testnet goes end to end. Plays get enclave verdicts, YES mints RULE, a correct commit-reveal guess wins the pot, the rule and salt open, and the browser replays every verdict against the day-1 commitment. One labeled Demo Mode round is recorded for the video.
 - **Kill rule:** if Phase 0 gates T1, T2 or T3 fail (BUILD-PLAN), THE RULE is dropped. It is never downgraded to a plain commit-reveal quiz.
@@ -99,7 +100,7 @@ Priorities follow the founder's MVP build order (D23): cut from the bottom, and 
 | Id | Feature | Contract | Acceptance |
 | --- | --- | --- | --- |
 | F17 | RULE NEP-141 | NEP-141, NEP-145, NEP-148 metadata; only `game` can mint; hard cap; no pause, tax, blacklist or transfer hook | T-TOK; transfer during an open round |
-| F18 | Mint on YES | `m = 100 * allowance_left / allowance * bucket`; allowance expires at round end; failed mint restores the allowance | T-INV-3; supply equals the sum of logged mints |
+| F18 | Mint on YES | `m = 100 * allowance_left / allowance * bucket`; allowance expires at round end. An authenticated token rejection restores it; unknown transport retains a permissionlessly replayable reservation | T-INV-3; after reconciliation, supply equals logged mints minus standard resolver burns |
 | F19 | RULE lock for attempts | `ft_transfer_call` locks RULE for a Scheduled round; tiers add attempts up to a hard cap; extra attempts still pay the fee; returned after the round; never forfeited | T-LOCK |
 
 ### Order 5: Demo Mode and schedule
@@ -124,7 +125,7 @@ DAO voting over unsolved pots; play-fee discounts (replaced by RULE lock, D16); 
 
 ## Functional screen contracts (no visuals)
 
-Visual design is blocked on founder references (B1). These contracts fix only what the user can do, what the screen shows and which contract call it makes. Every action shows real pending, success and failure states. No fixture data is ever shown as live.
+These contracts fix what the user can do, what the screen shows and which contract call it makes; `docs/DESIGN.md` fixes how it looks and moves. Every action shows real pending, success and failure states. No fixture data is ever shown as live.
 
 | Screen | User can | Shows | Calls |
 | --- | --- | --- | --- |
@@ -132,8 +133,8 @@ Visual design is blocked on founder references (B1). These contracts fix only wh
 | S2 Log | Search and filter by number, word, result, player; sort; export CSV/JSON of filtered rows; open a play | Virtualized log, filter accept rates, completeness indicator (loaded rows / total) | `get_log` paged at `final` |
 | S3 Guess | Build a guess from the published atoms; check it against the log locally (wasm); commit; reveal; see the result | Stake quote locked at commit; commit hash; reveal deadline; status Committed, Checking, Correct, Wrong, Refunded | `get_round`, `commit_guess`, `reveal_guess`, `get_commits` |
 | S4 Reveal and verify | Watch the reveal; run browser replay; copy the `make verify` command; download the log | Rule in English, DSL and canonical JSON; salt; commitment check; N of N verdicts match; winner; payouts | `get_round`, `get_log`, wasm `verify_round` |
-| S5 Team | Create, invite, join, leave; deposit to and withdraw from the vault; lock RULE | Roster, lock state, vault balance and depositor weights, team attempts | team methods, `team_deposit`, `team_withdraw`, `ft_transfer_call` |
-| S6 Wallet and claims | Connect wallet; deposit and withdraw credit; lock and unlock RULE; claim payouts | Credit, RULE balance, locks, claimable per round | `deposit_credit`, `withdraw_credit`, `claim`, `unlock` |
+| S5 Team | Create, invite, join, leave; deposit to and withdraw from the vault; lock RULE; settle and claim rewards using the original round/team id after leaving | Roster and lock state; vault balance and depositor weights; shared attempts/line; pro-rata unused principal versus equal round rewards; separate wallet NEAR for transaction gas | team methods, `team_deposit`, `team_withdraw`, `settle_team`, `claim_team`, `ft_transfer_call` |
+| S6 Wallet and claims | Connect; deposit/withdraw credit; lock/unlock RULE; claim payouts; retry pending RULE operations | Wallet NEAR/gas separate from game credit and Team vault; separate play, Checking-guess and withdrawal pending states; RULE balance, locks, claimable; distinct pending/applied/rejected token operation status and recovery action. A pending payment is not a verdict and its principal is not available credit | `get_player`, `deposit_credit`, `withdraw_credit`, `claim`, `unlock`, `get_token_operation`, `retry_token_operation`, token `get_operation` |
 | S7 Season | Browse Solo and Team boards | Rounds won, shares, earnings per entity | `get_season` |
 | S8 Demo toggle | Switch between the real sealed round and Demo Mode | A permanent "Demo Mode - preselected rule" label in demo; Reset Demo for the operator | Points the client at the demo contracts |
 
@@ -141,11 +142,11 @@ Visual design is blocked on founder references (B1). These contracts fix only wh
 
 All numbers are params fixed at deployment (SMART-CONTRACT, Params). They are illustrative testnet settings, not forecasts. Pot conservation holds in every branch: `pot = winner + contributors + rollover + platform`, with dust going to rollover. Compute float, storage charges, stakes and credit are separate ledgers.
 
-- **Per play:** 0.01 NEAR fee (0.008 pot, 0.0015 compute float, 0.0005 platform), plus the existing provisional 0.00768 NEAR storage allowance (768 bytes), not the earlier 0.0013 estimate. Local P2.4 samples fit this allowance; worst-case/concurrency sizing is still B6. This is not a finalized deploy quote.
+- **Per play:** 0.01 NEAR fee (0.008 pot, 0.0015 compute float, 0.0005 platform), plus the production action-storage floor of 0.02048 NEAR (2,048 bytes). Account and Team floors are 512 and 2,048 bytes. These local bounds are not a final deploy quote. A separate nonrefundable token budget funds each permanent mint/unlock outcome at a 256-byte live storage quote (currently 0.00256 NEAR); it is not taken from player credit, registration deposits, pot or compute. Deployment must explicitly budget this lifetime cost and monitor available funding.
 - **Compute check [V, live views 2026-11-04]:** OutLayer base 0.001 NEAR + 0.0000001 NEAR per requested ms, so a 5 s verdict limit attaches about 0.0015 NEAR before refunds. The 15% compute share is tight. If T4 shows actual cost above about 0.0012 NEAR per verdict, the split moves to 80/10/10 or the limit drops (D3).
 - **Who earns:** the solver (40% + its own shares), every unique play (40% shared), the next round (10% or 50%), the platform (5% of fees + 10% of the pot).
 - **Spam does not pay:** each share costs at least 0.01 NEAR, of which 0.008 goes to the pot. A share pays at most `0.4 * pot / shares`. Contributing is profitable only when a large rollover is shared by few plays, which is the intended jackpot incentive and is public.
-- **Issuance:** at most `round_allowance` per mode per round, and the unminted remainder expires. Supply equals the sum of logged mints.
+- **Issuance:** at most `round_allowance` per mode per round; unused allowance expires. Log mint amounts reserve intended issuance while a token operation is pending. After reconciliation, logged issuance equals token supply plus any standard resolver burns; a YES verdict never masquerades as a confirmed mint.
 
 ## Non-goals and scope cuts
 
@@ -167,7 +168,7 @@ Rubric weights for this event are UNVERIFIED. Past NEAR guide: technical impleme
 | Criterion | Evidence artifact |
 | --- | --- |
 | Technical | Testnet receipts, `make verify`, key-deletion ceremony proof, invariant tests |
-| Design | Never-cut demo flow, real pending and failure states (visuals after B1) |
+| Design | Never-cut demo flow, real pending and failure states, the Hand-Inked direction (`docs/DESIGN.md`) |
 | Impact | The insider problem removed for one game class, under a stated trust model |
 | Originality | Combination delta below, prior art credited |
 | Sustainability | Fixed fee and pot formulas; platform share; honest negative-sum math |

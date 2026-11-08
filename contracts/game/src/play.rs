@@ -9,15 +9,11 @@ impl Game {
             .get(&(m, id))
             .unwrap_or_else(|| env::panic_str("E10"));
         near_sdk::require!(round.phase == Phase::Investigation, "E10");
-        near_sdk::require!(m == 0, "E32");
         let word_id = rule_core::words::normalize(&word).unwrap_or_else(|| env::panic_str("E11"));
         near_sdk::require!(number <= 999, "E11");
         let actor = env::predecessor_account_id();
         let now = env::block_timestamp();
-        let entity = self
-            .players
-            .get(&actor)
-            .map(|player| Entity::Solo(player.index));
+        let entity = self.resolve_entity(m, &actor);
         let previous = entity
             .and_then(|entity| self.entities.get(&(m, id, entity)))
             .and_then(|e| {
@@ -68,9 +64,16 @@ impl Game {
             .players
             .get(&actor)
             .unwrap_or_else(|| env::panic_str("E20"));
-        near_sdk::require!(!player.pending, "E13");
-        near_sdk::require!(player.credit >= charge, "E20");
-        let entity_id = Entity::Solo(player.index);
+        near_sdk::require!(!player.pending_play, "E13");
+        let entity_id = entity.unwrap_or_else(|| env::panic_str("E20"));
+        near_sdk::require!(self.payer_balance(entity_id, &actor) >= charge, "E20");
+        if let Entity::Team(team_id) = entity_id {
+            let t = self.teams.get(&team_id).expect("team missing");
+            near_sdk::require!(
+                t.active_round.is_none() || t.active_round == Some(id),
+                "E30"
+            );
+        }
         let entity_key = (m, id, entity_id);
         near_sdk::require!(self.compute_float >= p.outlayer_deposit.verdict.0, "E22");
         near_sdk::require!(
@@ -83,14 +86,19 @@ impl Game {
         self.next_request_id = request_id.checked_add(1).expect("E50");
         let seq = self.next_seq;
         self.next_seq = seq.checked_add(1).expect("E50");
-        let player = self.players.get_mut(&actor).expect("E20");
-        player.credit -= charge;
-        player.pending = true;
-        self.total_credit -= charge;
+        self.debit_payer(entity_id, &actor, charge);
+        self.players
+            .get_mut(&actor)
+            .expect("player missing")
+            .pending_play = true;
         self.pending_credit += charge;
         self.compute_float -= p.outlayer_deposit.verdict.0;
         if !self.entities.contains_key(&entity_key) {
-            self.entities.insert(entity_key, EntityRound::default());
+            let mut entry = EntityRound::default();
+            if let Entity::Team(team_id) = entity_id {
+                entry.team_members = self.team_snapshot(team_id, id);
+            }
+            self.entities.insert(entity_key, entry);
         }
         let entity = self.entities.get_mut(&entity_key).expect("missing entity");
         entity.pending = true;
@@ -172,17 +180,14 @@ impl Game {
                 .is_some_and(|r| r.phase == Phase::Investigation);
         let entity_key = (mode, round, entity);
         if let Some(player) = self.players.get_mut(&actor) {
-            player.pending = false;
+            player.pending_play = false;
         }
         if let Some(entity) = self.entities.get_mut(&entity_key) {
             entity.pending = false;
         }
         self.pending_credit -= amount;
         let Some(verdict) = parsed.filter(|_| valid) else {
-            if let Some(player) = self.players.get_mut(&actor) {
-                player.credit += amount;
-                self.total_credit += amount;
-            }
+            self.refund_payer(entity, &actor, amount);
             let remove_entity = if let Some(entity) = self.entities.get_mut(&entity_key) {
                 entity.attempts = entity.attempts.saturating_sub(1);
                 entity.attempts == 0
@@ -192,11 +197,17 @@ impl Game {
                     && entity.correct_commits.is_empty()
                     && entity.pot_contribution == 0
                     && !entity.claimed
+                    && !entity.team_committed
             } else {
                 false
             };
             if remove_entity {
                 self.entities.remove(&entity_key);
+                if let Entity::Team(id) = entity
+                    && let Some(team) = self.teams.get_mut(&id)
+                {
+                    team.active_round = None;
+                }
             }
             self.seen.remove(&(mode, round, key));
             let event = protocol::events::PlayRefunded {
@@ -278,6 +289,14 @@ impl Game {
             if let Some(entity) = self.entities.get_mut(&entity_key) {
                 entity.pot_contribution += pot;
                 if entity.shares < p.share_cap[mode as usize] {
+                    if mode == 1 {
+                        let k = entity.team_members.len();
+                        let base = k * (k - 1) / 2;
+                        if entity.shares > 0 {
+                            r.team_residues[base + usize::from(entity.shares) % k] -= 1;
+                        }
+                        r.team_residues[base + (usize::from(entity.shares) + 1) % k] += 1;
+                    }
                     entity.shares += 1;
                     r.total_shares += 1;
                 }

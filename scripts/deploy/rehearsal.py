@@ -41,6 +41,11 @@ def account(value, name):
     require(isinstance(value, str) and 2 <= len(value) <= 64 and value.endswith('.testnet') and re.fullmatch(r'[a-z0-9]+(?:[._-][a-z0-9]+)*', value) is not None, f"{name}: expected testnet account ID")
 
 
+def cli_gas(value):
+    whole, fraction = divmod(value, 1_000_000_000_000)
+    return f"{whole}.{fraction:012d}".rstrip('0').rstrip('.') + ' Tgas'
+
+
 def artifact(value, name):
     require(isinstance(value, str) and value, f"{name}: missing path")
     path = Path(value).resolve(strict=True)
@@ -94,7 +99,7 @@ def referee_manifest(data):
 
 
 def prepare(config):
-    obj(config, ("network", "game_account", "token_account", "game_wasm", "token_wasm", "referee_wasm", "referee_sha256", "referee_build_log", "token_cap", "token_metadata", "demo", "params", "init_gas", "token_storage_deposit", "registration_payer", "registration_gas"), 'config')
+    obj(config, ("network", "game_account", "token_account", "game_wasm", "token_wasm", "referee_wasm", "referee_sha256", "referee_build_log", "token_cap", "token_metadata", "demo", "params", "init_gas", "token_storage_deposit", "registration_payer", "registration_gas", "token_operation_funding", "operation_funding_payer", "operation_funding_gas"), 'config')
     require(config['network'] == 'testnet', 'network must be testnet')
     game, token = config['game_account'], config['token_account']
     account(game, 'game_account'); account(token, 'token_account')
@@ -102,6 +107,10 @@ def prepare(config):
     account(config['registration_payer'], 'registration_payer')
     amount(config['token_storage_deposit'], 'token_storage_deposit', True)
     uint(config['registration_gas'], 64, 'registration_gas', True)
+    account(config['operation_funding_payer'], 'operation_funding_payer')
+    amount(config['token_operation_funding'], 'token_operation_funding', True)
+    uint(config['operation_funding_gas'], 64, 'operation_funding_gas', True)
+    require(config['operation_funding_gas'] <= 300_000_000_000_000, 'operation_funding_gas exceeds 300 Tgas')
     require(config['registration_gas'] <= 300_000_000_000_000, 'registration_gas exceeds 300 Tgas')
     paths, blobs = {}, {}
     for name in ('game', 'token', 'referee'):
@@ -140,18 +149,21 @@ def prepare(config):
         for n in p[key]: uint(n, bits, key)
     uint(p['wrong_return_bps'], 16, 'wrong_return_bps')
     uint(p['max_team_size'], 8, 'max_team_size')
-    require(isinstance(p['lock_tiers'], list), 'lock_tiers must be an array')
+    require(isinstance(p['lock_tiers'], list) and len(p['lock_tiers']) <= 3, 'lock_tiers must contain at most three tiers')
+    require(1 <= p['max_team_size'] <= 5, 'max_team_size must be between one and five')
     for tier in p['lock_tiers']:
         obj(tier, ('amount', 'extra_attempts'), 'lock tier'); amount(tier['amount'], 'lock tier amount'); uint(tier['extra_attempts'], 16, 'extra_attempts')
     require(sum(p['fee_split_bps']) == sum(p['solved_split_bps']) == sum(p['unsolved_split_bps']) == 10000 and p['wrong_return_bps'] <= 10000 and max(p['stake_bps']) <= 10000, 'invalid splits')
     require(all(p['base_attempts']) and all(p['share_cap']) and all(a >= b for a, b in zip(p['attempt_cap'], p['base_attempts'])) and int(p['round_allowance']) < 2**127 and int(p['play_fee']) + int(p['storage_charge_per_play']) < 2**128, 'invalid game bounds')
     if not config['demo']:
+        byte_cost = 10_000_000_000_000_000_000  # Current protocol price; on-chain init rechecks its actual runtime price.
+        require(int(p['storage_charge_account']) >= 512 * byte_cost and int(p['storage_charge_per_play']) >= 2048 * byte_cost and int(p['storage_charge_team']) >= 2048 * byte_cost, 'production storage charges below lifetime record budgets')
         require(p['genesis_ns'] >= time.time_ns() + 7_200_000_000_000 and p['round_period_ns'] >= 3_600_000_000_000 and min(p['reveal_window_ns'], p['begin_timeout_ns'], p['open_timeout_ns']) >= 600_000_000_000, 'non-demo schedule violates deployment bounds')
     ref = obj(p['referee'], ('outlayer', 'urls', 'hash', 'build_target'), 'referee')
     require(ref['outlayer'] == 'outlayer.testnet' and ref['hash'] == digest and ref['build_target'] == 'wasm32-wasip2', 'referee configuration mismatch')
-    require(isinstance(ref['urls'], list) and len(ref['urls']) > 0, 'referee URLs required')
+    require(isinstance(ref['urls'], list) and 1 <= len(ref['urls']) <= 2, 'one or two referee URLs required')
     for url in ref['urls']:
-        require(isinstance(url, str), 'invalid URL')
+        require(isinstance(url, str) and len(url.encode('utf-8')) <= 2048, 'referee URL exceeds 2048 bytes')
         u = urlsplit(url)
         require(u.scheme == 'https' and bool(u.hostname) and u.username is None and u.password is None and u.port in (None, 443) and not u.fragment and not any(c.isspace() for c in url), 'referee URL must be HTTPS on port 443 without credentials or fragment')
     for key in ('resource_limits', 'outlayer_deposit'):
@@ -164,16 +176,17 @@ def prepare(config):
     token_args = {'minter': game, 'cap': config['token_cap'], 'metadata': metadata}
     game_args = {'params': p, 'demo': config['demo']}
     def command(name, args):
-        return ['near-rule', 'contract', 'deploy', config[name + '_account'], 'use-file', str(paths[name]), 'with-init-call', 'new', 'json-args', json.dumps(args, separators=(',', ':')), 'prepaid-gas', str(config['init_gas']) + ' gas', 'attached-deposit', '0 NEAR', 'network-config', 'testnet', 'sign-with-legacy-keychain', 'send']
+        return ['near-rule', 'contract', 'deploy', config[name + '_account'], 'use-file', str(paths[name]), 'with-init-call', 'new', 'json-args', json.dumps(args, separators=(',', ':')), 'prepaid-gas', cli_gas(config['init_gas']), 'attached-deposit', '0 NEAR', 'network-config', 'testnet', 'sign-with-legacy-keychain', 'send']
     registration_args = {'account_id': game, 'registration_only': True}
-    registration = ['near-rule', 'contract', 'call-function', 'as-transaction', token, 'storage_deposit', 'json-args', json.dumps(registration_args, separators=(',', ':')), 'prepaid-gas', str(config['registration_gas']) + ' gas', 'attached-deposit', config['token_storage_deposit'] + ' yoctoNEAR', 'sign-as', config['registration_payer'], 'network-config', 'testnet', 'sign-with-legacy-keychain', 'send']
-    return {'label': 'TESTNET REHEARSAL — KEYS RETAINED' + ('; Demo Mode - preselected rule schedule flag (referee is non-demo)' if config['demo'] else '; non-demo schedule'), 'sha256': {name: hashlib.sha256(data).hexdigest() for name, data in blobs.items()}, 'token_init': token_args, 'game_init': game_args, 'game_token_registration': {'args': registration_args, 'deposit': config['token_storage_deposit'], 'payer': config['registration_payer']}, 'commands': [command('token', token_args), command('game', game_args), registration]}
+    registration = ['near-rule', 'contract', 'call-function', 'as-transaction', token, 'storage_deposit', 'json-args', json.dumps(registration_args, separators=(',', ':')), 'prepaid-gas', cli_gas(config['registration_gas']), 'attached-deposit', config['token_storage_deposit'] + ' yoctoNEAR', 'sign-as', config['registration_payer'], 'network-config', 'testnet', 'sign-with-legacy-keychain', 'send']
+    funding = ['near-rule', 'contract', 'call-function', 'as-transaction', token, 'fund_operations', 'json-args', '{}', 'prepaid-gas', cli_gas(config['operation_funding_gas']), 'attached-deposit', config['token_operation_funding'] + ' yoctoNEAR', 'sign-as', config['operation_funding_payer'], 'network-config', 'testnet', 'sign-with-legacy-keychain', 'send']
+    return {'label': 'TESTNET REHEARSAL — KEYS RETAINED' + ('; compressed schedule; non-demo referee; no preselected rule' if config['demo'] else '; non-demo schedule'), 'sha256': {name: hashlib.sha256(data).hexdigest() for name, data in blobs.items()}, 'token_init': token_args, 'game_init': game_args, 'game_token_registration': {'args': registration_args, 'deposit': config['token_storage_deposit'], 'payer': config['registration_payer']}, 'token_operation_funding': {'deposit': config['token_operation_funding'], 'payer': config['operation_funding_payer'], 'nonrefundable': True}, 'commands': [command('token', token_args), funding, command('game', game_args), registration]}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('config', help='explicit JSON configuration; never include secrets')
-    parser.add_argument('--execute', action='store_true', help='after founder authorization, send the testnet deployments and game token registration')
+    parser.add_argument('--execute', action='store_true', help='after founder authorization, send testnet deployments, token operation funding and game token registration')
     args = parser.parse_args()
     config = json.loads(Path(args.config).read_text(encoding='utf-8'))
     plan = prepare(config)
@@ -186,7 +199,7 @@ def main():
     if not args.execute:
         print('OFFLINE: no network, signature or transaction. Review prerequisites before authorized execution.')
         return
-    print('Executing token, game, then game token registration; stop on failure. Keys are retained.', flush=True)
+    print('Executing token, operation funding, game, then game token registration; stop on failure. Keys are retained.', flush=True)
     for command in plan['commands']:
         subprocess.run(command, check=True)
 

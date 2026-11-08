@@ -8,6 +8,7 @@ mod tests;
 
 pub mod events;
 pub mod params;
+pub mod token;
 pub use params::Params;
 
 use alloc::{string::String, vec::Vec};

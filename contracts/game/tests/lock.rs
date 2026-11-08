@@ -248,20 +248,20 @@ fn a_round_that_never_started_releases_its_locks_one_period_after_its_slot() {
         sent[0],
         (
             "token.testnet".to_owned(),
-            "ft_transfer".to_owned(),
-            json!({"receiver_id":"bob.near","amount":"500"}),
-            1
+            "execute_operation".to_owned(),
+            json!({"operation":{"operation_id":1,"kind":"unlock","account_id":"bob.near","amount":"500"}}),
+            0
         )
     );
     // The transfer failed (for instance the receiver unregistered): the lock comes back.
-    deliver_env(&fx.ctx, PromiseResult::Failed);
+    deliver_env(&fx.ctx, token_ack(&fx.game, 1, "receiver_unregistered"));
     fx.game.on_unlock(1);
     assert_eq!(locked(&fx, 1), 500);
     // A second unlock goes through and its success callback releases for good.
     fx.ctx.attached_deposit(NearToken::from_yoctonear(1));
     fx.at(51, 2 * period);
     fx.game.unlock(Mode::Solo, 1);
-    deliver_env(&fx.ctx, PromiseResult::Successful(Vec::new()));
+    deliver_env(&fx.ctx, token_ack(&fx.game, 2, "applied"));
     fx.game.on_unlock(2);
     assert_eq!(locked(&fx, 1), 0);
     // A duplicate callback restores nothing.
@@ -284,7 +284,7 @@ fn failed_unlock_restores_tokens_into_a_paid_replacement_lock() {
     let fee = params().storage_charge_per_play.0;
     assert_eq!(fx.credit(), credit - fee);
     assert_eq!(fx.term("storage_reserve"), reserve + fee);
-    deliver_env(&fx.ctx, PromiseResult::Failed);
+    deliver_env(&fx.ctx, token_ack(&fx.game, 1, "insufficient_balance"));
     fx.game.on_unlock(1);
     assert_eq!(locked(&fx, 1), 507);
     assert_eq!(
@@ -322,5 +322,5 @@ fn locks_are_returned_after_a_settled_round() {
     testing_env!(fx.ctx.build());
     fx.game.unlock(Mode::Solo, 0);
     assert_eq!(locked(&fx, 0), 0);
-    assert_eq!(calls()[0].1, "ft_transfer");
+    assert_eq!(calls()[0].1, "execute_operation");
 }

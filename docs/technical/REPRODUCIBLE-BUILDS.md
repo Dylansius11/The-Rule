@@ -39,11 +39,32 @@ The restored Linux audit-tool release archive matched SHA-256 `b6ad301b8ac65e283
 
 `scripts/referee/publish.sh FILE.wasm` prints SHA-256 and size and rejects files of 10 MiB or more. Optionally add `--verify-url https://...` to fetch the URL with HTTPS-only redirects (at most three) and check its hash. It never uploads. A matching local fetch does not prove availability to the deployed OutLayer worker. OutLayer requires public HTTPS on port 443, at most three redirects and a maximum of 10 MiB, and checks the supplied hash.
 
-- FastFS testnet: the earlier uploaded probe returned HTTP 404; cause unknown.
-- Cloudflare quick tunnel: temporary, only while the local tunnel process runs; used for the probe, not durable hosting.
-- Commit-pinned GitHub raw or release asset: candidate only; requires the public repository and appropriate founder authorization. D28 remains open, and D22 currently delays a remote until P8.6.
+### Published referee evidence (2026-11-06)
 
-No upload or URL verification for this referee was performed. P2.2 remains open until the chosen hosting and both matching URLs are exercised. Older INTEGRATIONS and BUILD-PLAN text describes automatic FastFS upload and a GitHub mirror; it conflicts with D28's current blocked status and this no-upload helper.
+Founder authorized Cloudflare primary, FastFS mirror and one upload costing at most 0.002 testnet NEAR, replacing the earlier raw-GitHub mirror (D28). No public GitHub repository was created; source visibility is unchanged.
+
+| Source | Public URL |
+| --- | --- |
+| Cloudflare deployment-pinned primary | `https://0ba1bf92.the-rule-referee.pages.dev/67ca482631d80efc80ef12d230ebf51f813326c9d54984ccbdc4f2de72749c60.wasm` |
+| FastFS testnet mirror | `https://test.fastfs.io/therule.testnet/outlayer.testnet/67ca482631d80efc80ef12d230ebf51f813326c9d54984ccbdc4f2de72749c60.wasm` |
+
+Both public GETs returned the exact **228,161 bytes**, SHA-256 `67ca482631d80efc80ef12d230ebf51f813326c9d54984ccbdc4f2de72749c60`. Before publication, the retained independent `ba3d23f` build pair passed `cmp`, pinned component validation and exact WIT comparison again. Its sole manifest admits `game-r1.therule.testnet`, and no `RULE_DEMO` string is present. Referee and rule-core source have not changed since that build; subsequent protocol additions concern token outcomes. This is publication of that explicitly identified reproducible artifact, not a fresh current-source contract build or freeze.
+
+Cloudflare Direct Upload created `the-rule-referee` using the founder-authorized relay; no card or paid service was activated. The primary returns `Content-Type: application/wasm`, `Cache-Control: public, max-age=31536000, immutable` and `X-Content-Type-Options: nosniff`. The project alias is `https://the-rule-referee.pages.dev`; deployment `0ba1bf92` identifies the verified upload.
+
+FastFS transaction [`3XbgZYVddhofieFctrvz154P1zUY5TbsDFkLVgEF6bru`](https://testnet.nearblocks.io/txns/3XbgZYVddhofieFctrvz154P1zUY5TbsDFkLVgEF6bru) was included at block `276477344`. Its `__fastdata_fastfs` call attached 0 NEAR and gas 1; `Exceeded the prepaid gas` is deliberate in the vendor upload protocol. Summed observed transaction/receipt burn was **0.0012591626714774 NEAR**, below the authorization ceiling. CLI did not print the transaction hash; read-only access-key nonce history located its transaction-processing change, then final `tx` RPC confirmed identity, arguments and cost. No upload was repeated.
+
+FastFS GET returned 200 with `application/wasm`; HEAD returned 404. The old probe URL still returned 404; its historical cause is unknown, not proof that the new upload failed. Receipt and byte-check details are in gitignored `scratch/referee-publication/`.
+
+Repeat the actual byte checks in WSL:
+
+```sh
+bash scripts/referee/publish.sh scratch/repro/referee-committed-1.wasm --verify-url https://0ba1bf92.the-rule-referee.pages.dev/67ca482631d80efc80ef12d230ebf51f813326c9d54984ccbdc4f2de72749c60.wasm
+bash scripts/referee/publish.sh scratch/repro/referee-committed-1.wasm --verify-url https://test.fastfs.io/therule.testnet/outlayer.testnet/67ca482631d80efc80ef12d230ebf51f813326c9d54984ccbdc4f2de72749c60.wasm
+```
+
+These two commands passed. P2.2 is satisfied under D28; real worker fetch and execution remain P2.9. Historical quick tunnels are not hosting dependencies.
+
 
 ## Contract build entrypoint and dry-run limits
 
@@ -88,4 +109,45 @@ All rows use source `ba3d23f0a50784e66a1a62476a35db8aee71502b`. Both contracts w
 
 Both reproducible contract artifacts also passed their existing ABI export allowlists. The five added admission/play sandbox runtimes were then exercised again against this exact reproducible pair: saturation/lifecycle/retry, settled duplicate, five verdict failure shapes, delayed YES after freeze, low compute and private-callback rejection all passed. Those runtimes still use MOCK OutLayer, not a deployed TEE referee.
 
-Artifacts live in gitignored `scratch/repro/admission-{1,2}/` and `scratch/repro/referee-committed-{1,2}.wasm`. No bytes were uploaded, no remote was added, and no testnet transaction was signed. The repository identifier in metadata does not mean this source revision is publicly retrievable. Contract changes or another frozen revision require rebuilding and rechecking.
+Artifacts live in gitignored `scratch/repro/admission-{1,2}/` and `scratch/repro/referee-committed-{1,2}.wasm`. During that build run, no bytes were uploaded, no remote was added, and no testnet transaction was signed. The founder subsequently authorized the private source remote/push (D22), not referee asset publication or deployment. The repository identifier in metadata does not mean that revision is publicly retrievable. Contract changes or another frozen revision require rebuilding and rechecking.
+
+### Current recovery-layout rehearsal artifacts (2026-11-06)
+
+Source `e546b82caef3a9b8848a4863f322a7e7c3419f57`, same pinned builder and locked no-ABI recipe:
+
+| Artifact | Bytes | SHA-256 |
+| --- | --- | --- |
+| Game | 483,078 | `83a3a39fa12ec9132ca73ffde665df65e0a4815179373375756b4cc7e642073c` |
+| Token | 183,152 | `5faf278b5c3de6dc8c1f5527731b1809952d7369fb9c116d4042d7ca0ba4f8c7` |
+
+These are **one fresh reproducible build per current contract**, not a second current pair or freeze. The actual make command built game, then failed closed on Docker Hub DNS during token setup. An explicit pinned image pull succeeded; token-only `cargo near build reproducible-wasm` then completed at the same source. Logs: `scratch/referee-publication/current-contract-build.log` and `current-token-build.log`. Do not describe the partially failed make invocation as passing.
+
+With `GAME_WASM`/`TOKEN_WASM` pointing to these exact artifacts and `EXPECTED_SOURCE_REV` set to the full source id, actual sandbox metadata views matched revision/image/path/command. Both ABI allowlists passed. The reversed-Correct-callback runtime and complete `token-recovery` executable passed against this pair, including real local callback failures after token effects, overlapping replay and exact supply/funding. All use local MOCK OutLayer, not testnet. Logs: `repro-artifact-smoke.log` and `rehearsal-token-quote.log` under that scratch directory.
+
+The exact token's local quote returned registration min/max `1250000000000000000000` yoctoNEAR, per-outcome cost `2560000000000000000000`, and initialized account storage 183,536 bytes. The live testnet byte price is checked separately and the deployed token must confirm the quote before registration. The real offline planner accepted these artifacts and the D28 referee, and five boundary regressions passed. The authorized D32 run retains keys, compresses scheduling, uses production economic/storage floors and the non-demo referee, and stops at 35 play attempts/four guesses; it is not P2.9's 50-play acceptance or production timing evidence.
+
+### Hardened r2 artifacts and publication (2026-11-07)
+
+D35 authorizes one fresh-state, key-retaining testnet rehearsal, not a freeze or an upgrade of r1. Serial pinned builds produced:
+
+| Artifact | Source | Bytes | SHA-256 |
+| --- | --- | --- | --- |
+| Game | `722337607a88dac49b4828f6998bbf1ec90c84f8` | 483,372 | `13831f702f87e6299482840b09d2189b829605350e308f6b46ef94bc51d8fda1` |
+| Token, retained unchanged artifact | `e546b82caef3a9b8848a4863f322a7e7c3419f57` | 183,152 | `5faf278b5c3de6dc8c1f5527731b1809952d7369fb9c116d4042d7ca0ba4f8c7` |
+| Referee, bound to `game-r2.therule.testnet` | `722337607a88dac49b4828f6998bbf1ec90c84f8` | 228,161 | `21b58e86fb2e19737e904fc3177f9d7871320342f0c929b626bf8d31c64c71cb` |
+
+The game has one new `cargo near build reproducible-wasm` build. The referee has two independent fresh pinned-container builds with identical bytes. The token is deliberately reused: its source, shared dependencies, lockfile, toolchain and workspace metadata are unchanged from e546b82; its minter is an initialization argument. Actual sandbox metadata views matched each contract's respective source revision, image, path and locked no-ABI command. This is not a new token build, two current game builds, a cross-machine reproduction or contract freeze.
+
+Pinned wasm-tools validated the exact r2 component; its extracted WIT matched audited `IMPORTS.txt`, its sole manifest admits only `game-r2.therule.testnet`, and no `RULE_DEMO` string appeared. The exact artifact pair passed game ABI, credit/callback/root-bound checks, Borsh lifetime ceilings and actual-WASM operator admission, receipt-aware balance and maximum-root effect runtimes. Those runtimes use MOCK OutLayer. Logs and checks are under ignored `scratch/p29-next/`; the temporary provenance executable was removed after execution.
+
+| Host | Verified public URL |
+| --- | --- |
+| Deployment-pinned Cloudflare primary | `https://ca500dd6.the-rule-referee.pages.dev/21b58e86fb2e19737e904fc3177f9d7871320342f0c929b626bf8d31c64c71cb.wasm` |
+| FastFS testnet mirror | `https://test.fastfs.io/therule.testnet/outlayer.testnet/21b58e86fb2e19737e904fc3177f9d7871320342f0c929b626bf8d31c64c71cb.wasm` |
+
+Both WSL `publish.sh --verify-url` GETs matched the exact local bytes. The actual public index was observed in Chrome. Windows urllib's default-user-agent GET returned 403; this client discrepancy is not hidden or substituted for real worker execution. Only the reviewed hash-named WASM, checksum, artifact description and response headers were uploaded through the existing authorized Pages project; no card, paid service, credentials or source repository was published.
+
+FastFS upload [`5hVETQf6meHriCdJTzYX96WcRRiGrHUAVMz8XvB3LacT`](https://testnet.nearblocks.io/txns/5hVETQf6meHriCdJTzYX96WcRRiGrHUAVMz8XvB3LacT) was included at block 276626526 and burnt 0.0012591626714774 testnet NEAR, below the 0.002 ceiling. Its gas-1 failure is expected by the vendor protocol. The CLI again omitted the hash; a read-only access-key nonce/block/chunk search uniquely located the original transaction and verified the complete binary arguments and FINAL outcomes. The upload was not repeated.
+
+Fresh game/token deployment txs are `4Lq4mevWQKe6nm3W8DhYnvJtKVxiUD5wNh92ri18gJiK` and `cGRSsEBeopyKBjjt2367qyjhtWUpVJnNTac1qocjhtU`. At final block 276626977 both public `view_code` hashes matched, retained keys were present, all init parameters matched and the extra view fields were exactly `demo:true`, total request cap 10 and user cap 8. The token's live quote matched the exact-artifact sandbox quote: 0.00125 NEAR registration and 0.00256 NEAR per permanent outcome; 100 outcomes were funded separately. Solo round 0 was subsequently started by `9A3wkky3EPjz8HA7P1vL4a1hbakWG5hxE6eLhkB5jhME`; completion acceptance is recorded in BUILD-PLAN, not inferred from deployment.
+

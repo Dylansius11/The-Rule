@@ -2,7 +2,7 @@
 
 ## TL;DR and approval
 
-- **Status (2026-11-05):** core stack approved (D1); shared core, referee/verifier and Solo game/token paths implemented and locally tested with mock OutLayer. Phase 0 probe receipts are testnet evidence, not a real-game rehearsal. Frontend platform (D2), visual references (B1), keeper deployment and the remaining BUILD-PLAN acceptances are still open.
+- **Status (2026-11-08):** shared core, referee/verifier, Solo game/token and Team custody are implemented. Phase 2/3 and Phase 4 testnet acceptance passed on fresh r2 state: real non-demo OutLayer Solved Solo/Team rounds, actual CLI replay 52/52 and 11/11, and independently reconciled vault/reward/native payouts, token outcomes and funded collateral. Fault-injection and generated-property evidence remains local, with MOCK OutLayer labeled separately; finite successful rounds are not universal liveness or load proof. Authenticated funded-outcome RULE mint/unlock recovery is distinct from native NEAR unknown-outcome recovery, whose production D31/B6 gate stays open. Keys remain retained; keeper/demo qualification and final freeze/ceremony are still pending. The frontend direction is decided (B1, D2) and `apps/web` is in progress.
 - **Shape:** the chain is the backend. Two NEAR contracts hold all money and state. One OutLayer TDX program holds the rule. One Rust crate, `rule-core`, defines the rule, compiled three ways: the enclave (`wasm32-wasip2`), the game contract (`wasm32-unknown-unknown`) and the browser/CLI verifier. A static web app and a permissionless keeper have no authority.
 - **Core invariant:** no component except the pinned referee can compute the rule before the reveal, and no referee output can name an account or an amount.
 
@@ -34,7 +34,7 @@ flowchart LR
   OL -- "yield/resume" --> Ref
   Ref -- "host mac" --> KS
   OL -- "callback: {v} {correct} {commit} {rule,salt}" --> Game
-  Game -- "mint (only minter)" --> Token
+  Game -- "execute_operation (fixed minter, idempotent)" --> Token
 ```
 
 Trust boundaries: clients and the keeper are untrusted. The game and token contracts are trusted code with no keys. OutLayer and the TEE are trusted under the stated TEE model and are the residual trust root.
@@ -44,7 +44,7 @@ Trust boundaries: clients and the keeper are untrusted. The game and token contr
 | `crates/rule-core` | Plays, canonical rules, seeds | Verdicts, canonical bytes, sampled rules, equivalence | None (pure) |
 | `crates/protocol` | Referee and contract wire data | Typed requests and responses, commit preimages, events | None (pure) |
 | `contracts/game` | Signed calls, OutLayer callbacks, `ft_on_transfer` | Events, views, OutLayer requests, mints, transfers | All game and money state (SMART-CONTRACT) |
-| `contracts/token` | `mint` from the minter, NEP-141 calls | Balances, events | NEP-141 state, cap |
+| `contracts/token` | Fixed-minter `execute_operation`, nonrefundable outcome funding, standard NEP-141 calls | Balances, events, durable operation outcomes | NEP-141 state, cap, funded immutable operation history |
 | `enclave/referee` | stdin JSON `RefereeRequest`, host `mac` | stdout JSON `RefereeResponse` | None (stateless) |
 | `verifier/cli`, `verifier/wasm` | Log pages, rule, salt, commitment | PASS or first mismatch | None |
 | `apps/web` | User input, RPC views, wallet | Signed transactions, exports | Browser-local only (guess salts, hypotheses) |
@@ -94,7 +94,9 @@ sequenceDiagram
 - `begin` failure: retry until `begin_timeout`, then Cancelled (no plays happened). `open` failure: `retry_open` until `open_timeout`, then Cancelled with exact refunds. Hash mismatch: Void.
 - A keeper outage delays transitions only. Anyone can call them.
 
-For a begin/verdict/guess/open callback that never completes, permissionless `expire_request(request_id)` applies its failure handler after ten minutes from initiation. The original id is consumed, so late callbacks cannot settle twice or mutate a replacement request. Begin/open still use their existing round retry/cancel deadlines. This is a local recovery policy, not an OutLayer SLA. Token/payment callbacks are deliberately excluded because an unknown external side effect cannot safely be refunded blindly; their reconciliation remains B6.
+For a begin/verdict/guess/open callback or read-only registration check that never completes, permissionless `expire_request(request_id)` applies its failure handler after ten minutes. Consumed ids fence late responses and replacements; registration changes no money/referee slot. Round retry/cancel deadlines remain independent. RULE mint/unlock instead retain terminal outcomes in the token: anyone can call game `retry_token_operation` with the original id, and only an exact authenticated acknowledgement settles its reservation. Each O(1) token record is permanently funded by a separate nonrefundable contribution; exhausted funding leaves a replayable pending operation until replenished. No balance guess, timeout refund or cleanup can erase a replay fence. Native NEAR withdraw/platform payments retain conservative pending principal and remain outside authenticated recovery (D31/B6).
+
+Native payment and gameplay admission use separate per-player guards. A stalled withdrawal does not block plays from remaining credit, but its principal remains unavailable and a second withdrawal is blocked; withdrawal initiation during a play or Checking guess is still rejected. The 2026-11-06 local cutover adds one Player Borsh byte and replaces the aggregate player view flag, so existing `game-r1` state cannot be upgraded with these bytes. No trusted resolver, hosted monitor or historical-proof verifier was added. Proof-based recovery prerequisites and actual sandbox isolation evidence are in SMART-CONTRACT; they do not close D31/B6.
 
 ## Approved tech stack
 
@@ -111,8 +113,8 @@ For a begin/verdict/guess/open callback that never completes, permissionless `ex
 | Property / fuzz | proptest; cargo-fuzz | 1.12.0; 0.13.2 | crates.io API | cargo-fuzz needs Linux nightly: WSL or CI |
 | JS runtime | Node LTS; pnpm | 26.13.0; 12.16.1 | [Node releases](https://nodejs.org/en/about/previous-releases), `npm view pnpm` | near-api-js requires Node >= 22.22.2 |
 | NEAR JS | near-api-js | 7.4.0 | `npm view near-api-js` | Views, keeper signing, web |
-| Frontend (D2, proposed) | React, Vite, TypeScript, Motion, TanStack, NEAR Connect | 19.3.1, 8.3.5, 6.0.3, 14.9.1, Query 5.105.3 / Table 9.3.1 / Virtual 3.14.26, 0.12.0 | npm registry, 2026-11-04 | Visual direction open (B1) |
-| Hosting | Cloudflare Pages (web); FastFS testnet + raw GitHub mirror (referee bytes) | managed | [Pages limits](https://developers.cloudflare.com/pages/platform/limits/), [OutLayer dev guide](https://app.outlayer.ai/docs/dev-guide) | OutLayer source follows up to 3 HTTPS redirects and caps wasm at 10 MiB [V] |
+| Frontend (D2, decided 2026-11-08) | React, Vite, TypeScript, Tailwind, Motion, TanStack, React Router, NEAR Connect | 19.3.1, 8.3.5, 6.0.3, 4.3.4, 14.9.1, Query 5.105.3 / Virtual 3.14.26, Router 7.18.5, 0.12.0 | npm registry, 2026-11-04; pinned in `apps/web/package.json` 2026-11-08 | Visual contract `docs/DESIGN.md` |
+| Hosting | Cloudflare Pages deployment-pinned primary + FastFS testnet mirror (referee); Pages web planned | managed | [Direct Upload](https://developers.cloudflare.com/pages/get-started/direct-upload/), [OutLayer dev guide](https://app.outlayer.ai/docs/dev-guide) | Both exact referee GETs verified 2026-11-06 (D28); no card/paid plan. OutLayer follows up to 3 HTTPS redirects and caps wasm at 10 MiB [V] |
 | Keeper (D20, proposed) | Cloudflare Workers Cron; fallback GitHub Actions schedule | managed | [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) | 10 ms CPU per invocation; signing qualification B5 |
 | Monitor | Healthchecks.io Hobbyist | managed | [pricing](https://healthchecks.io/pricing/) | Missed-heartbeat alert |
 
@@ -126,17 +128,17 @@ the-rule/
   package.json  pnpm-workspace.yaml  .env.example  skills-lock.json
   crates/
     rule-core/          grammar g1: words, atoms, Play, play_key, canonical rule, eval, sample, equivalent
-    protocol/           RefereeRequest/Response, commit preimage, params, events, domain constants
+    protocol/           referee I/O, token operations/outcomes/funding, commit preimage, params, events
   contracts/
-    game/               src/{lib,params,round,play,log,guess,settle,cancel,credit,stake,payout,claim,team,mint,lock,season,ledger}.rs
-    token/              NEP-141/145/148 RULE, minter-only capped mint
+    game/               round/play/guess/settle, credit/ledger/storage, team, mint/lock/token_operation
+    token/              NEP-141/145/148 RULE, fixed-minter capped mint/unlock, funded replay fences
   enclave/
     referee/            wasm32-wasip2 guest: begin/verdict/guess/open; manifest; IMPORTS.txt; feature `demo`
   verifier/
     cli/                native `rule verify` (make verify)
     wasm/               wasm-bindgen package @the-rule/verifier-wasm
   apps/
-    web/                frontend SPA (Phase 7, blocked on B1)
+    web/                frontend SPA (Phase 7, docs/DESIGN.md)
     keeper/             scheduled permissionless transitions
   bots/                 house bots and agent runner (P1)
   tests/
@@ -150,13 +152,13 @@ the-rule/
 
 Rules that keep this navigable as it grows:
 
-- **Dependency direction:** `rule-core` <- `protocol` <- {`contracts/game`, `enclave/referee`, `verifier/*`}. `contracts/token` depends on nothing project-internal. Apps depend only on `verifier/wasm` and contract views. Nothing imports from `apps/`.
+- **Dependency direction:** `rule-core` <- `protocol` <- {`contracts/game`, `contracts/token`, `enclave/referee`, `verifier/*`}. The token consumes shared operation wire types, not game state or its implementation. Apps depend only on `verifier/wasm` and contract views. Nothing imports from `apps/`.
 - **One owner per concept:** grammar only in `rule-core`; wire formats only in `protocol`; money only in `contracts/game`. A second evaluator or encoder anywhere is a review failure.
 - **No target leakage:** `rule-core` and `protocol` have no `near-sdk`, `wasm-bindgen`, WASI, clock, RNG or I/O dependency, and no default features. Each adapter crate enables only its own target dependencies. T-ENC compiles the vectors on all three targets.
 - **Contract modules** are one concern per file. `lib.rs` holds only the `#[near]` surface and delegates; checks happen before effects, and effects before calls.
 - **JS packages** are pnpm workspace members: `apps/web`, `apps/keeper`, `verifier/wasm` (built output), `bots`. Cargo workspace members: `crates/*`, `contracts/*`, `enclave/referee`, `verifier/cli`, `tests/sandbox`.
 
-Cross-component types (all in `protocol`, Borsh for state, JSON for the wire): `Mode`, `Entity`, `Play`, `PlayKey(u64)`, `CanonicalRule`, `RoundHeader`, `RefereeRequest`, `RefereeResponse`, `CommitPreimage`, `LogRow`, `Params`. Exact layouts are in [SMART-CONTRACT](SMART-CONTRACT.md#encodings-and-invariants).
+Cross-component types (all in `protocol`, Borsh for adapter state, JSON for the wire): `Mode`, `Entity`, `Play`, `PlayKey(u64)`, `CanonicalRule`, `RoundHeader`, `RefereeRequest`, `RefereeResponse`, `CommitPreimage`, `LogRow`, `Params`, `TokenOperation`, `TokenOutcome`, `TokenOperationFunding`. Exact layouts and authenticated-outcome semantics are in [SMART-CONTRACT](SMART-CONTRACT.md).
 
 ## ERD and data model
 

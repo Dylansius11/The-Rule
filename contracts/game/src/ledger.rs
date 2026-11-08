@@ -15,7 +15,10 @@ pub struct Ledger {
     storage_reserve: U128,
     locked_storage: U128,
     pending_credit: U128,
+    pending_native_payments: U128,
     pending_referee_requests: u32,
+    operator_storage_required: U128,
+    operator_storage_available: U128,
 }
 
 impl Game {
@@ -23,7 +26,7 @@ impl Game {
         Ledger {
             balance: U128(env::account_balance().as_yoctonear()),
             credit: U128(self.total_credit),
-            vault: U128(0),
+            vault: U128(self.total_vault),
             round_pots: U128(self.total_pots),
             carry: U128(self.carry[0] + self.carry[1]),
             open_stakes: U128(self.total_stakes),
@@ -35,7 +38,10 @@ impl Game {
                 u128::from(env::storage_usage()) * env::storage_byte_cost().as_yoctonear(),
             ),
             pending_credit: U128(self.pending_credit),
+            pending_native_payments: U128(self.pending_native_payments),
             pending_referee_requests: self.pending_referee_requests,
+            operator_storage_required: U128(self.operator_storage_required(0)),
+            operator_storage_available: U128(self.operator_storage_available()),
         }
     }
 }

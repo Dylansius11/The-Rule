@@ -10,12 +10,13 @@ import { HashText } from '@/ui/HashText';
 import { InkBox } from '@/ui/InkBox';
 import { ProgressMeter } from '@/ui/ProgressMeter';
 import { Tag, VerdictTag } from '@/ui/Tag';
-import { ModePicker } from './shared/ModePicker';
-import { PageHead } from './shared/PageHead';
-import { pct } from './shared/format';
-import { downloadLog } from './shared/exportLog';
-import { isActive, modeName, pad3, phaseLabel } from './shared/round';
-import { useRoundParam } from './shared/useRoundParam';
+import { RoundPicker } from '@/screens/shared/RoundPicker';
+import { PageHead } from '@/screens/shared/PageHead';
+import { pct } from '@/screens/shared/format';
+import { downloadLog } from '@/screens/shared/exportLog';
+import { isActive, modeName, pad3, phaseLabel } from '@/screens/shared/round';
+import { useRoundSelection } from '@/screens/shared/useRoundSelection';
+import { useRoom } from './room';
 
 type Verdict = 'all' | 'yes' | 'no';
 type Parity = 'all' | 'even' | 'odd';
@@ -25,10 +26,11 @@ const GRID =
   'grid grid-cols-[52px_minmax(0,1fr)_96px] items-center gap-x-2 md:grid-cols-[64px_minmax(0,1.5fr)_84px_minmax(0,1fr)_64px_104px_150px]';
 
 /** S2: the heron's ledger. Search and filter, virtualized crisp rows, completeness meter, export of exactly the filtered rows. */
-export function LogPage() {
-  const sel = useRoundParam('latest');
-  const round = useRound(sel.mode, sel.roundId);
-  const log = useLog(sel.mode, sel.roundId, { follow: isActive(round.data ?? null) });
+export function LedgerTab() {
+  const { mode } = useRoom();
+  const sel = useRoundSelection(mode, 'latest');
+  const round = useRound(mode, sel.roundId);
+  const log = useLog(mode, sel.roundId, { follow: isActive(round.data ?? null) });
   const [q, setQ] = useState('');
   const [verdict, setVerdict] = useState<Verdict>('all');
   const [parity, setParity] = useState<Parity>('all');
@@ -61,7 +63,7 @@ export function LogPage() {
   const yes = rows.filter(r => r.verdict).length;
   const chosen = open === null ? null : (log.rows.find(r => r.logIdx === open) ?? null);
   const filtered = verdict !== 'all' || parity !== 'all' || q.trim() !== '';
-  const base = `rule-${modeName(sel.mode).toLowerCase()}-round-${sel.roundId ?? 'x'}-log${filtered ? '-filtered' : ''}`;
+  const base = `rule-${modeName(mode).toLowerCase()}-round-${sel.roundId ?? 'x'}-log${filtered ? '-filtered' : ''}`;
 
   return (
     <div className="wrap pb-20 pt-8 md:pt-12">
@@ -79,16 +81,7 @@ export function LogPage() {
       />
 
       <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
-        <ModePicker mode={sel.mode} onChange={sel.setMode} />
-        {sel.rounds.length > 0 ? (
-          <RadioChips
-            label="Round"
-            value={sel.roundId}
-            onChange={sel.setRound}
-            options={sel.rounds.slice(0, 10).map(id => ({ value: id, label: `#${id}` }))}
-            small
-          />
-        ) : null}
+        <RoundPicker rounds={sel.rounds} value={sel.roundId} onChange={sel.setRound} />
         {round.data ? (
           <span className="flex flex-wrap items-center gap-3 text-[15px] font-bold">
             <Tag tone={isActive(round.data) ? 'sun' : 'soft'}>{phaseLabel(round.data.phase)}</Tag>

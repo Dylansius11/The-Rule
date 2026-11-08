@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { toUiError } from '@/chain/errors';
+import { roomPath } from '@/app/paths';
+import { useSound } from '@/audio';
 import { useLog, useParams, useRound } from '@/game';
 import type { ReplayState } from '@/game/types';
 import { REPLAY_LIMIT } from '@/config/env';
@@ -10,7 +12,6 @@ import { useReduced } from '@/motion/prefs';
 import { useReplay, useRuleText } from '@/verify';
 import { Band } from '@/ui/Band';
 import { Button } from '@/ui/Button';
-import { RadioChips } from '@/ui/Chip';
 import { Doodle, StarField } from '@/ui/Doodle';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorCard } from '@/ui/ErrorCard';
@@ -18,12 +19,13 @@ import { HashText } from '@/ui/HashText';
 import { InkBox } from '@/ui/InkBox';
 import { LiveRegion } from '@/ui/LiveRegion';
 import { Tag } from '@/ui/Tag';
-import { ModePicker } from './shared/ModePicker';
-import { downloadLog } from './shared/exportLog';
-import { modeName, outcomeLabel, phaseLabel } from './shared/round';
-import { useRoundParam } from './shared/useRoundParam';
-import { Check, type CheckTone } from './reveal/Check';
-import { Payouts } from './reveal/Payouts';
+import { RoundPicker } from '@/screens/shared/RoundPicker';
+import { downloadLog } from '@/screens/shared/exportLog';
+import { modeName, outcomeLabel, phaseLabel } from '@/screens/shared/round';
+import { useRoundSelection } from '@/screens/shared/useRoundSelection';
+import { useRoom } from './room';
+import { Check, type CheckTone } from './verify/Check';
+import { Payouts } from './verify/Payouts';
 
 function replaySummary(state: ReplayState): string {
   if (state.kind === 'done') {
@@ -37,23 +39,33 @@ function replaySummary(state: ReplayState): string {
 }
 
 /** S4: the seal cracks, the rule types out, the browser replays every verdict. */
-export function RevealPage() {
-  const sel = useRoundParam('revealed');
-  const roundQ = useRound(sel.mode, sel.roundId);
+export function VerifyTab() {
+  const { mode } = useRoom();
+  const sel = useRoundSelection(mode, 'revealed');
+  const roundQ = useRound(mode, sel.roundId);
   const round = roundQ.data ?? null;
-  const log = useLog(sel.mode, round?.rule ? sel.roundId : null);
+  const log = useLog(mode, round?.rule ? sel.roundId : null);
   const params = useParams();
   const reduced = useReduced();
+  const sound = useSound();
   const text = useRuleText(round?.rule ?? null);
   const replay = useReplay(round?.rule ? round : null);
   const [opened, setOpened] = useState(false);
   const started = useRef(false);
 
-  // Switching round resets the ceremony.
+  // Switching round or mode resets the ceremony.
   useEffect(() => {
     setOpened(false);
     started.current = false;
-  }, [sel.mode, sel.roundId]);
+  }, [mode, sel.roundId]);
+
+  // The replay finishing is the player's own result, so it earns a sound.
+  const replayKind = replay.state.kind;
+  const replayPass = replay.state.kind === 'done' && replay.state.result.pass;
+  useEffect(() => {
+    if (replayKind === 'done') sound.play(replayPass ? 'replay-pass' : 'replay-fail');
+    if (replayKind === 'error') sound.play('replay-fail');
+  }, [replayKind, replayPass, sound]);
 
   const typed = useTypewriter(text?.english ?? '', opened && !!text, reduced);
   const typedDone = !!text && typed.length >= text.english.length && opened;
@@ -74,8 +86,7 @@ export function RevealPage() {
       : state.kind === 'error'
         ? 'no'
         : 'pending';
-  const revealedRounds = sel.rounds;
-  const verifyCmd = `make verify ROUND=${modeName(sel.mode).toLowerCase()}/${sel.roundId ?? 0}`;
+  const verifyCmd = `make verify ROUND=${modeName(mode).toLowerCase()}/${sel.roundId ?? 0}`;
 
   const matchTone: CheckTone = !opened
     ? 'wait'
@@ -107,27 +118,22 @@ export function RevealPage() {
 
   return (
     <>
-      <div className="wrap pb-12 pt-8 md:pt-12">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <span className="hand mb-1 block -rotate-2 text-[26px]">the seal cracks</span>
-            <h1 className="display text-[clamp(52px,9vw,104px)] leading-[0.85]">
-              Reveal <span className="text-tomato">&amp;</span> verify
+      <div
+        className={`wrap pt-7 md:pt-10 ${round?.rule && round.salt && round.commit ? 'pb-28 md:pb-32' : 'pb-6'}`}
+      >
+        <div className="flex items-end justify-between gap-4">
+          <div className="min-w-0">
+            <span className="hand mb-1 block -rotate-2 text-[26px] leading-none">the seal cracks</span>
+            <h1 className="display flex flex-wrap items-center gap-x-3 text-[clamp(48px,7.5vw,88px)] leading-[0.85]">
+              <span>
+                Reveal <span className="text-tomato">&amp;</span> verify
+              </span>
+              <Doodle name="doodles/magnifier" size={56} rot={-6} float className="shrink-0 max-sm:hidden" />
             </h1>
-            <Doodle name="doodles/magnifier" size={56} className="ml-1 mt-2" float />
           </div>
         </div>
         <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
-          <ModePicker mode={sel.mode} onChange={sel.setMode} />
-          {revealedRounds.length > 0 ? (
-            <RadioChips
-              label="Round"
-              value={sel.roundId}
-              onChange={sel.setRound}
-              small
-              options={revealedRounds.slice(0, 10).map(id => ({ value: id, label: `#${id}` }))}
-            />
-          ) : null}
+          <RoundPicker rounds={sel.rounds} value={sel.roundId} onChange={sel.setRound} />
           {round ? (
             <Tag tone={round.rule ? 'yes' : 'soft'}>
               {round.rule ? '✓ Rule public' : phaseLabel(round.phase)}
@@ -147,29 +153,27 @@ export function RevealPage() {
       ) : !round ? (
         <div className="wrap pb-20">
           <EmptyState title="No such round" art="stickers/asleep">
-            This deployment has no {modeName(sel.mode).toLowerCase()} round {sel.roundId ?? ''}. Pick another
-            from the round chips.
+            This deployment has no {modeName(mode).toLowerCase()} round {sel.roundId ?? ''}. Pick another from
+            the round chips.
           </EmptyState>
         </div>
       ) : !round.rule || !round.salt || !round.commit ? (
         <div className="wrap pb-20">
           <EmptyState title="Still sealed" art="stickers/hiding" artWidth={170}>
-            {modeName(sel.mode)} round {round.roundId} is {phaseLabel(round.phase).toLowerCase()}. The rule
-            opens only at the reveal, and this page has nothing to show before that.
-            {sel.revealed.data ? (
+            {modeName(mode)} round {round.roundId} is {phaseLabel(round.phase).toLowerCase()}. The rule opens
+            only at the reveal, and this page has nothing to show before that.
+            {sel.revealed ? (
               <>
                 {' '}
-                The newest opened law is {modeName(sel.revealed.data.mode)} round {sel.revealed.data.roundId}.
+                The newest opened {modeName(mode)} law is round {sel.revealed.roundId}.
               </>
-            ) : null}
+            ) : (
+              <> No {modeName(mode)} law has opened yet.</>
+            )}
           </EmptyState>
-          {sel.revealed.data &&
-          (sel.revealed.data.roundId !== round.roundId || sel.revealed.data.mode !== round.mode) ? (
+          {sel.revealed && sel.revealed.roundId !== round.roundId ? (
             <div className="mt-5 text-center">
-              <Button
-                to={`/reveal?mode=${sel.revealed.data.mode}&round=${sel.revealed.data.roundId}`}
-                variant="red"
-              >
+              <Button to={roomPath(mode, 'verify', sel.revealed.roundId)} variant="red">
                 Open the newest revealed round
               </Button>
             </div>
@@ -317,6 +321,7 @@ export function RevealPage() {
                   onClick={() => setOpened(true)}
                   disabled={opened}
                   busy={opened && !typedDone}
+                  sound="seal"
                 >
                   {opened ? (state.kind === 'done' ? 'Seal broken' : 'Breaking…') : 'Break the seal'}
                 </Button>

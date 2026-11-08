@@ -65,9 +65,9 @@ const router = createBrowserRouter([
                 element: page(() => import('@/screens/play/RoomLayout'), 'RoomLayout'),
                 children: [
                   { index: true, element: page(() => import('@/screens/play/StampTab'), 'StampTab') },
-                  { path: 'ledger', element: page(() => import('@/screens/LogPage'), 'LogPage') },
+                  { path: 'ledger', element: page(() => import('@/screens/play/LedgerTab'), 'LedgerTab') },
                   { path: 'guess', element: page(() => import('@/screens/play/GuessTab'), 'GuessTab') },
-                  { path: 'verify', element: page(() => import('@/screens/RevealPage'), 'RevealPage') },
+                  { path: 'verify', element: page(() => import('@/screens/play/VerifyTab'), 'VerifyTab') },
                   {
                     path: 'crew',
                     loader: crewLoader,

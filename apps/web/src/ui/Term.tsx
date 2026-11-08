@@ -9,6 +9,8 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router';
+import { DOCS_PATH } from '@/app/paths';
 
 /** One-sentence plain-English definitions. Source of truth: the verified facts of the game rules. */
 export const GLOSSARY = {
@@ -27,6 +29,18 @@ export const GLOSSARY = {
 } as const;
 
 export type TermKey = keyof typeof GLOSSARY;
+
+/** Where each term is explained in the docs: a page, and the heading on it when the term has its own section. */
+export const TERM_DOCS: Record<TermKey, string> = {
+  atom: `${DOCS_PATH}/play/the-law-and-the-grammar`,
+  commit: `${DOCS_PATH}/play/how-to-play#guess-in-four-steps`,
+  salt: `${DOCS_PATH}/play/how-to-play#guess-in-four-steps`,
+  stake: `${DOCS_PATH}/play/costs-and-payouts#guess-stakes`,
+  reveal: `${DOCS_PATH}/play/how-to-play#guess-in-four-steps`,
+  ledger: `${DOCS_PATH}/play/how-to-play#stamp-and-read`,
+  'contributor share': `${DOCS_PATH}/play/costs-and-payouts#pot-split`,
+  attempt: `${DOCS_PATH}/rule/locking-for-attempts`,
+};
 
 interface TermProps {
   /** Which glossary entry to explain. */
@@ -101,7 +115,19 @@ export function Term({ term, children }: TermProps) {
         onClick={() => (pinned ? close() : setPinned(true))}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
-        onBlur={() => close()}
+        onBlur={e => {
+          if (!tip.current?.contains(e.relatedTarget as Node | null)) close();
+        }}
+        onKeyDown={e => {
+          // Tab from an open definition goes to its Read more link (the bubble lives at the end of the page).
+          if (e.key === 'Tab' && !e.shiftKey && open) {
+            const link = tip.current?.querySelector('a');
+            if (link) {
+              e.preventDefault();
+              link.focus();
+            }
+          }
+        }}
         className="cursor-help rounded-sm font-extrabold underline decoration-ink/60 decoration-dotted decoration-2 underline-offset-4"
       >
         {children ?? term}
@@ -119,6 +145,25 @@ export function Term({ term, children }: TermProps) {
           <span className="block rounded-lg border-[3px] border-ink bg-white p-3 text-left text-[15px] font-semibold leading-snug text-ink shadow-[4px_4px_0_var(--color-ink)]">
             <b className="hand mb-0.5 block text-[20px] capitalize leading-none text-tomato-deep">{term}</b>
             {GLOSSARY[term]}
+            <span className="mt-1 block">
+              <Link
+                to={TERM_DOCS[term]}
+                onClick={close}
+                onBlur={e => {
+                  if (!button.current?.contains(e.relatedTarget as Node | null)) close();
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Escape') {
+                    close();
+                    button.current?.focus();
+                  }
+                }}
+                className="inline-flex items-center py-1 font-extrabold underline decoration-2 underline-offset-4 pointer-coarse:min-h-[44px]"
+              >
+                Read more<span className="sr-only"> about {term} in the docs</span>
+                <span aria-hidden="true">&nbsp;→</span>
+              </Link>
+            </span>
           </span>
         </span>,
         document.body,

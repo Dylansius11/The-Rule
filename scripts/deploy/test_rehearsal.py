@@ -5,6 +5,7 @@ import hashlib
 import json
 import tempfile
 from pathlib import Path
+import time
 
 from rehearsal import ROOT, prepare, referee_manifest
 
@@ -89,9 +90,109 @@ class OperationFundingPlanTests(unittest.TestCase):
         digest = hashlib.sha256(referee).hexdigest()
         self.config['referee_sha256'] = self.config['params']['referee']['hash'] = digest
         log = root / 'build.log'
-        log.write_text(f"Caller: {self.config['game_account']}\n{digest}  referee.wasm\n")
+        log.write_text(f"Caller: {self.config['game_account']}\nFeature: production\n{digest}  referee.wasm\n")
         self.config['referee_build_log'] = str(log)
 
+    def bind_referee(self, kind):
+        config = self.config
+        bound = (ROOT / 'enclave/referee/manifest.json').read_text().strip().replace(
+            '<GAME_ACCOUNT_PLACEHOLDER>', config['game_account']).encode()
+        referee = MODULE + manifest(bound) + (custom(b'data', b'RULE_DEMO') if kind == 'demo' else b'')
+        Path(config['referee_wasm']).write_bytes(referee)
+        digest = hashlib.sha256(referee).hexdigest()
+        config['referee_sha256'] = config['params']['referee']['hash'] = digest
+        Path(config['referee_build_log']).write_text(
+            f"Snapshot: fixture\nCaller: {config['game_account']}\nFeature: {kind}\n{digest}  referee.wasm\n")
+
+    def as_demo(self):
+        self.config['deployment_kind'] = 'demo'
+        self.config['game_account'] = 'demo-game-r1.therule.testnet'
+        self.config['token_account'] = self.config['params']['token'] = 'demo-token-r1.therule.testnet'
+        self.config['params']['referee']['demo_secrets_ref'] = {'profile': 'demo', 'account_id': 'therule.testnet'}
+        self.bind_referee('demo')
+
+    def test_kinds_bind_accounts_artifacts_and_labels(self):
+        self.bind_referee('production')
+        self.assertIn('non-demo referee', prepare(self.config)['label'])
+        self.as_demo()
+        plan = prepare(self.config)
+        self.assertEqual(plan['label'], 'Demo Mode - preselected rule')
+        self.assertNotIn('RULE_DEMO', json.dumps(plan))
+        self.assertEqual(plan['game_init']['params']['referee']['demo_secrets_ref'], {'profile': 'demo', 'account_id': 'therule.testnet'})
+        for change in (
+            {'deployment_kind': 'rehearsal'},
+            {'demo': False},
+            {'token_account': 'demo-token-r2.therule.testnet'},
+            {'game_account': 'game-r1.therule.testnet'},
+        ):
+            config = copy.deepcopy(self.config)
+            config.update(change)
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                prepare(config)
+        for kind in (None, 'production'):
+            config = copy.deepcopy(self.config)
+            if kind is None:
+                del config['deployment_kind']
+            else:
+                config['deployment_kind'] = kind
+            with self.subTest(kind=kind), self.assertRaises(ValueError):
+                prepare(config)
+        self.bind_referee('production')
+        with self.assertRaises(ValueError):
+            prepare(self.config)
+        self.bind_referee('demo')
+        Path(self.config['referee_build_log']).write_text(
+            Path(self.config['referee_build_log']).read_text().replace('Feature: demo', 'Feature: production'))
+        with self.assertRaises(ValueError):
+            prepare(self.config)
+
+    def test_secret_reference_kind_and_shape(self):
+        config = copy.deepcopy(self.config)
+        config['params']['referee']['demo_secrets_ref'] = {'profile': 'demo', 'account_id': 'therule.testnet'}
+        with self.assertRaises(ValueError):
+            prepare(config)
+        self.as_demo()
+        for ref in (None, {}, {'profile': '', 'account_id': 'therule.testnet'},
+                    {'profile': 'bad space', 'account_id': 'therule.testnet'},
+                    {'profile': 'a' * 65, 'account_id': 'therule.testnet'},
+                    {'profile': 'demo', 'account_id': 'example.near'},
+                    {'profile': 'demo', 'account_id': 'therule.testnet', 'value': 'secret'}):
+            config = copy.deepcopy(self.config)
+            config['params']['referee']['demo_secrets_ref'] = ref
+            with self.subTest(ref=ref), self.assertRaises(ValueError):
+                prepare(config)
+
+    def test_rehearsal_rejects_demo_artifact_and_wrong_caller(self):
+        self.bind_referee('demo')
+        with self.assertRaises(ValueError):
+            prepare(self.config)
+        self.bind_referee('production')
+        log = Path(self.config['referee_build_log'])
+        log.write_text(log.read_text().replace(self.config['game_account'], 'game-r1.therule.testnet'))
+        with self.assertRaises(ValueError):
+            prepare(self.config)
+
+    def test_schedule_bounds(self):
+        for key, value in [('investigation_max_ns', 0), ('mode_offset_ns', [0, self.config['params']['round_period_ns']])]:
+            config = copy.deepcopy(self.config)
+            config['params'][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                prepare(config)
+        config = copy.deepcopy(self.config)
+        config['demo'] = False
+        p = config['params']
+        p['genesis_ns'] = time.time_ns() + 20_000_000_000_000
+        p['reveal_window_ns'] = 600_000_000_000
+        prepare(config)
+        for changes in (
+            {'investigation_max_ns': p['round_period_ns']},
+            {'round_period_ns': 2**64 - 1, 'investigation_max_ns': 86_400_000_000_000},
+            {'genesis_ns': 2**64 - 1},
+        ):
+            bad = copy.deepcopy(config)
+            bad['params'].update(changes)
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                prepare(bad)
 
     def test_missing_or_invalid_funding_is_rejected(self):
         for key, value in [('token_operation_funding', '0'),

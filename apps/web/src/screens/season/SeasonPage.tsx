@@ -17,7 +17,6 @@ import { InkBox } from '@/ui/InkBox';
 import { Segmented } from '@/ui/Segmented';
 import { Tag } from '@/ui/Tag';
 
-const cell = (v: unknown) => (v !== null && typeof v === 'object' ? JSON.stringify(v) : String(v));
 const HISTORY_LIMIT = 30;
 
 /** Season: the board for a mode and the history of its rounds, every row read from the chain. */
@@ -57,8 +56,15 @@ export function SeasonPage() {
 function Board({ mode }: { mode: Mode }) {
   const [season, setSeason] = useState(0);
   const q = useSeason(mode, season);
-  const rows = q.data && q.data.supported ? (q.data.rows as Record<string, unknown>[]) : [];
-  const cols = rows[0] && typeof rows[0] === 'object' ? Object.keys(rows[0]) : [];
+  const rows = q.data?.supported && q.data.ready ? q.data.rows : [];
+  const cols = [
+    'entity_tag',
+    'entity_id',
+    'rounds_won',
+    'shares',
+    'earned',
+    'earliest_winning_block',
+  ] as const;
   return (
     <section className="mt-9" aria-label={`${modeName(mode)} board`}>
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -83,6 +89,19 @@ function Board({ mode }: { mode: Mode }) {
             The rehearsal contracts do not expose a season view, so there is nothing honest to rank. Every
             round&apos;s plays are still public, and the history below is read straight from the chain.
           </EmptyState>
+        ) : q.data?.supported && !q.data.ready ? (
+          <EmptyState
+            title={q.data.status.ready ? 'Season board changed' : 'Season index not ready'}
+            art="stickers/asleep"
+            artWidth={150}
+          >
+            {q.data.status.ready
+              ? 'The index changed while reading the board. Check again for a consistent ranking.'
+              : `${q.data.status.indexed} of ${q.data.status.total} entries indexed. A permissionless index update is needed before this board can be ranked.`}
+            <Button variant="paper" size="sm" onClick={() => void q.refetch()}>
+              Check again
+            </Button>
+          </EmptyState>
         ) : rows.length === 0 ? (
           <EmptyState title="Nobody on the board yet" art="drip/asleep" artWidth={150}>
             No finished rounds in this season for the {modeName(mode)} board.
@@ -105,7 +124,7 @@ function Board({ mode }: { mode: Mode }) {
                   <tr key={i}>
                     {cols.map(c => (
                       <td key={c} className="break-all">
-                        {cell(r[c])}
+                        {c === 'earned' ? `${formatNear(BigInt(r.earned), 4)} NEAR` : String(r[c] ?? '–')}
                       </td>
                     ))}
                   </tr>

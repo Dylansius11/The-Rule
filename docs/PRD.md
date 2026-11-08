@@ -3,7 +3,7 @@
 ## TL;DR
 
 - **One-liner:** A memecoin with a secret law that nobody knows, not even its creators. Find the rule, win the pot.
-- **Status (2026-11-08):** Phase 2/3 and Phase 4 Team testnet acceptance are complete. Fresh r2 contracts completed real-OutLayer Solved Solo (52 plays, Wrong/Correct, replay 52/52) and Team (three members, 11 plays, three Wrong/one Correct, replay 11/11) rounds. Team vault exits, equal historical rewards after roster deletion, native withdrawals and platform payments completed; independent receipt/cash/token/collateral audits passed. The same r2-bound non-demo referee is published on Cloudflare/FastFS. Original acceptance criteria and generated-test counts are unchanged. The founder accepted native stalled-callback residual risk **only for testnet** (D31), not as recovered or production-safe. Production recovery/risk acceptance, B6, freeze and key deletion remain open. Next is Phase 6 schedule/keeper qualification; visuals wait for B1. No keyless launch, secrecy proof, load-test result or preselected-rule demo is claimed.
+- **Status (2026-11-08):** Phase 2/3 and Phase 4 Team testnet acceptance are complete. Fresh r2 contracts completed real-OutLayer Solved Solo (52 plays, Wrong/Correct, replay 52/52) and Team (three members, 11 plays, three Wrong/one Correct, replay 11/11) rounds. Team vault exits, equal historical rewards after roster deletion, native withdrawals and platform payments completed; independent receipt/cash/token/collateral audits passed. The same r2-bound non-demo referee is published on Cloudflare/FastFS. Original acceptance criteria and generated-test counts are unchanged. The founder accepted native stalled-callback residual risk **only for testnet** (D31), not as recovered or production-safe. Production recovery/risk acceptance, B6, freeze and key deletion remain open. The visual direction is decided (B1, `docs/DESIGN.md`) and Phase 7 frontend work started; Phase 6 schedule/keeper qualification remains open. No keyless launch, secrecy proof, load-test result or preselected-rule demo is claimed.
 - **Withdrawal isolation (D34/D35):** pending withdrawal no longer owns the play guard; remaining credit can fund experiments while the exact withdrawn principal stays reserved. Actual local transfer-success/callback-failure isolation passed, and the new Player layout is deployed to fresh r2 state, never over r1. Successful rehearsal payments do not establish recovery of a failed native callback; that residual liveness/architecture gate remains explicit.
 - **Event:** NEAR HACKATHON 2026, memecoins track primary, games secondary. Submission closes **2026-11-14T23:59:00Z** ([V](https://nearhackathon.com/HACKATHON.md), captured 2026-10-22). THE RULE is the founder's second, independent entry. The first is CONSTITUTION, and each README must name the other.
 - **Primary success condition:** one real sealed round on NEAR testnet goes end to end. Plays get enclave verdicts, YES mints RULE, a correct commit-reveal guess wins the pot, the rule and salt open, and the browser replays every verdict against the day-1 commitment. One labeled Demo Mode round is recorded for the video.
@@ -125,7 +125,7 @@ DAO voting over unsolved pots; play-fee discounts (replaced by RULE lock, D16); 
 
 ## Functional screen contracts (no visuals)
 
-Visual design is blocked on founder references (B1). These contracts fix only what the user can do, what the screen shows and which contract call it makes. Every action shows real pending, success and failure states. No fixture data is ever shown as live.
+These contracts fix what the user can do, what the screen shows and which contract call it makes; `docs/DESIGN.md` fixes how it looks and moves. Every action shows real pending, success and failure states. No fixture data is ever shown as live.
 
 | Screen | User can | Shows | Calls |
 | --- | --- | --- | --- |
@@ -168,7 +168,7 @@ Rubric weights for this event are UNVERIFIED. Past NEAR guide: technical impleme
 | Criterion | Evidence artifact |
 | --- | --- |
 | Technical | Testnet receipts, `make verify`, key-deletion ceremony proof, invariant tests |
-| Design | Never-cut demo flow, real pending and failure states (visuals after B1) |
+| Design | Never-cut demo flow, real pending and failure states, the Hand-Inked direction (`docs/DESIGN.md`) |
 | Impact | The insider problem removed for one game class, under a stated trust model |
 | Originality | Combination delta below, prior art credited |
 | Sustainability | Fixed fee and pot formulas; platform share; honest negative-sum math |

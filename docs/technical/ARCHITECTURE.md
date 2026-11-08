@@ -2,7 +2,7 @@
 
 ## TL;DR and approval
 
-- **Status (2026-11-08):** shared core, referee/verifier, Solo game/token and Team custody are implemented. Phase 2/3 and Phase 4 testnet acceptance passed on fresh r2 state: real non-demo OutLayer Solved Solo/Team rounds, actual CLI replay 52/52 and 11/11, and independently reconciled vault/reward/native payouts, token outcomes and funded collateral. Fault-injection and generated-property evidence remains local, with MOCK OutLayer labeled separately; finite successful rounds are not universal liveness or load proof. Authenticated funded-outcome RULE mint/unlock recovery is distinct from native NEAR unknown-outcome recovery, whose production D31/B6 gate stays open. Keys remain retained; keeper/demo qualification, final freeze/ceremony and frontend references (B1) are still pending.
+- **Status (2026-11-08):** shared core, referee/verifier, Solo game/token and Team custody are implemented. Phase 2/3 and Phase 4 testnet acceptance passed on fresh r2 state: real non-demo OutLayer Solved Solo/Team rounds, actual CLI replay 52/52 and 11/11, and independently reconciled vault/reward/native payouts, token outcomes and funded collateral. Fault-injection and generated-property evidence remains local, with MOCK OutLayer labeled separately; finite successful rounds are not universal liveness or load proof. Authenticated funded-outcome RULE mint/unlock recovery is distinct from native NEAR unknown-outcome recovery, whose production D31/B6 gate stays open. Keys remain retained; keeper/demo qualification and final freeze/ceremony are still pending. The frontend direction is decided (B1, D2) and `apps/web` is in progress.
 - **Shape:** the chain is the backend. Two NEAR contracts hold all money and state. One OutLayer TDX program holds the rule. One Rust crate, `rule-core`, defines the rule, compiled three ways: the enclave (`wasm32-wasip2`), the game contract (`wasm32-unknown-unknown`) and the browser/CLI verifier. A static web app and a permissionless keeper have no authority.
 - **Core invariant:** no component except the pinned referee can compute the rule before the reveal, and no referee output can name an account or an amount.
 
@@ -113,7 +113,7 @@ Native payment and gameplay admission use separate per-player guards. A stalled 
 | Property / fuzz | proptest; cargo-fuzz | 1.12.0; 0.13.2 | crates.io API | cargo-fuzz needs Linux nightly: WSL or CI |
 | JS runtime | Node LTS; pnpm | 26.13.0; 12.16.1 | [Node releases](https://nodejs.org/en/about/previous-releases), `npm view pnpm` | near-api-js requires Node >= 22.22.2 |
 | NEAR JS | near-api-js | 7.4.0 | `npm view near-api-js` | Views, keeper signing, web |
-| Frontend (D2, proposed) | React, Vite, TypeScript, Motion, TanStack, NEAR Connect | 19.3.1, 8.3.5, 6.0.3, 14.9.1, Query 5.105.3 / Table 9.3.1 / Virtual 3.14.26, 0.12.0 | npm registry, 2026-11-04 | Visual direction open (B1) |
+| Frontend (D2, decided 2026-11-08) | React, Vite, TypeScript, Tailwind, Motion, TanStack, React Router, NEAR Connect | 19.3.1, 8.3.5, 6.0.3, 4.3.4, 14.9.1, Query 5.105.3 / Virtual 3.14.26, Router 7.18.5, 0.12.0 | npm registry, 2026-11-04; pinned in `apps/web/package.json` 2026-11-08 | Visual contract `docs/DESIGN.md` |
 | Hosting | Cloudflare Pages deployment-pinned primary + FastFS testnet mirror (referee); Pages web planned | managed | [Direct Upload](https://developers.cloudflare.com/pages/get-started/direct-upload/), [OutLayer dev guide](https://app.outlayer.ai/docs/dev-guide) | Both exact referee GETs verified 2026-11-06 (D28); no card/paid plan. OutLayer follows up to 3 HTTPS redirects and caps wasm at 10 MiB [V] |
 | Keeper (D20, proposed) | Cloudflare Workers Cron; fallback GitHub Actions schedule | managed | [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) | 10 ms CPU per invocation; signing qualification B5 |
 | Monitor | Healthchecks.io Hobbyist | managed | [pricing](https://healthchecks.io/pricing/) | Missed-heartbeat alert |
@@ -138,7 +138,7 @@ the-rule/
     cli/                native `rule verify` (make verify)
     wasm/               wasm-bindgen package @the-rule/verifier-wasm
   apps/
-    web/                frontend SPA (Phase 7, blocked on B1)
+    web/                frontend SPA (Phase 7, docs/DESIGN.md)
     keeper/             scheduled permissionless transitions
   bots/                 house bots and agent runner (P1)
   tests/

@@ -154,9 +154,9 @@ Acceptance: a testnet team round with 2 or more members on rehearsal accounts, i
   - **Current recovery-layout artifacts verified 2026-11-06:** game/token source `e546b82` each completed the pinned reproducible flow and exact-artifact metadata/ABI/runtime checks. The make invocation was partially failed by Docker Hub DNS after game; token completed separately after the pinned pull recovered. These are one current build per contract, not a second pair, a passing full make invocation or freeze. Exact hashes and evidence are in REPRODUCIBLE-BUILDS.
   - **Fresh hardening build prerequisite unavailable 2026-11-06:** WSL has no `docker` command and Windows `docker.exe` cannot open `dockerDesktopLinuxEngine`; no restart or other-project container mutation was attempted. No hardened reproducible game or r2-bound referee is claimed. About 5.9 GiB of obsolete lead-owned native debug cache was removed while current fast/WASM artifacts and evidence were retained; Windows C: still reports about 9.76 GB free, so this is not a claim of equivalent host-disk recovery. Restore the Linux engine and safe build headroom before new reproducible builds; use serial builds below the 20 GB parallel floor.
 
-## Phase 7: frontend, BLOCKED on founder design references (B1)
+## Phase 7: frontend (B1 resolved 2026-11-08)
 
-Starts when B1 resolves; the founder's references feed `docs/DESIGN.md`, written then. Stack: D2. Owned: `apps/web/`. Functional acceptance only (PRD screens S1 to S8):
+The founder's reference and mascot art feed `docs/DESIGN.md`. Stack: D2 (decided 2026-11-08). Owned: `apps/web/`. Functional acceptance (PRD screens S1 to S8):
 
 - [ ] **P7.1** S1 Play and S6 Wallet: connect, deposit, play, pending, YES, NO, duplicate, refund and error states against `game-r2.therule.testnet`.
 - [ ] **P7.2** S2 Log: 10k-row virtualized log, filters, CSV/JSON export of filtered rows, completeness indicator.
@@ -208,7 +208,7 @@ Ranked: F23 house bots and LLM agent, F25 agent kit, F24 leaderboard, F22 passke
 | --- | --- |
 | Lead (Opus 5.5) | `crates/rule-core`, `crates/protocol` interfaces, reviews, integration, ceremony, evidence, all commits |
 | Terra workers (`executor`) | Contracts, referee, verifier, keeper, tests, scripts; one owned path set per worker |
-| Sonnet worker (`secondary-executor`) | Phase 7 visual UI only, after B1 |
-| Founder | Go decision, faucet funding (B2), design references (B1), publish (P8.6), submit (P8.7) |
+| Sonnet worker (`secondary-executor`) | Phase 7 visual UI only |
+| Founder | Go decision, faucet funding (B2), design references (B1, given 2026-11-08), publish (P8.6), submit (P8.7) |
 
 Critical path: P0.6, then P1.3, P2.1, P2.4, P2.9, P6.4, P8.2, P8.3, P8.5, P8.7.

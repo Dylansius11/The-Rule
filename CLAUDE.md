@@ -53,7 +53,7 @@ Lead (Opus 5.5) owns architecture, founder gates, the `crates/rule-core` and `cr
 | Work | Agent | Required resolved model |
 | --- | --- | --- |
 | Contracts, referee, verifier, keeper, scripts, tests, technical docs, all research | `executor` via `task` | `@task` = `openai-codex/gpt-6.1-terra:high` |
-| Visual UI, interaction, motion, `docs/DESIGN.md` (Phase 7, after B1) | `secondary-executor`, or the lead | `@secondary` = `anthropic/claude-sonnet-5-5:high` |
+| Visual UI, interaction, motion, `docs/DESIGN.md` (Phase 7) | `secondary-executor`, or the lead | `@secondary` = `anthropic/claude-sonnet-5-5:high` |
 
 Before trusting a worker, read the first `model_change` record in its session file and stop on `resolvedModelIsFallback: true`. Each worker gets self-contained context: owned and forbidden paths, interfaces, copied acceptance criteria, evidence rules, no commits, no full suites, no installs outside its owned package. The lead reviews every landed change, then runs proportionate checks once. On a usage limit, keep a short ledger of worker states and continue inline.
 
@@ -90,7 +90,7 @@ Stack-specific (versions in ARCHITECTURE):
 
 ## UX bar
 
-Visual direction is blocked on founder design references (B1); do not pick a UI kit or write `docs/DESIGN.md` before them. When it starts: premium English copy, deliberate hierarchy, a game that feels alive without hiding delays. Every action shows real pending, success and failure states with a recovery path; a pending verdict is never shown as a result. Hashes, links and timestamps appear only once observed; no fixture data shown as live. Keyboard access, visible focus, readable contrast, 390 px and 1280 px layouts, `prefers-reduced-motion`.
+Visual direction is decided (B1 resolved 2026-11-08): follow `docs/DESIGN.md` ("Hand-Inked", mascot Blot) and change it only with the founder. Premium English copy, deliberate hierarchy, a game that feels alive without hiding delays. Every action shows real pending, success and failure states with a recovery path; a pending verdict is never shown as a result. Hashes, links and timestamps appear only once observed; no fixture data shown as live. Keyboard access, visible focus, readable contrast, 390 px and 1280 px layouts, `prefers-reduced-motion`.
 
 ## Testing and safety
 

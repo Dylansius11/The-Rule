@@ -2,9 +2,9 @@
 
 ## TL;DR
 
-- **Decided 2026-11-04:** the core stack (D1, Option A); every economic and game rule from the founder's decision record (D3 to D19); accounts are created by the lead, with the founder funding the parent (D21); repo `Dylansius11/the-rule` (D22); MVP build order (D23).
-- **Proposed, founder may override:** frontend platform stack React 19 + Vite (D2); serverless backend with a permissionless keeper (D20); lead-level details inside founder decisions (D12, D18).
-- **Current gates:** frontend references (B1), production native unknown-outcome recovery/risk acceptance (D31/B6), and final freeze/ceremony evidence. Phase 2/3 and Phase 4 Team testnet acceptance are complete under the unchanged criteria. D35 Solo passed 52/52; D36 Team passed 11/11 with three members, vault exits, historical reward claims and fully reconciled native payouts. Both bounded execution authorizations are completed, not reusable. The founder's D31 acceptance remains testnet-only; no native recovery, production-risk acceptance or key deletion is claimed. Docker B7 is reachable and the founder restored C: headroom above the 20 GB parallel-build floor. Next unchecked work is Phase 6 schedule/keeper qualification.
+- **Decided 2026-11-04:** the core stack (D1, Option A); every economic and game rule from the founder's decision record (D3 to D19); accounts are created by the lead, with the founder funding the parent (D21); repo `Dylansius11/the-rule` (D22); MVP build order (D23). **Decided 2026-11-08:** frontend stack (D2, Option A) and the visual direction "Hand-Inked" with the mascot Blot (B1 resolved, `docs/DESIGN.md`).
+- **Proposed, founder may override:** serverless backend with a permissionless keeper (D20); lead-level details inside founder decisions (D12, D18).
+- **Current gates:** production native unknown-outcome recovery/risk acceptance (D31/B6), and final freeze/ceremony evidence. Phase 2/3 and Phase 4 Team testnet acceptance are complete under the unchanged criteria. D35 Solo passed 52/52; D36 Team passed 11/11 with three members, vault exits, historical reward claims and fully reconciled native payouts. Both bounded execution authorizations are completed, not reusable. The founder's D31 acceptance remains testnet-only; no native recovery, production-risk acceptance or key deletion is claimed. Docker B7 is reachable and the founder restored C: headroom above the 20 GB parallel-build floor. Phase 7 frontend work started 2026-11-08; Phase 6 schedule/keeper qualification remains open.
 
 Founder-owned rows are never silently decided by agents. Status: decided, proposed, open or blocked. Closed rows keep rationale, date and evidence.
 
@@ -13,7 +13,7 @@ Founder-owned rows are never silently decided by agents. Status: decided, propos
 | Id | Decision | Owner | Status | Needed by | Resolution |
 | --- | --- | --- | --- | --- | --- |
 | D1 | Core stack | Founder | Decided 2026-11-04 | P0.3 | Option A: near-sdk 5.30.0, cargo-near 0.22.0, outlayer 0.2.1, wasm-bindgen 0.2.130, near-workspaces 0.24.0, proptest 1.12.0 |
-| D2 | Frontend platform stack | Founder | Proposed | Phase 7 | React 19 + Vite SPA, Motion, TanStack, NEAR Connect, Cloudflare Pages |
+| D2 | Frontend platform stack | Founder | Decided 2026-11-08 | Phase 7 | Option A: React 19 + Vite SPA, Tailwind 4, Motion, TanStack, React Router, NEAR Connect, Cloudflare Pages |
 | D3 | Ticker and play fee split | Founder | Decided 2026-11-04 | P2.4 | RULE; 0.01 NEAR; 80 pot / 15 compute / 5 platform; 80/10/10 only after T4 |
 | D4 | Token mechanics | Founder | Decided 2026-11-04 | P5.1 | NEP-141 + NEP-148, mint on YES from an expiring per-round allowance, no value promise |
 | D5 | Pot split, solved | Founder | Decided 2026-11-04 | P3.2 | 40 winner / 40 contributors / 10 rollover / 10 platform |
@@ -66,7 +66,7 @@ Researched live 2026-11-04 (`scratch/research/FRONTEND-STACK.md`, not committed)
 - **B:** Next.js 16.4.5 static export. Prerendered pages, but server and client boundaries and static dynamic-route limits with no runtime SSR benefit.
 - **C:** Svelte 5 + SvelteKit 3 static. Possibly smaller bundles, but newer conventions and fewer NEAR wallet examples mean more review of agent-written code.
 
-Risk: the NEAR Auth SDKs (P1 passkeys) depend on near-api-js 4 and 5, not 7.4.0. P1 is isolated and P0 uses a normal wallet. The founder confirms D2 when sharing design references.
+Risk: the NEAR Auth SDKs (P1 passkeys) depend on near-api-js 4 and 5, not 7.4.0. P1 is isolated and P0 uses a normal wallet. The founder confirmed Option A on 2026-11-08 together with the visual direction (B1).
 
 ### D3 to D17 and D19: founder decision record
 
@@ -107,7 +107,7 @@ Founder instruction of 2026-11-04: GPT 6.1 Terra (`executor` via `@task`) for sy
 
 | Id | Missing prerequisite | Owner | Status | Blocks plan ids | Next action / proof |
 | --- | --- | --- | --- | --- | --- |
-| B1 | Visual design references | Founder | Open | Phase 7, D2 confirmation | Founder shares references; lead writes `docs/DESIGN.md` then |
+| B1 | Visual design references | Founder | Resolved 2026-11-08 | Phase 7, D2 confirmation | Founder shared thewhoopsies.co.uk as the reference and generated the mascot art; direction D "Hand-Inked" chosen; `docs/DESIGN.md` written |
 | B2 | Fresh rehearsal funding and spend authorization | Founder (funding/authorization), Lead (quote) | Resolved for completed D35/D36 | P2.9 onward | Founder funded `therule.testnet`; both bounded rehearsals and their payouts completed within caps. D35/D36 are historical execution authority, not permission to start another round, account or deployment. New spending needs a fresh quote/authorization. Never deploy the changed Borsh layout over r1, reuse its journal for r2, silently restart or delete keys. |
 | B3 | Founder "go" for the build | Founder | Resolved 2026-11-04 | - | Founder said go and asked for the best, highest-quality build; the lead started P0.2 |
 | B4 | NEAR Auth SDK compatibility with near-api-js 7.4.0 | Lead | Open (P1 only) | F22 | 3-hour timebox after Phase 8; otherwise guest key + relayer, labeled |
@@ -117,7 +117,7 @@ Founder instruction of 2026-11-04: GPT 6.1 Terra (`executor` via `@task`) for sy
 
 ### B1
 
-Design and frontend are deferred by founder instruction. The PRD fixes only the functional contract of each screen. No UI kit or visual library is chosen beyond the D2 platform proposal.
+Resolved 2026-11-08. The founder shared a screen recording of thewhoopsies.co.uk (local `asset/reference.mp4`, not committed), chose direction D "Hand-Inked" from four HTML proofs, approved the mascot Blot (keyhole wax blob) with the heron clerk and Drip as cameos, and generated the final art (local `asset/mascot/`, not committed; web-ready cuts in `apps/web/public/art/` via `scripts/web/cut-art.py`). The binding contract is `docs/DESIGN.md`.
 
 ### B2 and B3
 

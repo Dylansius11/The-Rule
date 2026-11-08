@@ -4,7 +4,7 @@
 
 - **Exercised (2026-11-04):** testnet accounts and funding, the deployed Phase 0 probe, OutLayer T1 to T3 and failure/latency probes, temporary HTTPS hosting; receipts are in SMART-CONTRACT. Local sandbox game/token tests use MOCK OutLayer and are not testnet evidence.
 - **Referee hosting exercised (2026-11-06):** founder-authorized Cloudflare Pages primary and FastFS testnet mirror serve identical reviewed production bytes; no card, paid plan or public GitHub repository. Full URLs/hash and upload receipt: REPRODUCIBLE-BUILDS.
-- **Not yet exercised / founder gates:** real game/referee rehearsal, deployed keeper, web wallet and NEAR Auth; authorize the quoted rehearsal accounts/deployment/funding (B2), share design references (B1), then publish source and submit at P8.6/P8.7. Founder restored Docker 28.5.1 in Windows and WSL on 2026-11-06; current contract builds remain separate evidence.
+- **Not yet exercised / founder gates:** deployed keeper, web wallet signing and NEAR Auth; publish source and submit at P8.6/P8.7. Design references (B1) were given on 2026-11-08. Founder restored Docker 28.5.1 in Windows and WSL on 2026-11-06; current contract builds remain separate evidence.
 - **Skills:** five project skills installed into `.claude/skills/` with `skills-lock.json`; two skipped. Restore recipe below.
 
 ## Integration inventory
@@ -156,12 +156,12 @@ Founder chose **Cloudflare Pages primary and FastFS testnet mirror** on 2026-11-
 **Fresh caller-bound publication (2026-11-07, D35):** r2 uses a new two-build-matched non-demo component, hash `21b58e86fb2e19737e904fc3177f9d7871320342f0c929b626bf8d31c64c71cb`. Cloudflare deployment `ca500dd6` and the FastFS testnet mirror both passed exact-byte WSL GET checks. FastFS upload `5hVETQf6meHriCdJTzYX96WcRRiGrHUAVMz8XvB3LacT` cost 0.0012591626714774 NEAR; its omitted CLI hash was reconciled read-only without resending. Exact URLs, source/provenance and the Windows urllib 403 discrepancy are in REPRODUCIBLE-BUILDS. The r1 deployment-pinned URL remains separate; no source visibility, paid hosting or key-deletion change occurred.
 
 
-### 4. Web wallet and hosting (Phase 7, blocked on B1)
+### 4. Web wallet and hosting (Phase 7)
 
 1. **Docs [V] 2026-11-04:** [NEAR wallet login guide](https://docs.near.org/web3-apps/tutorials/wallet-login.md) (`@hot-labs/near-connect` 0.12.0 + near-api-js 7.4.0); [Cloudflare Pages limits](https://developers.cloudflare.com/pages/platform/limits/), [headers](https://developers.cloudflare.com/pages/configuration/headers/).
 2. **Human steps (founder):** create a Cloudflare account; create an API token scoped to Pages edit for one project; store it as a GitHub Actions secret `CLOUDFLARE_API_TOKEN` with `CLOUDFLARE_ACCOUNT_ID`. Never send it in chat.
 3. **Agent steps:** `pnpm --dir apps/web build`, then deploy via CI. A `_headers` file sets `Content-Type: application/wasm` for `*.wasm` and a CSP that allows the RPC endpoints, the wallet manifest and the frame origins.
-4. **Environment variables (public, build time):** `VITE_NEAR_NETWORK`, `VITE_RPC_URL`, `VITE_RPC_FALLBACK_URL`, `VITE_GAME_ACCOUNT`, `VITE_TOKEN_ACCOUNT`, `VITE_DEMO_GAME_ACCOUNT`, `VITE_DEMO_TOKEN_ACCOUNT`.
+4. **Environment variables (public, build time, all optional; defaults in `apps/web/src/config/env.ts` point at r2):** `VITE_RPC_URL`, `VITE_RPC_FALLBACK_URL`, `VITE_GAME_ACCOUNT`, `VITE_TOKEN_ACCOUNT`, `VITE_GAME_KIND` (`production`, `rehearsal` or `demo`; drives the visible deployment label, because r2's chain `demo` flag means a compressed rehearsal, not a preselected rule), `VITE_DEMO_GAME_ACCOUNT`, `VITE_DEMO_TOKEN_ACCOUNT`. The network is fixed to testnet.
 5. **Verification:** `curl -sI https://<site>/assets/<hash>.wasm` shows `content-type: application/wasm`; a fresh browser connects a testnet wallet and reads `get_round`.
 
 ### 5. Keeper (P6.2, D20)
@@ -233,6 +233,6 @@ Observed: each exited 0; `.claude/skills/` holds the five folders; `skills-lock.
 
 1. Founder: say "go" (B3), which unblocks P0.2.
 2. Lead: create `therule.testnet` and send the id. Founder: fund it from the faucet (B2), which unblocks P0.4 to P0.8.
-3. Founder: share design references (B1), which unblocks Phase 7 and the D2 confirmation.
+3. Founder: share design references (B1). Done 2026-11-08; Phase 7 started and D2 is decided.
 4. Founder: create Cloudflare and Healthchecks accounts before P6.2 and Phase 7 deploys.
 5. Founder authorized the initial source push to `github.com/Dylansius11/The-Rule` on 2026-11-05. Work belongs on `dev`; promote through a `dev` -> `main` PR. The repo reported PRIVATE. Public visibility, referee asset hosting, public posts and submission remain separate authorizations at D28/P8.6/P8.7.

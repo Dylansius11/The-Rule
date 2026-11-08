@@ -33,11 +33,11 @@ export function WalletChip() {
   }
   return (
     <Link
-      to="/wallet"
+      to="/account"
       className="flex items-center gap-2"
-      aria-label={`Wallet ${wallet.accountId}. Open wallet page.`}
+      aria-label={`Account ${wallet.accountId}. Open account page.`}
     >
-      <span className="pill hidden md:inline-flex" title="Game credit, separate from wallet NEAR">
+      <span className="pill hidden xl:inline-flex" title="Game credit, separate from wallet NEAR">
         <b>{player.data ? formatNear(player.data.credit, 3) : '–'}</b> NEAR credit
       </span>
       <span className="pill">

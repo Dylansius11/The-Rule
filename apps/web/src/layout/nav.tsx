@@ -1,11 +1,5 @@
 import type { ReactNode } from 'react';
-
-export interface NavItem {
-  to: string;
-  label: string;
-  end?: boolean;
-  icon: ReactNode;
-}
+import type { RoomTab } from '@/app/paths';
 
 const svg = (children: ReactNode) => (
   <svg viewBox="0 0 28 28" aria-hidden="true">
@@ -13,11 +7,11 @@ const svg = (children: ReactNode) => (
   </svg>
 );
 
-export const NAV: NavItem[] = [
+/** The four tabs of a round room, in play order. Crew is a fifth, Team only (see RoomLayout). */
+export const ROOM_TABS: { tab: Exclude<RoomTab, 'crew'>; label: string; icon: ReactNode }[] = [
   {
-    to: '/',
-    label: 'Play',
-    end: true,
+    tab: 'stamp',
+    label: 'Stamp',
     icon: svg(
       <>
         <path d="M9 6h10v8l3 3v3H6v-3l3-3z" />
@@ -26,8 +20,8 @@ export const NAV: NavItem[] = [
     ),
   },
   {
-    to: '/log',
-    label: 'Log',
+    tab: 'ledger',
+    label: 'Ledger',
     icon: svg(
       <>
         <path d="M7 5h14v18H7z" />
@@ -36,7 +30,7 @@ export const NAV: NavItem[] = [
     ),
   },
   {
-    to: '/guess',
+    tab: 'guess',
     label: 'Guess',
     icon: svg(
       <>
@@ -46,8 +40,8 @@ export const NAV: NavItem[] = [
     ),
   },
   {
-    to: '/reveal',
-    label: 'Reveal',
+    tab: 'verify',
+    label: 'Verify',
     icon: svg(
       <>
         <path d="M2.5 14S7 6.5 14 6.5 25.5 14 25.5 14 21 21.5 14 21.5 2.5 14 2.5 14z" />
@@ -55,31 +49,6 @@ export const NAV: NavItem[] = [
       </>,
     ),
   },
-  {
-    to: '/wallet',
-    label: 'Wallet',
-    icon: svg(
-      <>
-        <path d="M4 8h18v14H4z" />
-        <path d="M4 8l3-3h13v3" />
-        <circle cx="18" cy="15" r="1.4" />
-      </>,
-    ),
-  },
-];
-
-export const MORE: { to: string; label: string; note: string }[] = [
-  { to: '/team', label: 'Team', note: 'The heron’s team desk: roster, vault, locks.' },
-  { to: '/season', label: 'Season', note: 'Ledger-style boards for Solo and Team.' },
-];
-
-export const DESKTOP_NAV: { to: string; label: string; end?: boolean }[] = [
-  { to: '/', label: 'Play', end: true },
-  { to: '/log', label: 'Log' },
-  { to: '/guess', label: 'Guess' },
-  { to: '/reveal', label: 'Reveal' },
-  { to: '/team', label: 'Team' },
-  { to: '/season', label: 'Season' },
 ];
 
 export const MoreIcon = () =>

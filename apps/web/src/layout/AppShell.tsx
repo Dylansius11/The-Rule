@@ -1,16 +1,16 @@
 import { Outlet } from 'react-router';
 import { ErrorCard } from '@/ui/ErrorCard';
-import { Header } from './Header';
-import { LandingFooter } from './LandingFooter';
+import { AppFooter } from './AppFooter';
+import { AppHeader } from './AppHeader';
 import { TabBar } from './TabBar';
 import { useConnect } from './useConnect';
 
-/** Frame around the app pages: header, deployment strip, tabs, footer. Root owns the skip link and filters. */
+/** Frame around the game (room, season, account): app header, slim footer, bottom tabs on phones. */
 export function AppShell() {
   const { error, clear, connect } = useConnect();
   return (
-    <>
-      <Header />
+    <div className="pb-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] md:pb-0">
+      <AppHeader />
       {error ? (
         <div className="wrap mt-3">
           <ErrorCard error={error} onRetry={connect} onDismiss={clear} />
@@ -19,8 +19,8 @@ export function AppShell() {
       <main id="main" tabIndex={-1} className="overflow-x-clip outline-none">
         <Outlet />
       </main>
-      <LandingFooter />
+      <AppFooter />
       <TabBar />
-    </>
+    </div>
   );
 }

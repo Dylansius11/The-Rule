@@ -28,7 +28,7 @@ export function PageHead({
     <div className="relative flex items-end justify-between gap-4">
       <div className="min-w-0">
         {kicker ? <span className="hand mb-1 block -rotate-2 text-[26px] leading-none">{kicker}</span> : null}
-        <h1 className="display text-[clamp(52px,9vw,104px)] leading-[0.85]">{title}</h1>
+        <h1 className="display text-[clamp(48px,7.5vw,88px)] leading-[0.85]">{title}</h1>
         <Doodle name={underline} size={190} className="-mt-1 block" />
         {note ? <p className="hand -rotate-1 text-[24px] leading-tight">{note}</p> : null}
         {children}

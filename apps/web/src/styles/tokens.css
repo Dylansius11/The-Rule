@@ -36,16 +36,17 @@
 
 :root {
   --ink-w: 3.5px;
-  --header-bar-h: 64px;
-  --header-h: 96px;
-  --chrome-bottom: 68px;
+  --header-bar-h: 58px;
+  --strip-h: 44px;
+  /* Replaced at runtime by the real sticky header height (StickyHeader). */
+  --header-h: 108px;
+  --chrome-bottom: 0px;
   --tabbar-h: 68px;
 }
 
-@media (min-width: 900px) {
+@media (min-width: 768px) {
   :root {
-    --chrome-bottom: 0px;
     --header-bar-h: 72px;
-    --header-h: 104px;
+    --header-h: 116px;
   }
 }

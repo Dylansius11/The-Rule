@@ -1,0 +1,6 @@
+{
+  "total": 11790,
+  "byForm": { "Single": 84, "AND": 5853, "OR": 5853 },
+  "byBucket": { "Rare": 2713, "Mid": 3998, "Common": 5079 },
+  "ruleCoreCommit": "d7896679bca5417c9dab51b53e1db0fab09ad2b8"
+}

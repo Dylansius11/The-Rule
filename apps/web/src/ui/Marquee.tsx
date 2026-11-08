@@ -43,6 +43,7 @@ export function Marquee({ lines, hang = false, className = '' }: MarqueeProps) {
       await document.fonts.load('900 56px "Londrina Solid"').catch(() => undefined);
       if (cancelled) return;
       const total = path.getTotalLength();
+      let hangX = Number.NaN;
       const meas = document.createElementNS(NS, 'text');
       g.replaceChildren(meas);
       const unit = [...message].map(ch => {
@@ -67,6 +68,7 @@ export function Marquee({ lines, hang = false, className = '' }: MarqueeProps) {
       }
       if (blot.current) {
         const p = path.getPointAtLength(total * 0.8);
+        hangX = p.x;
         const w = 250;
         const h = (w * art['scenes/hanging'].h) / art['scenes/hanging'].w;
         blot.current.setAttribute('width', String(w));
@@ -84,6 +86,9 @@ export function Marquee({ lines, hang = false, className = '' }: MarqueeProps) {
           }
           gl.t.style.display = '';
           const p = path.getPointAtLength(pos);
+          // Copy fades out around the hanging Blot, so no letter ever runs through him.
+          const away = Math.abs(p.x - hangX);
+          gl.t.style.opacity = away < 135 ? '0' : away < 175 ? String((away - 135) / 40) : '1';
           const q = path.getPointAtLength(Math.min(total, pos + 1));
           const a = (Math.atan2(q.y - p.y, q.x - p.x) * 180) / Math.PI;
           gl.t.setAttribute(

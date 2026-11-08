@@ -1,5 +1,6 @@
 import { motion, useSpring, useTransform } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
+import { useSound } from '@/audio';
 import { Art } from '@/art/Art';
 import { art } from '@/art/manifest';
 import { useReduced } from '@/motion/prefs';
@@ -59,6 +60,7 @@ export function Blot({
   className = '',
 }: BlotProps) {
   const reduced = useReduced();
+  const { play } = useSound();
   const [shown, setShown] = useState<{ cur: BlotState; prev: BlotState | null }>({ cur: state, prev: null });
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -81,6 +83,7 @@ export function Blot({
   return (
     <motion.span
       className={`blot-stage ${className}`}
+      onClick={() => play('blot')}
       style={{ width, aspectRatio: `1 / ${ratio}`, ...(lean && !reduced ? { rotate, x: shiftX } : null) }}
     >
       <span

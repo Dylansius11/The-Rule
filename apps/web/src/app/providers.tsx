@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { getConnector } from '@/chain/wallet';
+import { SoundProvider } from '@/audio';
 import type { WalletState } from '@/game/types';
 
 type WalletContextValue = WalletState & { connect(): Promise<void>; disconnect(): Promise<void> };
@@ -58,7 +59,9 @@ export function useWallet() {
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
-      <WalletProvider>{children}</WalletProvider>
+      <SoundProvider>
+        <WalletProvider>{children}</WalletProvider>
+      </SoundProvider>
     </QueryClientProvider>
   );
 }

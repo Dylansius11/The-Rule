@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { useSound } from '@/audio';
 import type { ActionState } from '@/game/types';
 import { ErrorCard } from './ErrorCard';
 import { HashText } from './HashText';
@@ -18,6 +20,12 @@ export function ActionSlip({
   onReset,
   signingText = 'Your wallet is open. Nothing is charged until you approve.',
 }: ActionSlipProps) {
+  const { play } = useSound();
+  const kind = state.kind;
+  useEffect(() => {
+    if (kind === 'done') play('success');
+    if (kind === 'error') play('error');
+  }, [kind, play]);
   if (state.kind === 'idle') return null;
   if (state.kind === 'error') return <ErrorCard error={state.error} onDismiss={onReset} />;
   return (

@@ -1,4 +1,5 @@
 import { useRef, type KeyboardEvent, type ReactNode } from 'react';
+import { useSound } from '@/audio';
 
 interface ChipProps {
   children: ReactNode;
@@ -23,6 +24,7 @@ export function Chip({
   title,
   className = '',
 }: ChipProps) {
+  const { play } = useSound();
   return (
     <button
       type="button"
@@ -31,7 +33,10 @@ export function Chip({
       data-plain={plain ? 'true' : undefined}
       disabled={disabled}
       title={title}
-      onClick={onClick}
+      onClick={() => {
+        play(pressed === undefined ? 'tap' : 'toggle');
+        onClick?.();
+      }}
     >
       {children}
     </button>
@@ -68,6 +73,7 @@ export function RadioChips<T extends string | number>({
   disabled,
   className = '',
 }: RadioChipsProps<T>) {
+  const { play } = useSound();
   const group = useRef<HTMLDivElement>(null);
   const enabled = options.filter(o => !o.disabled);
   const activeValue = value ?? enabled[0]?.value ?? null;
@@ -115,7 +121,10 @@ export function RadioChips<T extends string | number>({
             disabled={disabled || o.disabled}
             data-plain={plain ? 'true' : undefined}
             className={`chip ${small ? 'chip-sm' : ''}`}
-            onClick={() => onChange(o.value)}
+            onClick={() => {
+              if (!checked) play('tap');
+              onChange(o.value);
+            }}
           >
             {o.label}
           </button>

@@ -2,7 +2,7 @@ import { Account, JsonRpcProvider, actions, baseEncode, encodeTransaction } from
 import { decide, uint, type Decision, type Mode, type NextSlot, type Params, type Round } from './game.ts';
 import { createNativeSigner } from './signer.ts';
 
-export interface Config { NEAR_RPC_URL: string; GAME_ACCOUNT: string; KEEPER_ACCOUNT?: string; KEEPER_PRIVATE_KEY?: string; HEALTHCHECK_PING_URL?: string; NEAR_NETWORK?: 'testnet' | 'sandbox'; MAINTAIN_SEASONS?: string; KEEPER_MODES?: string; LAST_ROUND_ID?: string }
+export interface Config { NEAR_RPC_URL: string; GAME_ACCOUNT: string; KEEPER_ACCOUNT?: string; KEEPER_PRIVATE_KEY?: string; HEALTHCHECK_PING_URL?: string; NEAR_NETWORK?: 'testnet' | 'sandbox'; MAINTAIN_SEASONS?: string; KEEPER_MODES?: string; FIRST_ROUND_ID?: string; LAST_ROUND_ID?: string }
 type Log = (message: string) => void;
 type Snapshot = { params: Params; rounds: Round[]; slots: [NextSlot, NextSlot]; now: bigint; hash: string };
 
@@ -80,21 +80,23 @@ export async function run(config: Config, dryRun = false, log: Log = console.log
   const modes = config.KEEPER_MODES ?? '0,1';
   if (!['0', '1', '0,1'].includes(modes)) throw new Error('Invalid keeper modes');
   const selectedModes: Mode[] = modes === '0' ? [0] : modes === '1' ? [1] : [0, 1];
+  const firstRound = config.FIRST_ROUND_ID === undefined ? 0 : Number(uint(config.FIRST_ROUND_ID, 32));
   const lastRound = config.LAST_ROUND_ID === undefined ? undefined : Number(uint(config.LAST_ROUND_ID, 32));
-  function authorized(_state: Snapshot, decision: Decision): boolean {
-    return selectedModes.includes(decision.args.mode) && (lastRound === undefined || decision.args.round_id <= lastRound);
+  if (lastRound !== undefined && firstRound > lastRound) throw new Error('Invalid round range');
+  function authorized(mode: Mode, id: number): boolean {
+    return selectedModes.includes(mode) && id >= firstRound && (lastRound === undefined || id <= lastRound);
   }
   async function seasonTargets(state: Snapshot): Promise<{ mode: Mode; season: number }[]> {
     const keys = new Set<string>();
-    for (const round of state.rounds) if (selectedModes.includes(round.mode) && (lastRound === undefined || round.round_id <= lastRound)) keys.add(`${round.mode}:${Math.floor(round.round_id / 7)}`);
+    for (const round of state.rounds) if (authorized(round.mode, round.round_id)) keys.add(`${round.mode}:${Math.floor(round.round_id / 7)}`);
     for (const mode of selectedModes) {
       const current = await view(state.hash, 'get_round', { mode }) as Round | null;
       if (current === null) continue;
       if (current.mode !== mode || typeof current.round_id !== 'number') throw new Error('Invalid current round');
       uint(current.round_id, 32);
       const season = Math.floor(current.round_id / 7);
-      if (lastRound === undefined || season <= Math.floor(lastRound / 7)) keys.add(`${mode}:${season}`);
-      if (season > 0 && (lastRound === undefined || season - 1 <= Math.floor(lastRound / 7))) keys.add(`${mode}:${season - 1}`);
+      if (season >= Math.floor(firstRound / 7) && (lastRound === undefined || season <= Math.floor(lastRound / 7))) keys.add(`${mode}:${season}`);
+      if (season > 0 && season - 1 >= Math.floor(firstRound / 7) && (lastRound === undefined || season - 1 <= Math.floor(lastRound / 7))) keys.add(`${mode}:${season - 1}`);
     }
     return [...keys].map(key => {
       const [mode, season] = key.split(':').map(Number);
@@ -121,7 +123,7 @@ export async function run(config: Config, dryRun = false, log: Log = console.log
       (['localnet', 'sandbox'].includes(status.chain_id) || /^test-chain-[A-Za-z0-9]+$/.test(status.chain_id));
     if (network === 'testnet' ? status.chain_id !== 'testnet' : !sandboxChain) throw new Error('Wrong network');
     let state = await snapshot();
-    const initial = decide(state.params, state.rounds, state.slots, state.now).filter(decision => authorized(state, decision));
+    const initial = decide(state.params, state.rounds, state.slots, state.now).filter(decision => authorized(decision.args.mode, decision.args.round_id));
     if (!initial.length) log('decision=none');
     if (dryRun) {
       for (const decision of initial) log(`mode=${decision.args.mode} round=${decision.args.round_id} decision=${decision.method}`);
@@ -153,7 +155,7 @@ export async function run(config: Config, dryRun = false, log: Log = console.log
     for (const proposed of initial) {
       state = await snapshot();
       const fresh = decide(state.params, state.rounds, state.slots, state.now);
-      if (!fresh.some(item => same(item, proposed)) || !authorized(state, proposed)) { unhealthy = true; continue; }
+      if (!fresh.some(item => same(item, proposed)) || !authorized(proposed.args.mode, proposed.args.round_id)) { unhealthy = true; continue; }
       const mode = proposed.args.mode;
       const id = proposed.args.round_id;
       log(`mode=${mode} decision=${proposed.method}`);
@@ -198,8 +200,7 @@ export async function run(config: Config, dryRun = false, log: Log = console.log
     }
     // A fresh same-block check, not a promise of timeliness or a replay of stale decisions.
     state = await snapshot();
-    if (state.rounds.some(round => selectedModes.includes(round.mode) &&
-      (lastRound === undefined || round.round_id <= lastRound) &&
+    if (state.rounds.some(round => authorized(round.mode, round.round_id) &&
       ((round.phase === 'Sealing' && round.begin_status !== 'ok') ||
        (round.phase === 'Opening' && round.open_status !== 'ok')))) unhealthy = true;
     for (const checked of checkedSeasons) {

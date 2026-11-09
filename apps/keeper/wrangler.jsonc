@@ -17,7 +17,8 @@
         "GAME_ACCOUNT": "game-r3.therule.testnet",
         "KEEPER_ACCOUNT": "keeper-p6.therule.testnet",
         "KEEPER_MODES": "0",
-        "LAST_ROUND_ID": "0",
+        "FIRST_ROUND_ID": "12",
+        "LAST_ROUND_ID": "12",
         "MAINTAIN_SEASONS": "false"
       }
     }

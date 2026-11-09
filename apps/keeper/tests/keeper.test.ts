@@ -200,9 +200,26 @@ describe('keeper execution', () => {
     await run({ ...due.config, KEEPER_MODES: '0', LAST_ROUND_ID: '0' }, false, () => {}, due.transport);
     expect(due.calls.filter(c => c.method === 'send_tx')).toHaveLength(1);
   });
+  it('does not sign below an explicit lower fence and admits the exact lower boundary', async () => {
+    const excluded = harness({ rounds: [round], after: [{ ...round, phase: 'Reveal' }] });
+    await run({ ...excluded.config, KEEPER_MODES: '0', FIRST_ROUND_ID: '1', LAST_ROUND_ID: '1' }, false, () => {}, excluded.transport);
+    expect(excluded.calls.some(c => c.method === 'send_tx')).toBe(false);
+    const admitted = harness({ rounds: [{ ...round, round_id: 1 }], after: [{ ...round, round_id: 1, phase: 'Reveal' }] });
+    await run({ ...admitted.config, KEEPER_MODES: '0', FIRST_ROUND_ID: '1', LAST_ROUND_ID: '1' }, false, () => {}, admitted.transport);
+    expect(admitted.calls.filter(c => c.method === 'send_tx')).toHaveLength(1);
+    expect(admitted.calls.at(-1)?.method).toBe('ping');
+  });
+  it('does not let an out-of-scope pending round suppress an authorized idle heartbeat', async () => {
+    const older = { ...round, phase: 'Opening' as const, open_status: 'pending' as const };
+    const current = { ...round, round_id: 1, investigation_end_ns: 121 };
+    const h = harness({ rounds: [older, current] });
+    await run({ ...h.config, KEEPER_MODES: '0', FIRST_ROUND_ID: '1', LAST_ROUND_ID: '1' }, false, () => {}, h.transport);
+    expect(h.calls.some(c => c.method === 'send_tx')).toBe(false);
+    expect(h.calls.at(-1)?.method).toBe('ping');
+  });
   it('rejects malformed fences and omits unselected or unauthorized season targets', async () => {
     const h = harness({ rounds: [{ ...round, round_id: 7, investigation_end_ns: 121 }], seasonBefore: { ready: false, total: 50, indexed: 0, revision: '1' } });
-    for (const fence of [{ KEEPER_MODES: '1,0' }, { LAST_ROUND_ID: '4294967296' }, { LAST_ROUND_ID: '-1' }]) {
+    for (const fence of [{ KEEPER_MODES: '1,0' }, { LAST_ROUND_ID: '4294967296' }, { LAST_ROUND_ID: '-1' }, { FIRST_ROUND_ID: '4294967296' }, { FIRST_ROUND_ID: '-1' }, { FIRST_ROUND_ID: '2', LAST_ROUND_ID: '1' }]) {
       await expect(run({ ...h.config, ...fence }, true, () => {}, h.transport)).rejects.toThrow();
     }
     await run({ ...h.config, KEEPER_MODES: '0', LAST_ROUND_ID: '0', MAINTAIN_SEASONS: 'true' }, false, () => {}, h.transport);

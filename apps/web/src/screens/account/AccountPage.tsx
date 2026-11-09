@@ -221,7 +221,8 @@ export function AccountPage() {
       <section aria-label="Pending" className="mt-7">
         <h2 className="display text-[40px] leading-none">Pending slips</h2>
         <p className="mb-3 mt-1 font-semibold">
-          A pending payment is not a verdict, and its principal is not available credit.
+          Things in flight right now; each reads none when nothing is waiting. A pending play is not a
+          verdict, and its stake is not available credit.
         </p>
         <div className="grid gap-4 sm:grid-cols-3">
           <PendingSlip
@@ -256,7 +257,15 @@ export function AccountPage() {
         <ClaimsPanel />
       </section>
       <section aria-label="Token operation recovery" className="mt-10">
-        <TokenRecovery />
+        <details>
+          <summary className="display cursor-pointer text-[30px] leading-none">
+            Advanced: recover a stuck RULE operation
+          </summary>
+          <p className="mb-3 mt-2 font-semibold">
+            Only needed if a RULE mint or unlock seems stuck. You can ignore this in normal play.
+          </p>
+          <TokenRecovery />
+        </details>
       </section>
     </div>
   );

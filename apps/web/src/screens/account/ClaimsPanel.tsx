@@ -67,8 +67,9 @@ export function ClaimsPanel() {
     <InkBox className="p-5 md:p-6" fill="var(--color-paper)" tilt={0.5}>
       <h3 className="display text-[34px] leading-none">Claims</h3>
       <p className="mt-2 text-[16px] font-semibold">
-        Payouts are pulled, never pushed. Each row reads the contract for your claimable amount. Team rewards
-        are claimed on the Team desk.
+        When a round settles, what you are owed (the winning prize or your contributor share of the pot) waits
+        in the contract until you pull it. Claim moves it into your play credit; moving credit to your wallet
+        is a separate step. Team rewards are claimed on the Team desk.
       </p>
       {solo.isLoading || team.isLoading ? (
         <p className="mt-3 font-bold" aria-busy="true">

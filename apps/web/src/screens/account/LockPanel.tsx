@@ -49,8 +49,10 @@ export function LockPanel() {
         />
       </div>
       <p className="mt-2 text-[16px] font-semibold">
-        Locking RULE before a round adds attempts (extra attempts still pay the play fee). It comes back after
-        the round and is never forfeited.
+        Optional. Without any RULE you still play with the base attempts (Solo 25, Team 50). Locking RULE
+        before a round adds attempts for that round; extra attempts still pay the play fee. The RULE comes
+        back after the round and is never forfeited. In a Team round every member locks their own RULE, and
+        the team gets the sum.
       </p>
       <div className="mt-3">
         <RadioChips

@@ -151,3 +151,22 @@ FastFS upload [`5hVETQf6meHriCdJTzYX96WcRRiGrHUAVMz8XvB3LacT`](https://testnet.n
 
 Fresh game/token deployment txs are `4Lq4mevWQKe6nm3W8DhYnvJtKVxiUD5wNh92ri18gJiK` and `cGRSsEBeopyKBjjt2367qyjhtWUpVJnNTac1qocjhtU`. At final block 276626977 both public `view_code` hashes matched, retained keys were present, all init parameters matched and the extra view fields were exactly `demo:true`, total request cap 10 and user cap 8. The token's live quote matched the exact-artifact sandbox quote: 0.00125 NEAR registration and 0.00256 NEAR per permanent outcome; 100 outcomes were funded separately. Solo round 0 was subsequently started by `9A3wkky3EPjz8HA7P1vL4a1hbakWG5hxE6eLhkB5jhME`; completion acceptance is recorded in BUILD-PLAN, not inferred from deployment.
 
+
+## P6 fresh-state artifacts (2026-11-09)
+
+D37 deployed fresh r3 and separate Demo state with keys retained. Game/token were built through the pinned cargo-near reproducible recipe from committed source `1f6f367b85f5c79e69ad58522295f95154b34a38`; actual on-chain `view_account.code_hash` and NEP-330 source/image/contract path matched. This is one selected build per contract, not a second final freeze pair.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Game (r3 and Demo) | 532128 | `00d20fd538164a26321b4158971574221801c6f8c81c2f47e724d388883474ab` |
+| Token (r3 and Demo) | 183152 | `f28e5bb0c1d7378467cc2e7427c4e79a04d4cb6f4ab987bae15cc1c142c3df6a` |
+| Non-demo referee, caller `game-r3.therule.testnet` | 228147 | `bb5aa4de9b0dac84b809898804f2e1dfc42a724d21bf31a29ff611d32dbd339f` |
+| Demo referee, caller `demo-game.therule.testnet` | 233929 | `7a15187ba1f4cb33a6018a47c4cb30f7245a9e335d2aa7df217942a49dee7c4a` |
+
+Each referee was independently built twice in fresh pinned containers from `git archive f1468a55bdf80d01f01fa1111d56faf5224918e5`; each pair matched byte-for-byte. This earlier source contains the unchanged guest and shared evaluator; the new public Demo-secret contract reference is in the contract revision above. `wasm-tools` 1.240.0 validated both exact components; each imports the OutLayer MAC with no sockets/HTTP/filesystem imports. Production has no `RULE_DEMO` marker; the explicit Demo feature has it. Guest hashes are not interchangeable.
+
+Both exact files are available at deployment-pinned primary `https://a0cc4448.the-rule-referee.pages.dev/<sha256>.wasm` and independent mirror `https://test.fastfs.io/therule.testnet/outlayer.testnet/<sha256>.wasm`. All four GETs matched. Primary responses use `application/wasm`, immutable one-year caching and `nosniff`; no source repository or secret was uploaded. The Pages branch alias is mutable and is not the contract URL.
+
+FastFS transactions `Fzvb9UspHUjeFkkZT1RmHhSpNzcmzgFBUswANzCfAGnp` and `2ZDUSjdMXExYTpKyXTEqy41VK8CwMa7Q59GmdFfoVBot` followed the established gas-1 protocol and its intentional action failure. Combined observed burn was **0.0025470491089894 testnet NEAR**, below D37's 0.004 ceiling; successful GET verification, not that failure, establishes publication.
+
+Selected exact contract WASM also passed an actual local sandbox keeper advance with MOCK OutLayer before deployment. D37's real Demo subsequently exercised begin/verdict/guess/open and replayed PASS 2/2. These observations do not accept P6.2 CPU/network qualification, D31/B6 production recovery, P6.4 freeze or ceremony. No r2 state was upgraded.

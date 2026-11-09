@@ -305,6 +305,28 @@ Native schedule/season/lock/ABI/storage checks passed, including logical cutoff,
 Actual Node keeper and local scheduled workerd used the genuine sandbox chain id and disposable keys; dry-run, final advance, duplicate/raced transition and pending-begin heartbeat suppression passed. This is local MOCK OutLayer evidence. It does not qualify deployed Cloudflare CPU/network, monitored on-time testnet operation, production native-payment recovery or frontend integration. Reproduction and scope: keeper README and BUILD-PLAN P6.
 
 
+### D37 separate Demo acceptance (testnet, 2026-11-08 UTC; accepted 2026-11-09)
+
+`demo-game.therule.testnet` / `demo-token.therule.testnet` completed Solo 0 **Solved**, always labeled **Demo Mode - preselected rule**. This is a known/preselected rule, never creator-blind. Both deployed hashes and NEP-330 source metadata matched the selected reproducible artifacts; each account retains one access key. Exact artifacts, independent referee reproductions and public mirrors: [REPRODUCIBLE-BUILDS](REPRODUCIBLE-BUILDS.md#p6-fresh-state-artifacts-2026-11-09).
+
+Real OutLayer begin, two paid verdicts, Wrong/Correct semantic checks and open completed. The immutable secret reference is `{"profile":"the-rule-demo","account_id":"therule.testnet"}`. The encrypted row is bound to the exact Demo hash with `Predecessor(Whitelist[demo-game.therule.testnet])`; its returned metadata/access/ciphertext matched. After a pending browser wallet bridge created no row, the actual store used official ECIES v1 (X25519 ECDH, HKDF-SHA256 info `outlayer-keystore-v1`, ChaCha20-Poly1305) and the isolated parent signer. Only ciphertext entered the storage transaction; production secret input remains forbidden.
+
+| Action | Testnet transaction |
+| --- | --- |
+| Deploy/init token | `3tViZtyeJ9E2CRgShAyqTtfNAh6FbVUD9v7TbV7jEGJR` |
+| Deploy/init game | `9XSiP1aNa4Ez5Lx4WigqAWQCUtqp3xJpZYNDkq6V4ALa` |
+| Store encrypted profile | `GDvQXKgJzNj4enFY8NiuN1Sr9Ggyp6TURa6oMncF2Wrg` |
+| Begin | `7tpYYLHSsnor4NTTZpyBrKHJHaCteifnD34L67D61sCW` |
+| YES / NO | `BcaKagoo2wHV2aJTZUz9Qc63oDmwwxLHcvJbuYSWARhZ` / `FpTykKU3Fk4GmPAxnURt1DeM9yF7tmKg1PaNjEpX4gFh` |
+| Wrong / Correct reveal | `GzeUhDdcgfGWNcTcYA5MQZE5BS1qJ7uHrxB7dAXHYaJ9` / `GPfBwwoNvX2cCkmAtbQ2EsjEyws5xNsErDhgtnzU3vB3` |
+| Finalize/open | `DE5h6N5QX5yF9Asz7Y78gZjhH7uDJuPmSchpMdi69PHA` |
+| Claim | `5eAnJ76KWj8t2FUH4DmoKomHcfWVkkpNpQc5C5zrDhwf` |
+| Withdrawal / platform payout | `DiQcghE85NL6wCDzbBpwj8iZ3VenFaw7oscHTnmrkdDR` / `9X3Vvv3Qex8UqEBmogLcRR3ix3aoC466E7XtyAGJdXtx` |
+
+Actual `make verify ROUND=solo/0 GAME_ACCOUNT=demo-game.therule.testnet NEAR_RPC_URL=https://test.rpc.fastnear.com` printed **PASS: 2 of 2 verdicts match**. Two paid plays and two committed guesses stayed below D37's 12/two caps. An initial reveal passed an acknowledgement object instead of numeric `commit_seq`, failed deserialization without mutation, and was corrected only after inspecting the failure and unchanged Committed state. It was not a third guess, referee failure or unknown resubmission.
+
+Independent final block **276823670**: pot 0.066 NEAR; winner/contributor reward 0.0528, returned Correct stake 0.1, claim 0.1528, carry 0.0066, platform 0.0076. The player withdrew 0.49576 NEAR after claim; its receipt-defined transfer and dependent callback both succeeded. All credit/vault/round-pot/stake/claimable/platform/native-pending/referee-pending terms were zero; compute, storage and carry remained separate and operator collateral was funded. Supply/player balance were 50 RULE, equal to logged mints. This finite path is not production native recovery, a load test, FE acceptance, freeze or key deletion. R2 was untouched. Public receipts and arithmetic remain under ignored `scratch/p6/`; transaction anchors above are durable retrieval handles.
+
 ### Panic codes
 
 | Code | Meaning | Code | Meaning |

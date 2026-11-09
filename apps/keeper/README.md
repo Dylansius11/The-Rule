@@ -1,6 +1,6 @@
 # Keeper
 
-**Qualification status (2026-11-09):** D37's deployed Cloudflare Worker started r3 Solo 0 within 61 seconds of its slot and later advanced/finalized it to Settled through the non-demo OutLayer referee. FINAL receipts and actual Healthchecks arrivals were independently checked. **P6.2 remains open:** observed deployed CPU exceeded the documented Free Cron limit. The current native signer and exact-round fence pass 33 keeper tests, typecheck and the actual local scheduled workerd/sandbox smoke. D38 authorizes one further Free-only Solo 12 qualification; no new live result is claimed yet and no r2 state is touched.
+**Qualification status (2026-11-09):** D38's native-signer Worker completed r3 Solo 12 from scheduled start to Settled, with FINAL receipts, matching open commitment and real heartbeat arrivals. **P6.2 remains open:** signed invocations consumed 31/28/25 ms, above Workers Free's documented 10-ms budget; idle samples were 9/12/10 ms. All 33 keeper tests, typecheck and actual local workerd/sandbox smoke passed. Cron is stopped and dedicated checks paused. No paid service, further round or r2/FE change was made.
 
 Node >=22.22.2 and the existing workspace dependencies are required. Configure `NEAR_RPC_URL` and `GAME_ACCOUNT`; non-dry runs additionally require `KEEPER_ACCOUNT`, `KEEPER_PRIVATE_KEY` and `HEALTHCHECK_PING_URL`. Never commit values or print secrets. `NEAR_NETWORK` defaults to `testnet`. The keeper requires the RPC status chain ID `testnet` and `.testnet` game and keeper accounts. This trusts the configured RPC's answer, not a cryptographic network attestation. Running against testnet, spending or deployment requires separate founder authorization.
 
@@ -32,7 +32,28 @@ At final block 276888870 the round was Settled with begin/open `ok`, no pending 
 
 The current implementation lazily imports a non-extractable native WebCrypto Ed25519 key only when signing is necessary and verifies the secret's public half before use. The SDK still constructs/serializes transactions; raw key buffers are wiped after import. RPC JSON skips the full reviver for responses without potentially unsafe integer literals, retaining exact-u64 handling when needed. These changes add no dependency. Two regressions check SDK-compatible, transaction-bound signatures and malformed/mismatched keys; the 29 lifecycle/error cases and actual local workerd signing smoke also passed.
 
-Worker version `146975db-3dc1-4ecc-a72d-36a1383a2c5c` deployed successfully with **no Cron or public route**. Its displayed 12-ms startup is not an invocation CPU measurement. No claim is made that the native signer now fits Free: a new bounded live signing qualification requires fresh round authorization, and any paid plan requires a separate decision. GitHub Actions remains an unselected fallback, not a second running keeper.
+Historical no-Cron version `146975db-3dc1-4ecc-a72d-36a1383a2c5c` had no invocation sample; its displayed startup time was never treated as CPU proof. D38 below supplies the subsequent live evidence for the native signer and exact-round fence. GitHub Actions remains an unselected fallback, not a second running keeper.
+
+### D38: native signer and exact-round Free repeat
+
+Committed source `ccb2349`, deployed version `6aeb0e6c-d5a9-48c0-b76e-a4bc241d75c4`, used mode 0 with both round bounds 12 and season indexing disabled. Immutable Solo slot 12 was 2026-11-09T08:08:00Z. No play, guess, new account, parent transfer or contract redeploy occurred.
+
+| Action | Public transaction | Observed CPU |
+| --- | --- | ---: |
+| Start | `GQhc14RzgkJVVyY2TzvzEVtGv5EpRyRqnQuoT5XMZFUe` | 31 ms |
+| Advance | `AD5sJzMxQe9hRkwe2JBvvmXTF9zLFgBMo7cktmEizuz2` | 28 ms |
+| Finalize/open | `D8AXFmRszEZbtcEZRPm1KLwn37o8DZzLkyH5WfswVxog` | 25 ms |
+
+Start executed 26.659885852 seconds after its slot. All three exact transactions carried `{mode:0,round_id:12}`, zero deposit and 300 Tgas, with FINAL success and all returned execution outcomes successful. The dashboard independently confirmed finalize CPU 25 ms, wall time 14,743 ms and the deployed version above. The post-terminal idle completed at 08:28 UTC with CPU 10 ms; preceding idle samples were 9 and 12 ms. This finite sample does **not** qualify Free, and no new failure was concealed.
+
+The finite UTC Cron expressions were `54,58 7 9 11 *` and `4,8,20,24,28 8 9 11 *`. Four scheduled instants after the slot bounded potential gas exposure; this was not a continuous two-minute production schedule. The dedicated v2 Healthcheck used a temporary 14-minute period/five-minute grace to cover the longest finite interval. Its actual success events were independently observed at 07:58, 08:04, 08:08, 08:20, 08:24 and 08:28 UTC. No manual ping was sent. Cron was removed automatically after the final idle; API confirmed an empty schedule. The check was paused and its normal two-minute period/five-minute grace restored, with paused state independently verified.
+
+At final block **276896435**, Solo 12 was Settled Unsolved with begin/open `ok`, zero player/transient/native/referee liabilities and funded collateral. Actual read-only CLI verification passed the open commitment with **0/0 verdicts**; it is explicitly an empty round, not verdict coverage. Keeper gas 0.0028470720225656 NEAR plus compute draw 0.00480024 equaled the independently observed child-funds debit **0.0076473120225656 NEAR**, below D38's 0.15 cap. No parent funds were transferred and no unknown action was resent.
+
+Another live round is not authorized by this completed run. Keep Free as the founder's selected constraint; profile the actual signing/snapshot path before requesting another test rather than treating burst flexibility, startup timing or local measurements as deployed CPU acceptance.
+
+A successful local **actual workerd** signed-advance profile was captured against the genuine sandbox, with MOCK OutLayer. RPC, response parsing and fetch frames are visible, but profiler attribution includes waits/overhead and is not a deployed CPU measurement or a proven root-cause split. A separate read-only batch probe to the selected testnet RPC returned HTTP 400 `REQUEST_VALIDATION_ERROR` / `PARSE_ERROR`: JSON-RPC batching cannot simply replace these calls on this endpoint. No batch fallback, new dependency, reduced receipt check or weaker final-state check was added. The next Free-focused design must reduce measured RPC/parsing work while preserving those guards before another live sample.
+
 
 ## Cloudflare qualification procedure
 

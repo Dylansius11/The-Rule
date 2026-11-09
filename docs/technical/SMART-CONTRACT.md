@@ -1,6 +1,6 @@
 # THE RULE: smart contract specification
 
-This is the protocol contract between the game contract, the token contract, the OutLayer referee, the verifier and every client. Core Solo behavior is locally tested with a mock OutLayer; Phase 0 probe receipts are recorded below. The real game/referee rehearsal and whole-system security review remain open (status 2026-11-05).
+This is the protocol contract between the game contract, the token contract, the OutLayer referee, the verifier and every client. Local sandbox evidence explicitly uses MOCK OutLayer; dated testnet receipts distinguish real referee runs. The separate D37 Demo completed paid verdicts, Wrong/Correct, open and payouts; D38 completed the native-signer r3 lifecycle. Keeper Free CPU acceptance, whole-system security review and production freeze remain open (status 2026-11-09).
 
 ## TL;DR and necessity
 
@@ -326,6 +326,10 @@ Real OutLayer begin, two paid verdicts, Wrong/Correct semantic checks and open c
 Actual `make verify ROUND=solo/0 GAME_ACCOUNT=demo-game.therule.testnet NEAR_RPC_URL=https://test.rpc.fastnear.com` printed **PASS: 2 of 2 verdicts match**. Two paid plays and two committed guesses stayed below D37's 12/two caps. An initial reveal passed an acknowledgement object instead of numeric `commit_seq`, failed deserialization without mutation, and was corrected only after inspecting the failure and unchanged Committed state. It was not a third guess, referee failure or unknown resubmission.
 
 Independent final block **276823670**: pot 0.066 NEAR; winner/contributor reward 0.0528, returned Correct stake 0.1, claim 0.1528, carry 0.0066, platform 0.0076. The player withdrew 0.49576 NEAR after claim; its receipt-defined transfer and dependent callback both succeeded. All credit/vault/round-pot/stake/claimable/platform/native-pending/referee-pending terms were zero; compute, storage and carry remained separate and operator collateral was funded. Supply/player balance were 50 RULE, equal to logged mints. This finite path is not production native recovery, a load test, FE acceptance, freeze or key deletion. R2 was untouched. Public receipts and arithmetic remain under ignored `scratch/p6/`; transaction anchors above are durable retrieval handles.
+
+### D38 keeper lifecycle evidence
+
+The separately authorized, key-retaining r3 Solo 12 completed scheduled start, advance, real OutLayer open and Settled Unsolved with zero plays. Exact transaction identities, successful FINAL receipt graphs, final-block accounting, heartbeat arrivals, spending audit and empty-round commitment verification are recorded in the [keeper's D38 evidence](../../apps/keeper/README.md#d38-native-signer-and-exact-round-free-repeat). This did not redeploy either contract or touch r2. The lifecycle succeeded, but the measured native-signer CPU still exceeded Workers Free's documented limit, so P6.2 is not accepted. Cron stopped; no further round, paid upgrade, freeze or key deletion.
 
 ### Panic codes
 

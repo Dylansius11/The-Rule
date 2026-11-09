@@ -22,7 +22,7 @@ export function StickyHeader({ children }: { children: ReactNode }) {
   return (
     <header ref={ref} className="sticky top-0 z-30 bg-paper">
       <div
-        className="flex items-center gap-2 border-b-[3.5px] border-ink px-3.5 md:gap-4 md:px-7"
+        className="flex items-center gap-1.5 border-b-[3.5px] border-ink px-3 md:gap-2 md:px-5 lg:gap-4 lg:px-7"
         style={{ height: 'var(--header-bar-h)' }}
       >
         {children}

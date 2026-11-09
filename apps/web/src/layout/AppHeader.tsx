@@ -12,7 +12,7 @@ export function AppHeader() {
   const { show } = useGuide();
   return (
     <StickyHeader>
-      <Brand />
+      <Brand peekFrom="xl" />
       <nav className="ml-auto hidden items-center gap-3.5 md:flex lg:gap-7" aria-label="Main">
         <NavLink to={roomPath(mode)} className="nav-link">
           Play
@@ -20,9 +20,11 @@ export function AppHeader() {
         <NavLink to="/season" className="nav-link">
           Season
         </NavLink>
-        <NavLink to="/account" className="nav-link">
-          Account
-        </NavLink>
+        <span className="hidden lg:contents">
+          <NavLink to="/account" className="nav-link">
+            Account
+          </NavLink>
+        </span>
         <NavLink to={DOCS_PATH} className="nav-link">
           Docs
         </NavLink>

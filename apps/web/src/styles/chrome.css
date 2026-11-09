@@ -96,6 +96,23 @@
     padding: 0 4px;
   }
 }
+@media (max-width: 399px) {
+  .pill {
+    font-size: 12px;
+  }
+}
+@media (max-width: 359px) {
+  .pill {
+    gap: 3px;
+    padding: 2px 5px;
+  }
+  .pill b {
+    padding: 0 3px;
+  }
+  .pill img {
+    display: none;
+  }
+}
 
 /* ---------- scroll story ---------- */
 .story-star {

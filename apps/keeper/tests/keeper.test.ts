@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { KeyPair } from 'near-api-js';
+import { KeyPair, baseEncode, decodeSignedTransaction, encodeTransaction } from 'near-api-js';
 import { decide, type NextSlot, type Params, type Round } from '../src/game.ts';
 import { run } from '../src/keeper.ts';
 
@@ -114,12 +114,24 @@ describe('keeper execution', () => {
     expect(h.calls.findIndex(c => c.params.method_name === 'get_round')).toBeGreaterThan(h.calls.findIndex(c => c.method === 'send_tx'));
   });
   for (const outcome of ['failure', 'not-final', 'descendant', 'missing', 'unknown'] as const) it(`suppresses heartbeat for ${outcome}`, async () => {
-    const h = harness({ outcome }); const logs: string[] = [];
-    await expect(run(h.config, false, s => logs.push(s), h.transport)).rejects.toThrow('Keeper run failed');
+    const h = harness({ outcome }); const logs: string[] = []; const beforeSend: string[] = [];
+    const transport: typeof fetch = async (input, init) => {
+      if (JSON.parse(String(init?.body)).method === 'send_tx') beforeSend.push(...logs);
+      return h.transport(input, init);
+    };
+    await expect(run(h.config, false, s => logs.push(s), transport)).rejects.toThrow('Keeper run failed');
     expect(h.calls.filter(c => c.method === 'send_tx')).toHaveLength(1);
     expect(h.calls.some(c => c.method === 'ping')).toBe(false);
     expect(logs.join()).not.toContain(h.config.KEEPER_PRIVATE_KEY);
     expect(logs.join()).not.toContain(h.config.HEALTHCHECK_PING_URL);
+    if (outcome === 'unknown') {
+      const send = h.calls.find(c => c.method === 'send_tx')!;
+      const signed = decodeSignedTransaction(Buffer.from(String(send.params.signed_tx_base64), 'base64'));
+      const hash = baseEncode(new Uint8Array(await crypto.subtle.digest('SHA-256', encodeTransaction(signed.transaction) as BufferSource)));
+      expect(beforeSend).toContain(`transaction=${hash} signer=${signed.transaction.signerId} nonce=${signed.transaction.nonce} method=advance`);
+      expect(logs.some(line => line.includes('stage=send rpc=send_tx rpc_failure=transport'))).toBe(true);
+      expect(logs.join()).not.toContain('private key or endpoint');
+    }
   });
   for (const raceCode of ['E10', 'E50']) it(`does not resubmit or ping on an ${raceCode} race`, async () => {
     const h = harness({ outcome: 'race', raceCode });

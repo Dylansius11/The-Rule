@@ -1,11 +1,16 @@
-import { Account, JsonRpcProvider, actions, type KeyPairString } from 'near-api-js';
+import { Account, JsonRpcProvider, actions, baseEncode, encodeTransaction } from 'near-api-js';
 import { decide, uint, type Decision, type Mode, type NextSlot, type Params, type Round } from './game.ts';
+import { createNativeSigner } from './signer.ts';
 
 export interface Config { NEAR_RPC_URL: string; GAME_ACCOUNT: string; KEEPER_ACCOUNT?: string; KEEPER_PRIVATE_KEY?: string; HEALTHCHECK_PING_URL?: string; NEAR_NETWORK?: 'testnet' | 'sandbox'; MAINTAIN_SEASONS?: string; KEEPER_MODES?: string; LAST_ROUND_ID?: string }
 type Log = (message: string) => void;
 type Snapshot = { params: Params; rounds: Round[]; slots: [NextSlot, NextSlot]; now: bigint; hash: string };
 
 function parse(text: string): unknown {
+  // RPC byte arrays contain only 0..255. Walking every byte with a reviver
+  // burns the Free Worker's CPU; use it only when a potentially unsafe literal
+  // occurs. False positives inside strings merely take the conservative path.
+  if (!/\d{16}/.test(text)) return JSON.parse(text);
   return JSON.parse(text, (_key: string, value: unknown, context?: { source?: string }) => {
     if (typeof value === 'number' && !Number.isSafeInteger(value) && context?.source && /^\d+$/.test(context.source)) return context.source;
     return value;
@@ -41,11 +46,17 @@ function same(a: Decision, b: Decision): boolean { return a.method === b.method 
 function validAccount(id: string): boolean { return id.length >= 2 && id.length <= 64 && /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/.test(id); }
 
 export async function run(config: Config, dryRun = false, log: Log = console.log, transport: typeof fetch = fetch): Promise<void> {
+  let stage = 'configuration';
+  let lastRpc = 'none';
+  let rpcFailure = 'none';
   async function rpc(method: string, params: object): Promise<unknown> {
+    lastRpc = method === 'query' && 'method_name' in params && typeof params.method_name === 'string' ? params.method_name : method;
+    rpcFailure = 'transport';
     const response = await transport(config.NEAR_RPC_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
-    if (!response.ok) throw new Error('RPC HTTP failure');
+    if (!response.ok) { rpcFailure = `http-${response.status}`; throw new Error('RPC HTTP failure'); }
     const data = object(parse(await response.text()));
-    if (data.error || data.result === undefined) throw new Error('RPC failure');
+    if (data.error || data.result === undefined) { rpcFailure = 'response'; throw new Error('RPC failure'); }
+    rpcFailure = 'none';
     return data.result;
   }
   async function view(hash: string, method_name: string, args: object): Promise<unknown> {
@@ -124,7 +135,20 @@ export async function run(config: Config, dryRun = false, log: Log = console.log
     const provider = new JsonRpcProvider({ url: config.NEAR_RPC_URL }, { retries: 1 });
     // All SDK requests share the same transport and exactly one attempt, including send_tx.
     provider.sendJsonRpc = rpc as typeof provider.sendJsonRpc;
-    const account = new Account(config.KEEPER_ACCOUNT!, provider, config.KEEPER_PRIVATE_KEY as KeyPairString);
+    let account: Account | undefined;
+    async function send(method: string, args: object, gas: bigint) {
+      stage = 'sign';
+      account ??= new Account(config.KEEPER_ACCOUNT!, provider, await createNativeSigner(config.KEEPER_PRIVATE_KEY!));
+      const signed = await account.createSignedTransaction({ receiverId: config.GAME_ACCOUNT, actions: [actions.functionCall(method, args, gas, 0n)] });
+      const hash = baseEncode(new Uint8Array(await crypto.subtle.digest('SHA-256', encodeTransaction(signed.transaction) as BufferSource)));
+      // Public identity is recorded before the single send; never log the signed
+      // payload, arguments, endpoint or credential, even on an unknown outcome.
+      log(`transaction=${hash} signer=${signed.transaction.signerId} nonce=${signed.transaction.nonce} method=${method}`);
+      stage = 'send';
+      const result = await provider.sendTransactionUntil(signed, 'FINAL');
+      stage = 'receipt-validation';
+      return result;
+    }
     let unhealthy = false;
     for (const proposed of initial) {
       state = await snapshot();
@@ -133,12 +157,13 @@ export async function run(config: Config, dryRun = false, log: Log = console.log
       const mode = proposed.args.mode;
       const id = proposed.args.round_id;
       log(`mode=${mode} decision=${proposed.method}`);
-      const result = await account.signAndSendTransaction({ receiverId: config.GAME_ACCOUNT, actions: [actions.functionCall(proposed.method, proposed.args, 300_000_000_000_000n, 0n)], waitUntil: 'FINAL', retries: 0, throwOnFailure: false });
+      const result = await send(proposed.method, proposed.args, 300_000_000_000_000n);
       if (!receipts(result)) {
         // Races are not resubmitted and never produce a healthy heartbeat.
         if (/\bE(?:10|50)\b/.test(JSON.stringify(result.status))) { log(`mode=${mode} transition raced`); unhealthy = true; state = await snapshot(); continue; }
         throw new Error('Transaction incomplete or failed');
       }
+      stage = 'post-state';
       state = await snapshot();
       const after = await view(state.hash, 'get_round', { mode, id }) as Round | null;
       if (!after || after.mode !== mode || after.round_id !== id) throw new Error('Missing postcondition');
@@ -162,7 +187,7 @@ export async function run(config: Config, dryRun = false, log: Log = console.log
         const before = await seasonStatus(state.hash, mode, season);
         if (before.ready) continue;
         log(`mode=${mode} season=${season} decision=index_season`);
-        const result = await account.signAndSendTransaction({ receiverId: config.GAME_ACCOUNT, actions: [actions.functionCall('index_season', { mode, season, limit: 20 }, 200_000_000_000_000n, 0n)], waitUntil: 'FINAL', retries: 0, throwOnFailure: false });
+        const result = await send('index_season', { mode, season, limit: 20 }, 200_000_000_000_000n);
         if (!receipts(result)) throw new Error('Season transaction incomplete or failed');
         state = await snapshot();
         const after = await seasonStatus(state.hash, mode, season);
@@ -182,10 +207,11 @@ export async function run(config: Config, dryRun = false, log: Log = console.log
       if (final.revision !== checked.revision || final.indexed < checked.indexed) unhealthy = true;
     }
     if (unhealthy) { log('keeper waiting; no heartbeat'); return; }
+    stage = 'heartbeat';
     const ping = await transport(config.HEALTHCHECK_PING_URL!);
     if (!ping.ok) throw new Error('Heartbeat failed');
   } catch {
-    log('keeper failed; no heartbeat');
+    log(`keeper failed stage=${stage} rpc=${lastRpc} rpc_failure=${rpcFailure}; no heartbeat`);
     throw new Error('Keeper run failed');
   }
 }

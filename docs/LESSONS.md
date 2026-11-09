@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-09: a successful deployed Cron is not proof that it fits Workers Free
+
+- **What happened:** D37's keeper started r3 Solo 0 on time and finalized it to Settled, with FINAL successful receipts and real heartbeat arrivals. The signed finalize nevertheless consumed 82 ms CPU against the documented 10-ms Free Cron budget; the dashboard independently confirmed that value.
+- **Root cause:** execution outcome and plan-budget compliance are separate checks; `outcome:ok` did not establish sustainable CPU headroom. [I] Completion above the published budget is consistent with the documented isolate burst flexibility, not proof that enforcement will continue allowing it. A separate start invocation threw after its successful on-chain action; its exact exception cause was not captured.
+- **Rule:** record deployed signed-path CPU and receipt/state evidence before accepting a runtime. Log the public hash before the single send, reconcile unknown outcomes without resending, and keep acceptance open when the budget fails. The native signer passes local workerd smoke but needs a new authorized live signing sample; idle-only measurements or startup time cannot replace it. Remove Cron and pause its dedicated check after qualification.
+
 ### 2026-11-09: a read-only browser suite passed while the signed paths had real bugs
 
 - **What happened:** the v2 web app passed 39 Playwright tests against live r2 reads, yet the first wallet-signed run against a local sandbox found seven defects: `get_season` still sent the old argument shape, a disabled log query showed "Loading plays" forever, the team form suggested a name the contract rejects (E11), claim copy promised a wallet transfer while the contract credits play credit, locks were only offered for rounds the contract does not require, a fresh player could not register token storage, and a play refund could be inferred from views that had not moved yet (inferred, not reproduced).

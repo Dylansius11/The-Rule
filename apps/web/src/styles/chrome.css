@@ -85,6 +85,17 @@
   background: var(--color-sun);
   border-radius: 4px;
 }
+@media (max-width: 767px) {
+  .pill {
+    min-height: 38px;
+    gap: 5px;
+    padding: 2px 8px;
+    font-size: 13px;
+  }
+  .pill b {
+    padding: 0 4px;
+  }
+}
 
 /* ---------- scroll story ---------- */
 .story-star {

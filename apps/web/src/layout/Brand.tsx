@@ -10,7 +10,7 @@ export function Brand() {
       aria-label="THE RULE, home"
       style={{ marginBottom: -4 }}
     >
-      <span className="block w-[72px] shrink-0 md:w-[92px]">
+      <span className="hidden w-[92px] shrink-0 md:block">
         <BlotPeek width={92} />
       </span>
       <span

@@ -8,6 +8,7 @@ import { useGuide } from './guide';
 import { MoreIcon, ROOM_TABS } from './nav';
 import { SettingsPanel } from './SettingsPanel';
 import { active, config } from '@/config/env';
+import { useWallet } from '@/game';
 
 /** Mobile bottom bar for the game: the four room tabs and More (Season, Account, Team crew, guide, settings, Demo). */
 export function TabBar() {
@@ -16,6 +17,7 @@ export function TabBar() {
   const mode = useNavMode();
   const { show } = useGuide();
   const { choose, dialog } = useDeploymentChoice();
+  const wallet = useWallet();
 
   useEffect(() => setMoreOpen(false), [pathname]);
 
@@ -120,6 +122,26 @@ export function TabBar() {
                 </Button>
               </div>
             </li>
+            {wallet.status === 'connected' && wallet.accountId ? (
+              <li className="rounded-lg border-[3px] border-ink bg-white px-4 py-3">
+                <p className="font-mono text-[12px] font-bold uppercase tracking-wide text-ink-soft">
+                  Connected · testnet
+                </p>
+                <p className="mt-1 break-all text-[17px] font-extrabold">{wallet.accountId}</p>
+                <div className="mt-2">
+                  <Button
+                    variant="red"
+                    size="sm"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      void wallet.disconnect();
+                    }}
+                  >
+                    Disconnect
+                  </Button>
+                </div>
+              </li>
+            ) : null}
             <li className="rounded-lg border-[3px] border-ink bg-white px-4 py-3">
               <h3 className="display mb-1 text-[26px] leading-none">Settings</h3>
               <SettingsPanel onNavigate={() => setMoreOpen(false)} />

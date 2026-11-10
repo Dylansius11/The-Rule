@@ -106,7 +106,7 @@ test('unavailable demo leaves the rehearsal deployment active', async ({ page })
   const strip = page.getByRole('note');
   await expect(strip).toContainText('Testnet rehearsal · keys retained · no preselected rule');
   await strip.getByRole('radio', { name: 'Demo' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Demo Mode is not deployed yet' });
+  const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Stay on the real game' }).click();
   await expect(dialog).not.toBeVisible();

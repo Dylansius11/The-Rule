@@ -68,7 +68,7 @@ export const config = {
     game: e2e?.game ?? read('VITE_GAME_ACCOUNT', 'game-r2.therule.testnet'),
     token: e2e?.token ?? read('VITE_TOKEN_ACCOUNT', 'token-r2.therule.testnet'),
   } satisfies Deployment,
-  /** Absent until the separate preselected-rule demo instance is deployed. */
+  /** Unavailable to this build unless both separate Demo contract accounts are explicitly configured. */
   demo: ((): Deployment | null => {
     const game = read('VITE_DEMO_GAME_ACCOUNT', '');
     const token = read('VITE_DEMO_TOKEN_ACCOUNT', '');

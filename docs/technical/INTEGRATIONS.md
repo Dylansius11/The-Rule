@@ -212,6 +212,8 @@ UIDES ran an initial focused **18-case** history/selection/season check, package
 
 P7.1's real-wallet signed UI actions and remaining full-matrix criteria are still separately gated. Existing founder wallet-connect observation, signed sandbox cases, synthetic 10k-ledger and prior R2 browser/CLI evidence remain valid for unchanged paths; mock data is never relabeled as live plays. Demo indexing is a signed mutation, not part of this read-only smoke. No new permission to sign, publish, reset Demo, switch defaults, deploy or delete keys follows from B8's local closure.
 
+**Unconfigured Demo builds:** absence of both Demo account overrides means this build cannot switch instances; it does not mean the separate Demo contracts do not exist. The existing dialog/mobile disclosure now says configuration is missing and leaves the active deployment unchanged. Only copy and a configuration comment changed; the old wording-dependent E2E dialog locator was removed rather than repinned to replacement copy. That E2E was not rerun; package typecheck/build/formatting and the separate configured-toggle browser evidence above retain their stated scope.
+
 ### 5. Keeper (P6.2, D20)
 
 1. **Docs [V] 2026-11-04:** [Workers Cron](https://developers.cloudflare.com/workers/configuration/cron-triggers/), [limits](https://developers.cloudflare.com/workers/platform/limits/) (free: 5 cron triggers, 10 ms CPU per invocation), [secrets](https://developers.cloudflare.com/workers/configuration/secrets/); [GitHub Actions schedule](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule) (minimum 5 minutes, can be delayed or dropped); [Healthchecks pricing](https://healthchecks.io/pricing/).

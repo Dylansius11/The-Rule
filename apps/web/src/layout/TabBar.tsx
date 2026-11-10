@@ -110,7 +110,7 @@ export function TabBar() {
               <p className="mt-1 text-[15px] font-semibold">
                 {config.demo
                   ? 'A separate demo instance: preselected rule, its own pot and token.'
-                  : 'Not deployed yet. You stay on the real game.'}
+                  : 'Not configured in this build. You stay on the current deployment.'}
               </p>
               <div className="mt-2">
                 <Button

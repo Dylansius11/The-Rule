@@ -669,6 +669,23 @@ Current `Request::Withdraw` stores actor/amount and `Request::Platform` stores a
 
 No new exploit or recipient-controlled callback failure was confirmed in this bounded review. Existing credit, callback-fence, refund-order and payment-permutation evidence remains the applicable local coverage; no duplicate testnet round or fault-injection runtime was rerun. Conservative pending principal can continue reducing available operator collateral, even after a transfer succeeded, until its callback completes. That availability cost and a blocked subsequent withdrawal must remain visible rather than being called recovered.
 
+### D41 native-NEAR mitigation boundary (2026-11-10)
+
+Founder reaffirmed native NEAR with the existing mitigations for continued **testnet-only** work. No resolver, new payout asset, custody intermediary or operator override is added. The following separates recovery from risk containment; prior evidence is reused, not presented as a fresh fault run:
+
+| Condition | Current behavior and evidence | Remaining limit |
+| --- | --- | --- |
+| Withdraw/platform transfer fails and its callback completes | The pending id is consumed once, native reservation released and credit/platform accrual restored; duplicate/wrong-kind callbacks cannot pay again. Existing native callback and actual-WASM effect tests cover these branches. | A failed callback is a different condition, even if the initiating transaction was successful. |
+| Withdraw/platform result is unknown because its callback did not complete | The pending request and native principal reservation remain; `expire_request` returns false for native requests. Existing refund-order/payment-permutation evidence covers withholding and replay fences. | No automatic refund, resend or authenticated recovery. Reservation may continue limiting operator admission after a successful transfer. |
+| Player withdraw is pending while other credit remains | Only the exact requested amount left spendable credit; other credit can fund play. Existing `withheld_withdrawal_does_not_block_play_or_make_its_principal_spendable` and actual-WASM isolation evidence apply. | A second withdrawal rejects E21; insufficient operator collateral can independently reject admission with E24. Isolation is not unlimited availability. |
+| A referee or read-only registration request stalls | Permissionless expiry after ten minutes applies the existing failure handler and fences late callbacks. | Round deadlines and already-spent compute remain separate; this is not a worker response SLA. |
+| RULE mint/unlock acknowledgement is unknown | Fixed-receiver same-id operation replay checks the funded immutable token outcome. Existing authenticated token-recovery runtimes prove once-only reconciliation. | This token protocol does not recover native NEAR transfers. |
+
+Operational reconciliation is read-only: retain the initiating transaction hash, inspect the complete finalized transfer/callback outcomes and compare the contract's pending/credit/reservation state. A wallet receipt or RPC observation can diagnose the outcome but cannot authorize a replacement transfer or mutate an immutable pending request. Do not ask a player to top up or repeat a withdrawal as a recovery remedy. Retained account keys permit a separately reviewed upgrade, not an existing recovery method.
+
+The D41 choice closes the architecture question for this bounded continuation, not B6's full recovery criterion or P8.1. Before an immutable release, explicitly review the intended deployment's remaining risks and final artifact evidence; neither freeze nor key deletion is authorized here.
+
+
 ### Local acceptance mapping (2026-11-06)
 
 This finite native/runtime composition accepts P2.4/P2.8 locally. Actual-WASM tests use **MOCK OutLayer**; none replaces P2.9 or promises every possible receipt schedule.

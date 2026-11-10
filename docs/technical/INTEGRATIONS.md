@@ -214,6 +214,23 @@ P7.1's real-wallet signed UI actions and remaining full-matrix criteria are stil
 
 **Unconfigured Demo builds:** absence of both Demo account overrides means this build cannot switch instances; it does not mean the separate Demo contracts do not exist. The existing dialog/mobile disclosure now says configuration is missing and leaves the active deployment unchanged. Only copy and a configuration comment changed; the old wording-dependent E2E dialog locator was removed rather than repinned to replacement copy. That E2E was not rerun; package typecheck/build/formatting and the separate configured-toggle browser evidence above retain their stated scope.
 
+#### P7.2 ledger acceptance (2026-11-10)
+
+P7.2 is accepted **locally** without changing its criteria. The previously executed `ledger-10k.spec.ts` supplies synthetic 10,000-row paging/virtualization, bounded DOM rows, exact filtered CSV/JSON downloads and completeness evidence; its source was inspected rather than rerunning an unchanged full scenario. Existing real R2 browser evidence supplies 52/52 loaded rows and a complete log.
+
+UIDES freshly exercised the missing combinations against actual R2 Solo 0: searching `probe-other.therule.testnet` showed 16/52 rows (5 YES/11 NO); adding even parity showed nine rows (2 YES/7 NO). Oldest-first IDs exactly matched independent pinned RPC rows `[10,19,22,28,33,36,39,44,47]`. Keyboard Enter opened row 10's `868 rain` with matching account/sequence/minute/mint/play key and visible focus. An impossible search showed no matches and disabled both exports; the 390 px document did not overflow. No response was replaced, no signature was made and no source changed. This is not a 10,000-play testnet round or a complete arbitrary-history archive claim.
+
+#### D41 audio and missing-interaction checks (UIDES, 2026-11-10)
+
+UIDES continued inline with verified Sol/no fallback, no source changes and no signing. In isolated managed Chromium 156, all **19** SFX returned HTTP 200 `audio/mpeg`, decoded successfully and had nonzero waveforms; the ambient track decoded to 30 seconds. The app's first gesture preloaded the effects and produced SFX/music buffer-source starts in a running AudioContext. This is browser audio-graph evidence, not a claim of listening to physical output.
+
+Actual Demo Solo 0 browser-worker replay matched **2/2** with commitment and complete log while both Sound/Music were off and no audio source started. Enabling Sound and replaying started the 0.88-second replay-pass source. Sound/music/motion settings survived reload; keyboard volume changed and the OS reduced-motion preference overrode an in-app off selection. Desktop Settings and mobile More returned focus on Escape with a visible 4 px outline. Nine explicitly **SAMPLE** slip states (idle, prechecking, signing, pending, known, accepted, rejected, refunded, error) had no document overflow at 390/1280 px and no running document animations under reduced motion. These samples do not replace signed gameplay outcomes.
+
+The original load/decode error did **not** reproduce during current playback, rapid Live/navigation or throttled navigation. Existing error handling discarded its original exception, so the old evidence cannot distinguish network failure from decode failure. No speculative asset replacement, error suppression or source patch was made. Preserve the historical audio caveat as unresolved cause; clean scoped diagnostic tabs are not whole-app clean-console certification. Evidence is retained in ignored project scratch (`scratch/review/phase7-audio-browser-evidence.json`).
+
+No full E2E, new unit tests, typecheck or build was rerun for this no-source-change investigation. Prior B8/sandbox/10k evidence retains its original scope. New external-wallet actions, Season indexing, Demo reset, target changes and publication remain separately gated.
+
+
 ### 5. Keeper (P6.2, D20)
 
 1. **Docs [V] 2026-11-04:** [Workers Cron](https://developers.cloudflare.com/workers/configuration/cron-triggers/), [limits](https://developers.cloudflare.com/workers/platform/limits/) (free: 5 cron triggers, 10 ms CPU per invocation), [secrets](https://developers.cloudflare.com/workers/configuration/secrets/); [GitHub Actions schedule](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule) (minimum 5 minutes, can be delayed or dropped); [Healthchecks pricing](https://healthchecks.io/pricing/).

@@ -1,15 +1,27 @@
 // Sandbox with mock OutLayer, not testnet evidence. No secret key ever enters the browser.
 import { test as base, expect, type Page } from '@playwright/test';
-import { Account, JsonRpcProvider, actions, type KeyPairString } from 'near-api-js';
+import { Account, JsonRpcProvider, PublicKey, actions, type KeyPairString } from 'near-api-js';
 import { readConfig, type SandboxConfig } from './global-setup';
 
 type WalletTransaction = {
   receiverId: string;
   actions: {
     type: string;
-    params: { methodName: string; args: Record<string, unknown>; gas: string; deposit: string };
+    params: {
+      methodName: string;
+      args: Record<string, unknown>;
+      gas: string;
+      deposit: string;
+      publicKey?: string;
+      accessKey?: { permission: { receiverId: string; allowance?: string; methodNames?: string[] } };
+    };
   }[];
 };
+
+/** Every transaction the fake wallet was asked to sign, as `receiver.method` or `account.AddKey`. */
+const walletLog = new WeakMap<Page, string[]>();
+export const walletCalls = (page: Page) => walletLog.get(page) ?? [];
+
 export async function configureSandboxPage(page: Page, sandbox: SandboxConfig, actor: Account) {
   if (!/^http:\/\/127\.0\.0\.1:\d+\/rpc$/.test(sandbox.rpcUrl) || sandbox.networkId !== 'sandbox')
     throw new Error('Signing is restricted to the isolated sandbox');
@@ -26,16 +38,38 @@ export async function configureSandboxPage(page: Page, sandbox: SandboxConfig, a
       return route.continue();
     return route.abort('blockedbyclient');
   });
+  const log: string[] = [];
+  walletLog.set(page, log);
   await page.exposeFunction('__sandboxSign', async (transaction: WalletTransaction) => {
-    if (![sandbox.game, sandbox.token].includes(transaction.receiverId))
+    const own = transaction.receiverId === actor.accountId;
+    if (![sandbox.game, sandbox.token].includes(transaction.receiverId) && !own)
       throw new Error('Receiver outside fixture');
+    log.push(
+      `${transaction.receiverId}.${transaction.actions.map(a => (a.type === 'FunctionCall' ? a.params.methodName : a.type)).join('+')}`,
+    );
     const result = await signer.signAndSendTransaction({
       // A yielded mock descendant must not delay the wallet's root game acknowledgement.
       waitUntil: 'INCLUDED_FINAL',
       throwOnFailure: false,
       receiverId: transaction.receiverId,
       actions: transaction.actions.map(action => {
-        if (action.type !== 'FunctionCall') throw new Error('Only function calls are allowed');
+        // Key management is only ever the player's own account, never a contract.
+        if (own && action.type === 'AddKey') {
+          const { publicKey, accessKey } = action.params;
+          if (!publicKey || !accessKey) throw new Error('AddKey needs a key and permission');
+          const { receiverId, allowance, methodNames } = accessKey.permission;
+          return actions.addFunctionCallAccessKey(
+            PublicKey.from(publicKey),
+            receiverId,
+            methodNames ?? [],
+            allowance ? BigInt(allowance) : undefined,
+          );
+        }
+        if (own && action.type === 'DeleteKey') {
+          if (!action.params.publicKey) throw new Error('DeleteKey needs a key');
+          return actions.deleteKey(PublicKey.from(action.params.publicKey));
+        }
+        if (own || action.type !== 'FunctionCall') throw new Error('Only function calls are allowed');
         const { methodName, args, gas, deposit } = action.params;
         return actions.functionCall(methodName, args, BigInt(gas), BigInt(deposit));
       }),

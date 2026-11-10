@@ -10,32 +10,6 @@ use protocol::token::{TokenOperation, TokenOperationStatus, TokenOutcome};
 use serde_json::{Value, json};
 use std::time::Duration;
 
-fn mask_callbacks(wasm: &[u8]) -> Res<Vec<u8>> {
-    let mut offsets = Vec::new();
-    for payload in wasmparser::Parser::new(0).parse_all(wasm) {
-        if let wasmparser::Payload::ExportSection(section) = payload? {
-            for export in section {
-                let export = export?;
-                if ["on_mint", "on_unlock"].contains(&export.name) {
-                    let start = export.name.as_ptr() as usize - wasm.as_ptr() as usize;
-                    offsets.push((start, export.name.len()));
-                }
-            }
-        }
-    }
-    assert_eq!(
-        offsets.len(),
-        2,
-        "fault fixture must mask exactly two exports"
-    );
-    let mut fault = wasm.to_vec();
-    for (start, len) in offsets {
-        fault[start..start + len].fill(b'x');
-    }
-    wasmparser::Validator::new().validate_all(&fault)?;
-    Ok(fault)
-}
-
 fn rpc(worker: &Worker<Sandbox>, method: &str, params: Value) -> Res<Value> {
     let body = json!({"jsonrpc":"2.0","id":"token-recovery","method":method,"params":params});
     let output = std::process::Command::new("curl")
@@ -286,7 +260,7 @@ async fn main() -> Res<()> {
     );
     let worker = near_workspaces::sandbox().await?;
     let wasm = std::fs::read(sandbox_tests::artifact("game"))?;
-    let fault = mask_callbacks(&wasm)?;
+    let fault = mask_callback_exports(&wasm, &["on_mint", "on_unlock"])?;
     let mock = worker
         .dev_deploy(&std::fs::read(sandbox_tests::artifact("mock_outlayer"))?)
         .await?;

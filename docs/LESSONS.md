@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-10: sandbox block counts are not elapsed seconds
+
+- **What happened:** two fixture controls advanced a block count derived from seconds and failed with E50 or a control timeout; an assertion also searched receipt outcomes for a method name they never contain.
+- **Root cause:** fast-forwarding blocks does not map to the contract's nanosecond deadlines, and a receipt outcome carries executor, gas and status, not the called method.
+- **Rule:** advance to an observed `block_timestamp` target with a bounded loop, step adaptively, and abort when the control channel closes. Assert the observed failure cause such as `MethodNotFound`, never a method name. Check a collapsed `<details>` is open before filling its fields.
+
 ### 2026-11-10: append-only season enrollment must not discard indexing progress
 
 - **What happened:** the focused audit found that every new season candidate reset `indexed` to zero. The added regression failed on the old code at 0 versus 2, then all 14 season cases passed after removing only that reset.

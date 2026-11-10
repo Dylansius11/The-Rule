@@ -8,6 +8,32 @@ use sandbox_tests::{artifact, params};
 use serde_json::{Value, json};
 
 pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
+/// Key-retaining sandbox instrumentation: rename selected callback exports only.
+/// Restoring the original code does not replay a failed native callback.
+pub fn mask_callback_exports(
+    wasm: &[u8],
+    names: &[&str],
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let mut fault = wasm.to_vec();
+    let mut found = 0;
+    for payload in wasmparser::Parser::new(0).parse_all(wasm) {
+        if let wasmparser::Payload::ExportSection(section) = payload? {
+            for export in section {
+                let export = export?;
+                if names.contains(&export.name) {
+                    let start = export.name.as_ptr() as usize - wasm.as_ptr() as usize;
+                    fault[start..start + export.name.len()].fill(b'x');
+                    found += 1;
+                }
+            }
+        }
+    }
+    if found != names.len() {
+        return Err("fault fixture did not find every requested callback export".into());
+    }
+    wasmparser::Validator::new().validate_all(&fault)?;
+    Ok(fault)
+}
 
 pub async fn fund_token_operations(token: &Contract) -> Res<()> {
     token

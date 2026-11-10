@@ -4,7 +4,6 @@ import { createServer } from 'node:http';
 import { createInterface } from 'node:readline';
 import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
 import { createWriteStream } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 
@@ -25,14 +24,22 @@ export const readConfig = async () => JSON.parse(await readFile(fixturePath, 'ut
 
 export default async function setup() {
   const started = Date.now();
+  const profile = process.env.THE_RULE_E2E_PROFILE;
+  if (profile !== undefined && profile !== 'transitions') throw new Error('Unknown sandbox fixture profile');
   await mkdir(resolve(fixturePath, '..'), { recursive: true });
   await rm(fixturePath, { force: true });
-  const temporary = await mkdtemp(resolve(tmpdir(), 'the-rule-web-sandbox-'));
+  const scratch = resolve(root, 'scratch');
+  await mkdir(scratch, { recursive: true });
+  const temporary = await mkdtemp(resolve(scratch, 'web-sandbox-'));
   const log = createWriteStream(resolve(temporary, 'harness.log'));
   const linuxPath = (path: string) =>
     path.replaceAll('\\', '/').replace(/^([A-Za-z]):/, (_, drive: string) => `/mnt/${drive.toLowerCase()}`);
   const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
-  const command = `cd ${quote(linuxPath(root))} && bash scripts/e2e/sandbox.sh ${quote(linuxPath(fixturePath))}`;
+  // WSL does not inherit arbitrary Windows variables: explicitly forward only local artifact overrides.
+  const overrides = ['CARGO_TARGET_DIR', 'GAME_WASM', 'TOKEN_WASM', 'MOCK_OUTLAYER_WASM']
+    .flatMap(name => (process.env[name] ? [`${name}=${quote(process.env[name]!)}`] : []))
+    .join(' ');
+  const command = `cd ${quote(linuxPath(root))} && ${overrides ? `export ${overrides} && ` : ''}bash scripts/e2e/sandbox.sh ${quote(linuxPath(fixturePath))}${profile === 'transitions' ? ' transitions' : ''}`;
   const child = spawn('wsl.exe', ['-e', 'bash', '-lc', command], {
     cwd: root,
     stdio: ['pipe', 'pipe', 'pipe'],

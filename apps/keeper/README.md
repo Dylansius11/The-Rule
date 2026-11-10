@@ -54,6 +54,20 @@ Another live round is not authorized by this completed run. Keep Free as the fou
 
 A successful local **actual workerd** signed-advance profile was captured against the genuine sandbox, with MOCK OutLayer. RPC, response parsing and fetch frames are visible, but profiler attribution includes waits/overhead and is not a deployed CPU measurement or a proven root-cause split. A separate read-only batch probe to the selected testnet RPC returned HTTP 400 `REQUEST_VALIDATION_ERROR` / `PARSE_ERROR`: JSON-RPC batching cannot simply replace these calls on this endpoint. No batch fallback, new dependency, reduced receipt check or weaker final-state check was added. The next Free-focused design must reduce measured RPC/parsing work while preserving those guards before another live sample.
 
+### Local candidates rejected (2026-11-10)
+
+A bounded CPU-only investigation compared the current path with a string-aware scanner that avoids long-digit matches inside quoted JSON, and separately with reuse of decisions already computed for the same validated snapshot. Warmed results were inconsistent, so neither was adopted. No code, dependency, snapshot/finality guard or deployed runtime changed. The actual current keeper suite still passes 33 tests and typecheck.
+
+The final scanner comparison used four samples of 1,000 invocations per scenario after warmup, deterministic in-memory RPC responses and the public test-vector signer. Median CPU milliseconds per invocation:
+
+| Scenario | Current parser | Scanner candidate |
+| --- | ---: | ---: |
+| Idle | 0.390 | 0.439 |
+| Signed advance | 2.125 | 2.321 |
+
+These are local warmed Node measurements, not Cloudflare CPU, network latency or a cold-isolate budget. They justify rejecting this candidate, not accepting Free or requesting a redeploy. D38's actual CPU gate remains unchanged. Further qualification needs a defensible implementation change and separately authorized deployment/live operation; do not weaken finality, receipt checks or authorization fences to meet a timing target.
+
+
 
 ## Cloudflare qualification procedure
 

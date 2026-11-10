@@ -164,6 +164,29 @@ Founder chose **Cloudflare Pages primary and FastFS testnet mirror** on 2026-11-
 4. **Environment variables (public, build time, all optional; defaults in `apps/web/src/config/env.ts` point at r2):** `VITE_RPC_URL`, `VITE_RPC_FALLBACK_URL`, `VITE_GAME_ACCOUNT`, `VITE_TOKEN_ACCOUNT`, `VITE_GAME_KIND` (`production`, `rehearsal` or `demo`; drives the visible deployment label, because r2's chain `demo` flag means a compressed rehearsal, not a preselected rule), `VITE_DEMO_GAME_ACCOUNT`, `VITE_DEMO_TOKEN_ACCOUNT`. The network is fixed to testnet.
 5. **Verification:** `curl -sI https://<site>/assets/<hash>.wasm` shows `content-type: application/wasm`; a fresh browser connects a testnet wallet and reads `get_round`.
 
+#### R3 and Demo compatibility inspection (2026-11-10)
+
+[V] Read-only testnet inspection pinned account hashes, parameters and round views to final block **277031784** (`8cf5H9bLyZ4ZNvRqnYDdBuve1NUrNqe2by8qkA7pz2ZU`). R2 hashes still match its recorded artifacts; R3 and Demo game/token hashes match the selected Phase 6 artifacts in REPRODUCIBLE-BUILDS. Each game retains one access key. All three game accounts are storage-registered on their own token. No transaction, account creation, deployment or configuration change was sent.
+
+| Instance | Game account | Token from live `get_params` | Intended integration |
+| --- | --- | --- | --- |
+| R2 | `game-r2.therule.testnet` | `token-r2.therule.testnet` | Preserve existing rehearsal history and the current FE default |
+| R3 | `game-r3.therule.testnet` | `token-r3.therule.testnet` | Phase 6 integration candidate, not a frozen or keyless release |
+| Demo | `demo-game.therule.testnet` | `demo-token.therule.testnet` | Separate **Demo Mode - preselected rule** |
+
+Public build configuration for a separately approved R3 integration is `VITE_GAME_ACCOUNT=game-r3.therule.testnet`, `VITE_TOKEN_ACCOUNT=token-r3.therule.testnet`, `VITE_GAME_KIND=rehearsal`, `VITE_DEMO_GAME_ACCOUNT=demo-game.therule.testnet`, and `VITE_DEMO_TOKEN_ACCOUNT=demo-token.therule.testnet`. This is a mapping, not an applied FE change or permission to deploy. R3's `params.demo:true` selects compressed timing, not a preselected rule; its referee has no Demo secret reference. Never label it keyless production or infer Demo rule selection from that flag.
+
+The actual unchanged `apps/web/src/chain/views.ts` adapters were loaded through an isolated Vite SSR instance and exercised against live final RPC reads: params/token, word list, latest round, log, next slot, season and game token registration all decoded successfully for each pair. R2 returned 52 Solo rows and unsupported season; R3 returned its empty Solo 12 and a ready empty season-0 board; Demo returned two Solo rows and an honestly not-ready season-0 board (0/1 indexed, revision 2). These adapter calls are not a browser rendering, external-wallet or signed-action smoke, and their separate calls are not claimed as one pinned snapshot.
+
+**Do not flip the FE target blindly.** `get_next_slot.round_id` is a scheduled slot id, not the count of retained rounds. At the pinned block R3's latest actual Solo round was 12, next slot was 34, and round 11 was absent. Demo's latest actual round was 0 while its next slot was 138. `useRoundSelection.ts` constructs every id below the next slot and scans backwards for a revealed round; `SeasonPage.tsx` derives the newest 30 history ids from that same slot. This admits nonexistent picker ids and, for Demo, selects 108..137 while omitting the actual round 0. The FE owner must handle sparse ids, anchor current-round navigation to actual round views, omit nonexistent records, and avoid an unbounded backward RPC scan. Preserve the existing design and the distinction between missing data and failed RPC. R2 history, credit, Team and RULE balances do not migrate by changing a build variable.
+
+Demo's not-ready season is real state, not a missing interface. `index_season` is a signed permissionless transaction, not a read; none was sent. The current FE already distinguishes unsupported, rebuilding and ready boards. Revalidate the index revision before displaying a complete board; continuing candidates/settlements can invalidate rebuilding progress. Large-board gas/liveness is not proved by the earlier 21-player sample.
+
+Pinned public exports also passed the actual native CLI and browser-target WASM under Node: R2 Solo 0 **52/52**, R3 Solo 12 **0/0**, and Demo Solo 0 **2/2**. WASM rejected a flipped verdict for both nonempty exports. R3 remains an empty-round commitment check, not verdict coverage. This did not run a browser worker or repeat paid gameplay.
+
+**Cloud monitoring access:** the relay route available to this session exposed an unrelated Phala tab, which was untouched. New tabs at the authorized Cloudflare account and Healthchecks project redirected to login and were closed without authenticating or changing settings. The last independently verified empty Cron/paused checks remain D38's historical evidence, not a fresh 2026-11-10 dashboard verification. Owner authentication in the intended relay route is required before future cloud inspection or separately approved mutation.
+
+
 ### 5. Keeper (P6.2, D20)
 
 1. **Docs [V] 2026-11-04:** [Workers Cron](https://developers.cloudflare.com/workers/configuration/cron-triggers/), [limits](https://developers.cloudflare.com/workers/platform/limits/) (free: 5 cron triggers, 10 ms CPU per invocation), [secrets](https://developers.cloudflare.com/workers/configuration/secrets/); [GitHub Actions schedule](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule) (minimum 5 minutes, can be delayed or dropped); [Healthchecks pricing](https://healthchecks.io/pricing/).

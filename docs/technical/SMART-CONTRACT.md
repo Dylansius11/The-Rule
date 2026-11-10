@@ -331,6 +331,15 @@ Independent final block **276823670**: pot 0.066 NEAR; winner/contributor reward
 
 The separately authorized, key-retaining r3 Solo 12 completed scheduled start, advance, real OutLayer open and Settled Unsolved with zero plays. Exact transaction identities, successful FINAL receipt graphs, final-block accounting, heartbeat arrivals, spending audit and empty-round commitment verification are recorded in the [keeper's D38 evidence](../../apps/keeper/README.md#d38-native-signer-and-exact-round-free-repeat). This did not redeploy either contract or touch r2. The lifecycle succeeded, but the measured native-signer CPU still exceeded Workers Free's documented limit, so P6.2 is not accepted. Cron stopped; no further round, paid upgrade, freeze or key deletion.
 
+### Bounded pre-freeze review continuation (2026-11-10)
+
+[V] Two Terra source-review slices and lead checks covered schedule/slot/target atomicity, season revision/cursor rebuilding, private callback/expiry fencing, settlement and historical Team rights, credit/collateral, fixed-minter funded token outcomes and standard resolver custody, referee caller/hash context and Demo separation, strict output/input boundaries, and verifier commitment/log consistency. No new exploitable finding was confirmed. The initial concern about omitted nested `Play.prev` was withdrawn: the documented operation-level exact fields do not explicitly require that nested nullable field's presence, and no asset/secrecy impact was demonstrated. No shared-core, contract or referee change was justified by that observation.
+
+Lead checks passed 34 selected game regressions and 29 protocol/referee/token checks, including four actual local token-WASM sandbox scenarios, plus selected all-target clippy. Existing 10k and prior real-OutLayer evidence were not replaced or rerun. Read-only deployed-hash, actual FE adapter and cross-target replay results are in INTEGRATIONS "R3 and Demo compatibility inspection"; no new signed testnet action occurred.
+
+**Unclosed gates:** D31's native payment callback residual is unchanged and accepted only for testnet. New candidates/settlements reset season indexing; a busy season can invalidate partial progress, and a universal large-board gas/liveness bound has not been established. The earlier 21-player runtime is a finite sample, not that bound. This continuation is neither an independent audit certification nor closure of P8.1/B6, final freeze, attestation verification or key deletion.
+
+
 ### Panic codes
 
 | Code | Meaning | Code | Meaning |

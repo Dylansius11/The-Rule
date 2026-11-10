@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-10: a scheduled slot id is not a count of retained rounds
+
+- **What happened:** read-only Phase 6 integration found Demo's latest actual Solo round 0 but next slot 138; R3's latest was 12, next slot 34, and round 11 was absent at final block 277031784. The existing FE builds dense picker/history ids from that next slot; its Demo history window therefore excludes the round that actually exists.
+- **Root cause:** skipped scheduled slots intentionally create no round record. A next-slot view describes time-based scheduling, not historical enumeration. R2's earlier dense sample did not expose this assumption.
+- **Rule:** keep deployment, mode and actual round id together; never use a next-slot number as an existing-record count. Exercise sparse histories before switching FE targets, preserve the existing UI, and distinguish missing rounds from RPC errors. Read-only adapter success alone does not accept the signed/browser integration.
+
 ### 2026-11-09: a successful deployed Cron is not proof that it fits Workers Free
 
 - **What happened:** D37's keeper started r3 Solo 0 on time and finalized it to Settled, with FINAL successful receipts and real heartbeat arrivals. Its signed finalize consumed 82 ms CPU against the documented 10-ms Free budget. D38's native signer then completed Solo 12 with signed CPU 31/28/25 ms and idle 9/12/10 ms; the dashboard independently confirmed finalize at 25 ms. The round succeeded but Free qualification still failed.

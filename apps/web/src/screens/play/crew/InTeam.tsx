@@ -86,7 +86,7 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
             <ActionSlip
               state={actions.withdraw.state}
               onReset={actions.withdraw.reset}
-              doneText="Withdrawal sent, waiting for the transfer. Do not retry; the vault updates when it settles."
+              doneText="Withdrawal sent. Do not retry; confirmation is pending and the vault updates once it is confirmed."
             />
           </div>
           <table className="data-table mt-4">

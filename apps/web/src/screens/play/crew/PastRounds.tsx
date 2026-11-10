@@ -1,30 +1,49 @@
 import { useState } from 'react';
-import { useClaimActions, useLatestRound, useTeamActions } from '@/game';
+import { useClaimActions, useLatestRound, useRound, useTeamActions } from '@/game';
 import { ActionSlip } from '@/ui/ActionSlip';
 import { Button } from '@/ui/Button';
 import { InkBox } from '@/ui/InkBox';
 import { phaseLabel } from '@/screens/shared/round';
 import { TextField, busy } from './parts';
 
+function parseId(value: string): number | null {
+  const text = value.trim();
+  if (!/^\d+$/.test(text)) return null;
+  const id = Number(text);
+  return Number.isInteger(id) && id <= 0xffff_ffff ? id : null;
+}
+
 export function PastRounds({ teamIdGuess }: { teamIdGuess: number | null }) {
   const latest = useLatestRound(1);
-  const round = latest.data ?? null;
+  const [roundInput, setRoundInput] = useState('');
+  const roundId = roundInput === '' ? (latest.data?.roundId ?? null) : parseId(roundInput);
+  const selected = useRound(1, roundId);
+  const round = selected.data ?? null;
   const [tid, setTid] = useState(teamIdGuess === null ? '' : String(teamIdGuess));
   const settle = useTeamActions().settle;
-  const claims = useClaimActions(1, round?.roundId ?? 0);
-  const id = /^\d+$/.test(tid.trim()) ? Number(tid.trim()) : null;
+  const claims = useClaimActions(1, roundId ?? 0);
+  const id = parseId(tid);
   const done = round && ['Settled', 'Cancelled', 'Void'].includes(round.phase);
   return (
     <InkBox className="p-5" fill="var(--color-paper)" tilt={0.5}>
       <h3 className="display text-[34px] leading-none">Settle &amp; claim</h3>
       <p className="mb-3 mt-2 font-semibold">
-        Rewards are equal per member and use the original team id, even after you leave.
+        Rewards are equal per member and use the original round and team ids, even after you leave.
       </p>
       {round ? (
         <p className="mono mb-3 text-[14px] font-bold">
           Team round {round.roundId} · {phaseLabel(round.phase)}
         </p>
       ) : null}
+      <div className="max-w-[260px]">
+        <TextField
+          id="past-round"
+          label="Round id"
+          value={roundInput}
+          onChange={setRoundInput}
+          placeholder={latest.data ? String(latest.data.roundId) : 'e.g. 0'}
+        />
+      </div>
       <div className="max-w-[260px]">
         <TextField id="past-team" label="Team id" value={tid} onChange={setTid} placeholder="e.g. 3" />
       </div>

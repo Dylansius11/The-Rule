@@ -238,7 +238,7 @@ export function AccountPage() {
           <PendingSlip
             label="Withdrawal"
             active={!!p?.pendingWithdrawal}
-            text="Withdrawal sent, waiting for the transfer."
+            text="Withdrawal sent. Confirmation is pending."
           />
         </div>
       </section>

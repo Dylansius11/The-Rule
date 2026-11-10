@@ -16,6 +16,7 @@ import { roomPath } from '@/app/paths';
 import { ClaimsPanel } from './ClaimsPanel';
 import { CreditPanel } from './CreditPanel';
 import { LockPanel } from './LockPanel';
+import { SessionKeyPanel } from './SessionKeyPanel';
 import { TokenRecovery } from './TokenRecovery';
 import { PageHead } from '@/screens/shared/PageHead';
 
@@ -246,6 +247,10 @@ export function AccountPage() {
       <section aria-label="Credit" className="mt-10">
         <h2 className="display mb-4 text-[40px] leading-none">Credit</h2>
         <CreditPanel />
+      </section>
+      <section aria-label="Session key" className="mt-10">
+        <h2 className="display mb-4 text-[40px] leading-none">Session key</h2>
+        <SessionKeyPanel />
       </section>
       <section aria-label="RULE and locks" className="mt-10">
         <h2 className="display mb-4 flex items-center gap-3 text-[40px] leading-none">

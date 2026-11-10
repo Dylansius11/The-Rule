@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useSound } from '@/audio';
+import { useSigningCopy } from '@/chain/session/useSessionKey';
 import type { ActionState } from '@/game/types';
 import { ErrorCard } from './ErrorCard';
 import { HashText } from './HashText';
@@ -10,17 +11,14 @@ interface ActionSlipProps {
   /** What is true after the initiating transaction succeeded. Never claim async payments or mints completed. */
   doneText: string;
   onReset: () => void;
+  /** Overrides the default signing line, which says whether the wallet or the session key is signing. */
   signingText?: string;
 }
 
 /** Real signing / pending / done / error face for any wallet action. `done` means the transaction was accepted, not that a payment finished. */
-export function ActionSlip({
-  state,
-  doneText,
-  onReset,
-  signingText = 'Your wallet is open. Nothing is charged until you approve.',
-}: ActionSlipProps) {
+export function ActionSlip({ state, doneText, onReset, signingText }: ActionSlipProps) {
   const { play } = useSound();
+  const copy = useSigningCopy();
   const kind = state.kind;
   useEffect(() => {
     if (kind === 'done') play('success');
@@ -33,7 +31,7 @@ export function ActionSlip({
       {state.kind === 'signing' ? (
         <p className="flex items-center gap-3 font-bold">
           <span className="spinner" aria-hidden="true" />
-          {signingText}
+          {signingText ?? `${copy.title} ${copy.note}`}
         </p>
       ) : null}
       {state.kind === 'pending' ? (

@@ -2,6 +2,7 @@ import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { Art } from '@/art/Art';
 import { useReduced } from '@/motion/prefs';
+import { useSigningCopy } from '@/chain/session/useSessionKey';
 import type { PlayState } from '@/game/types';
 import { Amount } from './Amount';
 import { ErrorCard } from './ErrorCard';
@@ -13,14 +14,17 @@ import { StampMark } from './StampMark';
 const pad = (n: number) => String(n).padStart(3, '0');
 
 /** Plain words for screen readers; what the slip says visually, without stamps. */
-export function slipAnnouncement(state: PlayState): string {
+export function slipAnnouncement(
+  state: PlayState,
+  signing = 'Waiting for your wallet. Nothing is charged until you approve.',
+): string {
   switch (state.kind) {
     case 'idle':
       return '';
     case 'prechecking':
       return 'Checking the public log for this exact play.';
     case 'signing':
-      return 'Waiting for your wallet. Nothing is charged until you approve.';
+      return signing;
     case 'pending':
       return 'Waiting for the sealed program. Your fee is safe.';
     case 'known':
@@ -78,6 +82,7 @@ export function PlaySlip({
   onRetry?: () => void;
 }) {
   const reduced = useReduced();
+  const copy = useSigningCopy();
   let body: ReactNode;
 
   switch (state.kind) {
@@ -88,7 +93,7 @@ export function PlaySlip({
       body = <Waiting title="Checking the log…" note="Looking for this exact play. Free, nothing to sign." />;
       break;
     case 'signing':
-      body = <Waiting title="Your wallet is open." note="Nothing is charged until you approve." />;
+      body = <Waiting title={copy.title} note={copy.note} />;
       break;
     case 'pending':
       body = (
@@ -183,7 +188,10 @@ export function PlaySlip({
       radius="slip"
     >
       <div className="w-full">{body}</div>
-      <LiveRegion message={slipAnnouncement(state)} assertive={state.kind === 'error'} />
+      <LiveRegion
+        message={slipAnnouncement(state, `${copy.title} ${copy.note}`)}
+        assertive={state.kind === 'error'}
+      />
     </InkBox>
   );
 }

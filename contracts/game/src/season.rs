@@ -66,7 +66,7 @@ impl Game {
         let header = self.season_headers.entry((mode, season)).or_default();
         let index = header.total;
         header.total = header.total.checked_add(1).expect("E11");
-        header.indexed = 0;
+        // Appending cannot change cached Settled scores; terminal changes reset below.
         header.revision = header.revision.checked_add(1).expect("E11");
         self.season_candidates.insert((mode, season, index), entity);
         self.season_entries.insert(key, SeasonEntry { rank: None });

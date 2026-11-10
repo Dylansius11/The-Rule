@@ -517,6 +517,121 @@ async fn season(worker: &SandboxWorker) -> Res<()> {
     Ok(())
 }
 
+async fn season_progress(worker: &SandboxWorker) -> Res<()> {
+    let Env { mock, game, .. } = fixture(worker, 120).await?;
+    let rule: rule_core::CanonicalRule =
+        serde_json::from_value(json!({"v":"g1","form":0,"lits":[[0,0]]}))?;
+    let commitment = serde_json::to_value(protocol::round_commitment(&rule, &[5; 32]))?;
+    start(&game, &mock, commitment.as_str().ok_or("bad commitment")?).await?;
+    let mut actors = Vec::new();
+    let mut expected_ids = BTreeSet::new();
+    for i in 0..4u32 {
+        let actor = worker.dev_create_account().await?;
+        actor
+            .call(game.id(), "deposit_credit")
+            .deposit(NearToken::from_near(1))
+            .transact()
+            .await?
+            .into_result()?;
+        let player: Value = game
+            .view("get_player")
+            .args_json(json!({"account":actor.id()}))
+            .await?
+            .json()?;
+        expected_ids.insert(player["index"].as_u64().ok_or("missing player index")?);
+        let play = actor
+            .call(game.id(), "play")
+            .args_json(json!({"mode":0,"number":2*i+1,"word":"otter"}))
+            .max_gas()
+            .transact_async()
+            .await?;
+        wait_requests(&mock, i + 2).await?;
+        resolve(&mock, i + 1, json!({"v":0}), false).await?;
+        tokio::time::timeout(Duration::from_secs(30), play)
+            .await??
+            .into_result()?;
+        let mut observed = 0;
+        for _ in 0..100 {
+            let rows: Vec<Value> = game
+                .view("get_log")
+                .args_json(json!({"mode":0,"id":0,"from_idx":0,"limit":200}))
+                .await?
+                .json()?;
+            observed = rows.len();
+            if observed == i as usize + 1 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+        assert_eq!(observed, i as usize + 1, "verdict callback not observed");
+        let entity: Value = game
+            .view("get_entity")
+            .args_json(json!({"mode":0,"id":0,"account":actor.id()}))
+            .await?
+            .json()?;
+        assert_eq!(entity["shares"], 1);
+        assert_eq!(entity["pending"], false);
+        actors.push(actor);
+        if i == 0 {
+            continue;
+        }
+        let before: Value = game
+            .view("get_season_status")
+            .args_json(json!({"mode":0,"season":0}))
+            .await?
+            .json()?;
+        assert_eq!(before["total"], i + 1);
+        assert_eq!(before["indexed"], i - 1, "append discarded completed work");
+        let batch = actors[0]
+            .call(game.id(), "index_season")
+            .args_json(json!({"mode":0,"season":0,"limit":1}))
+            .max_gas()
+            .transact()
+            .await?;
+        let gas = batch.total_gas_burnt.as_gas();
+        batch.into_result()?;
+        let status: Value = game
+            .view("get_season_status")
+            .args_json(json!({"mode":0,"season":0}))
+            .await?
+            .json()?;
+        assert_eq!(status["indexed"], i);
+        assert_eq!(status["revision"], before["revision"]);
+        assert_eq!(status["ready"], false);
+        println!(
+            "season-progress candidates={} indexed={i} batch_gas={gas}",
+            i + 1
+        );
+    }
+    actors[0]
+        .call(game.id(), "index_season")
+        .args_json(json!({"mode":0,"season":0,"limit":20}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+    let rows: Vec<Value> = game
+        .view("get_season")
+        .args_json(json!({"mode":0,"season":0,"from":null,"limit":200}))
+        .await?
+        .json()?;
+    assert_eq!(rows.len(), 4);
+    assert_eq!(
+        rows.iter()
+            .map(|row| row["entity_id"].as_u64().unwrap())
+            .collect::<BTreeSet<_>>(),
+        expected_ids
+    );
+    assert!(
+        rows.iter()
+            .all(|row| row["shares"] == 0 && row["earned"] == "0")
+    );
+    println!(
+        "season-progress actual WASM: append preserved indexing; four unique pre-settlement rows ready"
+    );
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Res<()> {
     println!(
@@ -526,8 +641,13 @@ async fn main() -> Res<()> {
     if let Some(case) = std::env::args().nth(1) {
         match case.as_str() {
             "season" => season(&worker).await?,
+            "season-progress" => season_progress(&worker).await?,
             "advance" | "pending" | "race" | "worker" => keeper_case(&worker, &case).await?,
-            _ => return Err("expected advance, pending, race, worker or season".into()),
+            _ => {
+                return Err(
+                    "expected advance, pending, race, worker, season or season-progress".into(),
+                );
+            }
         }
         return Ok(());
     }

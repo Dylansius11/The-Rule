@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-10: append-only season enrollment must not discard indexing progress
+
+- **What happened:** the focused audit found that every new season candidate reset `indexed` to zero. The added regression failed on the old code at 0 versus 2, then all 14 season cases passed after removing only that reset.
+- **Root cause:** candidate-list growth and terminal score changes shared invalidation semantics despite different effects. Appending a previously unseen entity cannot change cached Settled scores; settlement can. Actual local WASM with MOCK OutLayer interleaved four paid verdicts and one-row index batches, preserved progress and exposed exactly the observed players' completed rows.
+- **Rule:** preserve append progress, still increment revision/total, and reset for genuine score changes. Keep dirty boards hidden until complete. This prevents unnecessary rework, not arrivals faster than indexing or continuous settlement invalidation. Runtime checks must observe detached callbacks and derive player IDs from views, not fixture conventions.
+
 ### 2026-11-10: a scheduled slot id is not a count of retained rounds
 
 - **What happened:** read-only Phase 6 integration found Demo's latest actual Solo round 0 but next slot 138; R3's latest was 12, next slot 34, and round 11 was absent at final block 277031784. The existing FE builds dense picker/history ids from that next slot; its Demo history window therefore excludes the round that actually exists.

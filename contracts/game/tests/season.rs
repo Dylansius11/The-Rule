@@ -497,6 +497,79 @@ fn production_start_requires_room_for_full_reveal() {
 }
 
 #[test]
+fn appending_candidates_preserves_index_progress_until_settlement() {
+    let mut fx = fixture(params());
+    for id in 0..3u16 {
+        fx.actor(&format!("append{id}.near"));
+        let request = fx.play(id, "otter");
+        fx.verdict(request, 0);
+    }
+    let first = serde_json::to_value(fx.game.index_season(Mode::Solo, 0, 2)).unwrap();
+    assert_eq!(first["indexed"], 2);
+    assert_eq!(first["total"], 3);
+
+    fx.actor("append3.near");
+    let request = fx.play(3, "otter");
+    fx.verdict(request, 0);
+    let appended = serde_json::to_value(fx.game.get_season_status(Mode::Solo, 0)).unwrap();
+    assert_eq!(appended["indexed"], 2);
+    assert_eq!(appended["total"], 4);
+    assert_eq!(
+        appended["revision"].as_u64().unwrap(),
+        first["revision"].as_u64().unwrap() + 1
+    );
+    assert_eq!(appended["ready"], false);
+    assert!(
+        panic_text(|| {
+            fx.game.get_season(Mode::Solo, 0, None, 200);
+        })
+        .contains("E50")
+    );
+    let complete = serde_json::to_value(fx.game.index_season(Mode::Solo, 0, 2)).unwrap();
+    assert_eq!(complete["indexed"], 4);
+    assert_eq!(complete["ready"], true);
+
+    fx.actor("append4.near");
+    let request = fx.play(4, "otter");
+    fx.verdict(request, 0);
+    let appended_again = serde_json::to_value(fx.game.get_season_status(Mode::Solo, 0)).unwrap();
+    assert_eq!(appended_again["indexed"], 4);
+    assert_eq!(appended_again["total"], 5);
+    assert_eq!(appended_again["ready"], false);
+    fx.game.index_season(Mode::Solo, 0, 2);
+    let before = fx.game.get_season(Mode::Solo, 0, None, 200);
+    assert_eq!(before.len(), 5);
+    for row in before {
+        let row = serde_json::to_value(row).unwrap();
+        assert_eq!(row["shares"], 0);
+        assert_eq!(row["earned"], "0");
+    }
+
+    fx.run_to_finalize(100);
+    let (_, open) = fx.finalize_all();
+    let response = fx.open_ok();
+    fx.on_open(open, response);
+    let dirty = serde_json::to_value(fx.game.get_season_status(Mode::Solo, 0)).unwrap();
+    assert_eq!(dirty["indexed"], 0);
+    assert_eq!(dirty["ready"], false);
+    assert!(
+        panic_text(|| {
+            fx.game.get_season(Mode::Solo, 0, None, 200);
+        })
+        .contains("E50")
+    );
+    fx.game.index_season(Mode::Solo, 0, 20);
+    let rows = fx.game.get_season(Mode::Solo, 0, None, 200);
+    assert_eq!(rows.len(), 5);
+    for (index, row) in rows.into_iter().enumerate() {
+        let row = serde_json::to_value(row).unwrap();
+        assert_eq!(row["entity_id"], index as u32 + 1);
+        assert_eq!(row["shares"], 1);
+        assert_eq!(row["earned"], "3200");
+    }
+}
+
+#[test]
 fn batch_limit_and_cursor_preserve_all_participants_after_settlement() {
     let mut fx = fixture(params());
     for id in 0..21u16 {

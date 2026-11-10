@@ -37,7 +37,7 @@ export function NoRoundOpen({ mode, round }: { mode: Mode; round: Round | null }
     slot.data && scheduled
       ? slot.data.slotMs > now
         ? `Next ${modeName(mode).toLowerCase()} slot: round ${slot.data.roundId}, ${fmtUtc(slot.data.slotMs)} (${fmtIn(slot.data.slotMs, now)}).`
-        : `Next slot (round ${slot.data.roundId}) was ${fmtUtc(slot.data.slotMs)}. It opens once someone starts it; the keeper does this on this rehearsal.`
+        : `Next slot (round ${slot.data.roundId}) was ${fmtUtc(slot.data.slotMs)}. It opens once someone starts it; the contract lets anyone do that.`
       : slot.isLoading
         ? 'Checking the schedule…'
         : slot.isError

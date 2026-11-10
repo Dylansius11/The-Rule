@@ -23,7 +23,9 @@ export function LastLaw() {
       id="last-law"
     >
       <InkBox className="p-6 text-ink md:p-9" tilt={-2} fill="var(--color-paper)" aria-live="polite">
-        <h2 className="display text-[clamp(44px,7vw,64px)] leading-[0.9]">The last law, opened</h2>
+        <h2 className="display text-[clamp(44px,7vw,64px)] leading-[0.9]">
+          {q.limited ? 'An opened law' : 'The last law, opened'}
+        </h2>
         {q.isLoading ? (
           <p className="mt-4 font-bold" aria-busy="true">
             Reading the newest revealed round from the chain…
@@ -69,14 +71,20 @@ export function LastLaw() {
         ) : (
           <>
             <p className="mt-4 text-[19px] font-bold">
-              No law has opened yet. The first reveal lands here, with every verdict replayable in your
-              browser.
+              No opened law was found in the recent round lookups. Older records may exist outside that
+              window; open a known historical round from its Verify URL.
             </p>
             <div className="mt-4">
               <Art name="stickers/asleep" width={120} />
             </div>
           </>
         )}
+        {q.limited ? (
+          <p className="mt-3 text-[15px] font-semibold">
+            Discovery checks at most 30 IDs per mode, ending at its actual latest round; it is not a complete
+            archive.
+          </p>
+        ) : null}
       </InkBox>
       <div className="relative mx-auto w-[min(260px,60vw)]">
         <Blot state="reveal" width="100%" />

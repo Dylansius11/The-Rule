@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import { roomPath } from '@/app/paths';
+import { toUiError } from '@/chain/errors';
 import { Art } from '@/art/Art';
 import { useLatestRevealedRound, useNextSlot } from '@/game';
 import type { Mode, Round } from '@/game/types';
@@ -7,6 +8,7 @@ import { Blot } from '@/mascot/Blot';
 import { useNow } from '@/motion/hooks';
 import { Button } from '@/ui/Button';
 import { InkBox } from '@/ui/InkBox';
+import { ErrorCard } from '@/ui/ErrorCard';
 import { fmtIn, fmtUtc } from '@/screens/shared/format';
 import { modeName, phaseLabel, outcomeLabel } from '@/screens/shared/round';
 
@@ -55,7 +57,7 @@ export function NoRoundOpen({ mode, round }: { mode: Mode; round: Round | null }
       <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
         {revealed.data ? (
           <Button to={roomPath(revealed.data.mode, 'verify', revealed.data.roundId)} variant="red">
-            See the last opened law
+            See an opened law
           </Button>
         ) : null}
         {round ? (
@@ -66,8 +68,8 @@ export function NoRoundOpen({ mode, round }: { mode: Mode; round: Round | null }
       </div>
       {revealed.data ? (
         <p className="mt-4 text-[15px] font-semibold">
-          Last revealed: {modeName(revealed.data.mode)} round {revealed.data.roundId}, {revealed.data.logLen}{' '}
-          plays,{' '}
+          Opened law found: {modeName(revealed.data.mode)} round {revealed.data.roundId},{' '}
+          {revealed.data.logLen} plays,{' '}
           <Link
             to={roomPath(revealed.data.mode, 'verify', revealed.data.roundId)}
             className="font-extrabold underline decoration-2 underline-offset-2"
@@ -76,6 +78,11 @@ export function NoRoundOpen({ mode, round }: { mode: Mode; round: Round | null }
           </Link>
           .
         </p>
+      ) : null}
+      {revealed.isError ? (
+        <div className="mt-4">
+          <ErrorCard error={toUiError(revealed.error)} onRetry={revealed.refetch} />
+        </div>
       ) : null}
     </InkBox>
   );

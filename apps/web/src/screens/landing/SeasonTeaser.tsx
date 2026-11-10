@@ -1,13 +1,14 @@
 import { Art } from '@/art/Art';
-import { useNextSlot } from '@/game';
+import { useLatestRound } from '@/game';
 import { Button } from '@/ui/Button';
 import { Doodle } from '@/ui/Doodle';
 
-/** Season in one breath, with the real count of rounds each mode has run on this deployment. */
+/** Season in one breath, with the actual latest round record per mode, never a slot-derived count. */
 export function SeasonTeaser() {
-  const solo = useNextSlot(0);
-  const team = useNextSlot(1);
-  const count = (q: typeof solo) => (q.data ? String(q.data.roundId) : q.isLoading ? '…' : '–');
+  const solo = useLatestRound(0);
+  const team = useLatestRound(1);
+  const latest = (q: typeof solo) =>
+    q.isError ? 'unavailable' : q.isLoading ? '…' : q.data ? `#${q.data.roundId}` : 'none';
   return (
     <div className="wrap relative grid items-center gap-8 md:grid-cols-[1.2fr_0.8fr]">
       <div>
@@ -16,8 +17,8 @@ export function SeasonTeaser() {
           A season is a <span className="text-sun">run of rounds</span>
         </h2>
         <p className="mt-4 max-w-[48ch] text-[20px] font-bold leading-snug">
-          Solo and Team each keep their own board and a history of every round: who won, how many plays, and a
-          way to replay it. Rounds played on this deployment so far: Solo {count(solo)}, Team {count(team)}.
+          Solo and Team each keep their own board. Browse observed rounds to see outcomes, plays and replay
+          links. Latest round records on this deployment: Solo {latest(solo)}, Team {latest(team)}.
         </p>
         <div className="mt-6">
           <Button to="/season" variant="sun" size="lg">

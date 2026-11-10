@@ -23,6 +23,7 @@ import { RoundPicker } from '@/screens/shared/RoundPicker';
 import { downloadLog } from '@/screens/shared/exportLog';
 import { modeName, outcomeLabel, phaseLabel } from '@/screens/shared/round';
 import { useRoundSelection } from '@/screens/shared/useRoundSelection';
+import { RoundHistoryNotice } from '@/screens/shared/RoundHistoryNotice';
 import { useRoom } from './room';
 import { Check, type CheckTone } from './verify/Check';
 import { Payouts } from './verify/Payouts';
@@ -140,6 +141,7 @@ export function VerifyTab() {
             </Tag>
           ) : null}
         </div>
+        <RoundHistoryNotice history={sel.history} />
       </div>
 
       {sel.loading || roundQ.isLoading ? (
@@ -149,6 +151,10 @@ export function VerifyTab() {
       ) : roundQ.isError ? (
         <div className="wrap pb-20">
           <ErrorCard error={toUiError(roundQ.error)} onRetry={() => void roundQ.refetch()} />
+        </div>
+      ) : !round && sel.history.error ? (
+        <div className="wrap pb-20">
+          <p className="font-bold">Round discovery is incomplete. Retry the failed reads above.</p>
         </div>
       ) : !round ? (
         <div className="wrap pb-20">
@@ -165,10 +171,11 @@ export function VerifyTab() {
             {sel.revealed ? (
               <>
                 {' '}
-                The newest opened {modeName(mode)} law is round {sel.revealed.roundId}.
+                The newest opened {modeName(mode)} law found in recent lookups is round {sel.revealed.roundId}
+                .
               </>
             ) : (
-              <> No {modeName(mode)} law has opened yet.</>
+              <> No opened {modeName(mode)} law was found in the bounded lookup window.</>
             )}
           </EmptyState>
           {sel.revealed && sel.revealed.roundId !== round.roundId ? (

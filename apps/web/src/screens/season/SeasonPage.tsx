@@ -1,11 +1,10 @@
-import { useQueries } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { roomPath, useNavMode } from '@/app/paths';
 import { toUiError } from '@/chain/errors';
 import { formatNear, shortHash } from '@/chain/format';
-import { getRound } from '@/chain/views';
-import { useNextSlot, useSeason } from '@/game';
+import { useSeason } from '@/game';
+import { useRoundHistory } from '@/game/reads';
 import type { Mode } from '@/game/types';
 import { PageHead } from '@/screens/shared/PageHead';
 import { isActive, modeName, outcomeLabel, phaseLabel } from '@/screens/shared/round';
@@ -16,8 +15,6 @@ import { ErrorCard } from '@/ui/ErrorCard';
 import { InkBox } from '@/ui/InkBox';
 import { Segmented } from '@/ui/Segmented';
 import { Tag } from '@/ui/Tag';
-
-const HISTORY_LIMIT = 30;
 
 /** Season: the board for a mode and the history of its rounds, every row read from the chain. */
 export function SeasonPage() {
@@ -140,35 +137,41 @@ function Board({ mode }: { mode: Mode }) {
 
 /** One row per round, newest first, from real `get_round` reads. Each links to its ledger and, once opened, its verify page. */
 function RoundHistory({ mode }: { mode: Mode }) {
-  const slot = useNextSlot(mode);
-  const count = slot.data?.roundId ?? 0;
-  const ids = Array.from({ length: Math.min(count, HISTORY_LIMIT) }, (_, i) => count - 1 - i);
-  const rounds = useQueries({
-    queries: ids.map(id => ({
-      queryKey: ['round', mode, id],
-      queryFn: () => getRound(mode, id),
-    })),
-  });
+  const { rounds, loading, error, limited, from, to, retry } = useRoundHistory(mode);
 
   return (
     <section className="mt-12" aria-label={`${modeName(mode)} round history`}>
       <h2 className="display text-[clamp(34px,5vw,48px)] leading-none">Round history</h2>
       <p className="mt-1 text-[15px] font-semibold">
-        {modeName(mode)} rounds on this deployment, read from the chain
-        {count > HISTORY_LIMIT ? `. Showing the newest ${HISTORY_LIMIT} of ${count}` : ''}.
+        {modeName(mode)} rounds observed on this deployment. History checks up to 30 IDs ending at the latest
+        round{from != null && to != null ? ` (#${from}–#${to})` : ''}.
+        {limited
+          ? ' Older rounds may exist outside this window; the contract only supports lookup by ID.'
+          : ''}
       </p>
       <div className="mt-4" aria-live="polite">
-        {slot.isError ? (
-          <ErrorCard error={toUiError(slot.error)} onRetry={() => void slot.refetch()} />
-        ) : slot.isLoading ? (
+        {error != null ? (
+          <ErrorCard
+            error={{
+              ...toUiError(error),
+              title: 'Could not read all rounds',
+              funds: 'No transaction was sent.',
+              retryable: true,
+            }}
+            onRetry={retry}
+          />
+        ) : null}
+        {loading ? (
           <p className="font-bold" aria-busy="true">
             Reading the rounds…
           </p>
-        ) : count === 0 ? (
+        ) : null}
+        {!loading && error == null && rounds.length === 0 ? (
           <EmptyState title="No rounds yet" art="stickers/asleep" artWidth={130}>
             No {modeName(mode).toLowerCase()} round has started on this deployment.
           </EmptyState>
-        ) : (
+        ) : null}
+        {rounds.length > 0 ? (
           <InkBox className="overflow-x-auto p-3 md:p-4" fill="#fff" tilt={-0.3}>
             <table className="data-table">
               <caption className="sr-only">{modeName(mode)} round history</caption>
@@ -192,18 +195,8 @@ function RoundHistory({ mode }: { mode: Mode }) {
                 </tr>
               </thead>
               <tbody>
-                {rounds.map((q, i) => {
-                  const id = ids[i]!;
-                  const round = q.data ?? null;
-                  if (!round)
-                    return (
-                      <tr key={id}>
-                        <td>#{id}</td>
-                        <td colSpan={6}>
-                          {q.isError ? 'Could not read this round.' : q.isLoading ? 'Reading…' : 'No data.'}
-                        </td>
-                      </tr>
-                    );
+                {rounds.map(round => {
+                  const id = round.roundId;
                   return (
                     <tr key={id}>
                       <td>#{id}</td>
@@ -244,7 +237,7 @@ function RoundHistory({ mode }: { mode: Mode }) {
               </tbody>
             </table>
           </InkBox>
-        )}
+        ) : null}
       </div>
       <div className="mt-6">
         <Button to={roomPath(mode)} variant="red">

@@ -1,6 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useMemo, useRef, useState } from 'react';
 import { formatNear, formatRule } from '@/chain/format';
+import { toUiError } from '@/chain/errors';
 import { useLog, useRound } from '@/game';
 import { Drip } from '@/mascot/Drip';
 import { Button } from '@/ui/Button';
@@ -16,6 +17,7 @@ import { pct } from '@/screens/shared/format';
 import { downloadLog } from '@/screens/shared/exportLog';
 import { isActive, modeName, pad3, phaseLabel } from '@/screens/shared/round';
 import { useRoundSelection } from '@/screens/shared/useRoundSelection';
+import { RoundHistoryNotice } from '@/screens/shared/RoundHistoryNotice';
 import { useRoom } from './room';
 
 type Verdict = 'all' | 'yes' | 'no';
@@ -89,12 +91,33 @@ export function LedgerTab() {
           </span>
         ) : null}
       </div>
+      <RoundHistoryNotice history={sel.history} />
 
-      {sel.roundId === null && !sel.loading ? (
+      {sel.loading || round.isLoading ? (
+        <p className="mt-8 font-bold" aria-busy="true">
+          Reading the round…
+        </p>
+      ) : round.isError ? (
+        <div className="mt-8">
+          <ErrorCard error={toUiError(round.error)} onRetry={() => void round.refetch()} />
+        </div>
+      ) : !round.data ? (
         <div className="mt-8">
           <InkBox className="p-8 text-center">
-            <h2 className="display text-[40px]">No rounds yet</h2>
-            <p className="mt-2 font-bold">The ledger fills once the first round starts.</p>
+            <h2 className="display text-[40px]">
+              {sel.roundId !== null
+                ? 'No such round'
+                : sel.history.error
+                  ? 'Round history unavailable'
+                  : 'No rounds yet'}
+            </h2>
+            <p className="mt-2 font-bold">
+              {sel.roundId !== null
+                ? `No record exists for round ${sel.roundId} on this deployment.`
+                : sel.history.error
+                  ? 'Retry the failed reads above; a failed request does not mean no rounds exist.'
+                  : 'The ledger fills once the first round starts.'}
+            </p>
           </InkBox>
         </div>
       ) : (

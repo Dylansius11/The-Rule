@@ -67,6 +67,21 @@ The final scanner comparison used four samples of 1,000 invocations per scenario
 
 These are local warmed Node measurements, not Cloudflare CPU, network latency or a cold-isolate budget. They justify rejecting this candidate, not accepting Free or requesting a redeploy. D38's actual CPU gate remains unchanged. Further qualification needs a defensible implementation change and separately authorized deployment/live operation; do not weaken finality, receipt checks or authorization fences to meet a timing target.
 
+### Reproducible offline CPU diagnostic (2026-11-10)
+
+`ci/cpu-profile.ts` invokes the actual production `run` with deterministic in-memory RPC responses and the public RFC 8032 signer vector; it never broadcasts or uses operational secrets. Run from the repository root, one fresh process per scenario:
+
+```sh
+node --experimental-strip-types apps/keeper/ci/cpu-profile.ts idle 100 1000 4
+node --experimental-strip-types apps/keeper/ci/cpu-profile.ts signed 100 1000 4
+```
+
+Output separates cold module import, the first invocation, warmed invocations, mock-transport CPU and intervals after RPC responses. Those intervals include parsing, keeper/SDK processing and instrumentation; they do not isolate crypto from every other cost. An optional fifth argument selects an absolute keeper source path for comparable checkouts with matching dependencies. Keep runtime, scenario and counts identical when comparing candidates.
+
+[V] WSL Node **24.22.1** exercised both paths, with 100 warmups and four batches of 1,000 invocations. Median warmed process CPU was **0.7962 ms idle** and **3.9922 ms signed advance**, including mock transport and measurement overhead. Cold source imports consumed 437.426/445.367 ms; first invocations consumed 81.439/116.234 ms, mostly the synthetic transport's first `Response` construction. These Node module/transport costs must not be projected onto bundled workerd or called deployed CPU. Windows Node 24.21.0 also completed both paths, but its coarse CPU counter produced zero/15–16-ms interval steps and is unsuitable for fine per-stage attribution.
+
+The diagnostic verifies the actual idle/advance RPC flow, one send, a Reveal postcondition and heartbeat. SDK signing performs its own block/access-key reads. No production optimization was retained: this is a reproducible measurement tool, not evidence that Free now fits. The existing 33 keeper tests, package typecheck and a separate standalone diagnostic typecheck passed. P6.2/B5 remain open; no redeploy or additional live round is justified by these local timings alone.
+
 
 
 ## Cloudflare qualification procedure

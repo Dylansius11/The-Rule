@@ -82,6 +82,24 @@ Output separates cold module import, the first invocation, warmed invocations, m
 
 The diagnostic verifies the actual idle/advance RPC flow, one send, a Reveal postcondition and heartbeat. SDK signing performs its own block/access-key reads. No production optimization was retained: this is a reproducible measurement tool, not evidence that Free now fits. The existing 33 keeper tests, package typecheck and a separate standalone diagnostic typecheck passed. P6.2/B5 remain open; no redeploy or additional live round is justified by these local timings alone.
 
+### Reuse the signed transaction hash (locally verified, 2026-11-10)
+
+The keeper now base58-encodes the `txHash` already returned by the SDK signer for its pre-send public identity, rather than Borsh-serializing and SHA-256 hashing the same transaction again. The SDK/native signer, transaction construction, single broadcast, FINAL receipt validation, target fences, post-state and heartbeat checks are unchanged; no dependency was added.
+
+Two serial parent/candidate comparisons used the existing offline diagnostic on WSL Node 24.22.1, each with 100 warmups and four samples of 1,000 signed advances:
+
+| Warmed process CPU median, ms/invocation | Parent | Hash reuse |
+| --- | ---: | ---: |
+| First comparison | 4.7529 | 3.5290 |
+| Repeat comparison | 5.1723 | 3.5643 |
+
+These shared-host Node results include mock transport and variable load, not deployed speedup or Free headroom. Parent scratch-module detection affected import timing, so cold module/first-invocation costs were not compared. The source removes known duplicate work; it does not establish that signing fits 10 ms.
+
+All **33** keeper tests and typecheck passed, including SDK-compatible signatures and the unknown-send regression that independently reconstructs the actual broadcast transaction hash and requires it to have been logged before the single send. The actual local **workerd scheduled handler** signed against the genuine sandbox, observed Reveal and delivered the local heartbeat (`p6-runtime worker`, MOCK OutLayer). No cloud Worker was changed and no testnet transaction was sent. P6.2/B5 remain open; the [published limits](https://developers.cloudflare.com/workers/platform/limits/#cpu-time), rechecked 2026-11-10, still specify 10 ms per Free Cron invocation.
+
+For this Windows/WSL setup, the successful lead-run smoke used `P6_NODE=/mnt/c/nvm4w/nodejs/node.exe` and propagated `NEAR_RPC_URL:GAME_ACCOUNT:KEEPER_ACCOUNT:KEEPER_PRIVATE_KEY:RACER_ACCOUNT:RACER_PRIVATE_KEY:KEEPER_SMOKE_CASE` through `WSLENV`. Earlier attempts failed because Linux could not resolve `node`, then because Windows did not receive the disposable sandbox environment; neither was a passing smoke or a contract failure. Resolve the installed Node path on the current machine instead of assuming this path is portable; never print the key values.
+
+
 
 
 ## Cloudflare qualification procedure

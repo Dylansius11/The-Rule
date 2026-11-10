@@ -1,4 +1,4 @@
-import { Account, JsonRpcProvider, actions, baseEncode, encodeTransaction } from 'near-api-js';
+import { Account, JsonRpcProvider, actions, baseEncode, type Signer } from 'near-api-js';
 import { decide, uint, type Decision, type Mode, type NextSlot, type Params, type Round } from './game.ts';
 import { createNativeSigner } from './signer.ts';
 
@@ -138,11 +138,14 @@ export async function run(config: Config, dryRun = false, log: Log = console.log
     // All SDK requests share the same transport and exactly one attempt, including send_tx.
     provider.sendJsonRpc = rpc as typeof provider.sendJsonRpc;
     let account: Account | undefined;
+    let signer: Signer | undefined;
     async function send(method: string, args: object, gas: bigint) {
       stage = 'sign';
-      account ??= new Account(config.KEEPER_ACCOUNT!, provider, await createNativeSigner(config.KEEPER_PRIVATE_KEY!));
-      const signed = await account.createSignedTransaction({ receiverId: config.GAME_ACCOUNT, actions: [actions.functionCall(method, args, gas, 0n)] });
-      const hash = baseEncode(new Uint8Array(await crypto.subtle.digest('SHA-256', encodeTransaction(signed.transaction) as BufferSource)));
+      signer ??= await createNativeSigner(config.KEEPER_PRIVATE_KEY!);
+      account ??= new Account(config.KEEPER_ACCOUNT!, provider, signer);
+      const transaction = await account.createTransaction({ receiverId: config.GAME_ACCOUNT, actions: [actions.functionCall(method, args, gas, 0n)], publicKey: await signer.getPublicKey() });
+      const { signedTransaction: signed, txHash } = await signer.signTransaction(transaction);
+      const hash = baseEncode(txHash);
       // Public identity is recorded before the single send; never log the signed
       // payload, arguments, endpoint or credential, even on an unknown outcome.
       log(`transaction=${hash} signer=${signed.transaction.signerId} nonce=${signed.transaction.nonce} method=${method}`);

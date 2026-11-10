@@ -1,55 +1,40 @@
-import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
-import { getRound } from '@/chain/views';
-import { useLatestRound, useNextSlot } from '@/game';
+import { useRound, useRoundHistory } from '@/game';
 import type { Mode } from '@/game/types';
 
-/** The newest round of this mode whose rule is public, or null when none has opened yet. */
-function useLatestRevealed(mode: Mode, enabled: boolean) {
-  const slot = useNextSlot(mode);
-  const count = slot.data?.roundId;
-  return useQuery({
-    queryKey: ['latestRevealedIn', mode, count],
-    enabled: enabled && count !== undefined,
-    queryFn: async () => {
-      for (let id = (count ?? 0) - 1; id >= 0; id--) {
-        const round = await getRound(mode, id);
-        if (round?.rule) return round;
-      }
-      return null;
-    },
-  });
-}
-
 /**
- * Which round of this mode a tab shows: `?round=3` wins, else the newest round, or (Verify) the newest round whose
- * rule is already public. Also lists every round id that exists so a picker never offers one that does not.
+ * Explicit historical URLs win. Otherwise wait for the bounded discovery before choosing a revealed round, so
+ * asynchronous history cannot first select the latest sealed round and then jump to an older open round.
  */
 export function useRoundSelection(mode: Mode, prefer: 'latest' | 'revealed') {
   const [params, setParams] = useSearchParams();
   const raw = params.get('round');
-  const explicit = raw !== null && /^\d+$/.test(raw) ? Number(raw) : null;
-  const latest = useLatestRound(mode);
-  const slot = useNextSlot(mode);
-  const revealed = useLatestRevealed(mode, prefer === 'revealed');
-
+  const parsed = raw !== null && /^\d+$/.test(raw) ? Number(raw) : NaN;
+  const explicit = Number.isInteger(parsed) && parsed >= 0 && parsed <= 4_294_967_295 ? parsed : null;
+  const history = useRoundHistory(mode);
+  const requested = useRound(mode, explicit);
+  const revealed = history.rounds.find(r => r.rule) ?? null;
   const fallback =
-    prefer === 'revealed'
-      ? (revealed.data?.roundId ?? latest.data?.roundId ?? null)
-      : (latest.data?.roundId ?? null);
+    prefer === 'revealed' && history.loading
+      ? null
+      : ((prefer === 'revealed' ? revealed?.roundId : null) ?? history.latest?.roundId ?? null);
   const roundId = explicit ?? fallback;
-  const count = slot.data?.roundId ?? (latest.data ? latest.data.roundId + 1 : 0);
+  const rounds = history.rounds.map(r => r.roundId);
+  if (requested.data && !rounds.includes(requested.data.roundId)) {
+    rounds.push(requested.data.roundId);
+    rounds.sort((a, b) => b - a);
+  }
 
   return {
     roundId,
-    rounds: Array.from({ length: Math.max(0, count) }, (_, i) => i).reverse(),
+    rounds,
     setRound: (id: number) => {
       const next = new URLSearchParams(params);
       next.set('round', String(id));
       setParams(next, { replace: true });
     },
-    loading: latest.isLoading || (prefer === 'revealed' && revealed.isLoading),
-    /** The newest revealed round of this mode, once known. */
-    revealed: revealed.data ?? null,
+    loading: explicit === null && history.loading,
+    revealed,
+    history,
   };
 }

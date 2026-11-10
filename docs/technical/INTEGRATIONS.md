@@ -195,6 +195,8 @@ Latest-round and discovery query keys include deployment/mode. The latest record
 
 Five behavioral history regressions passed, including sparse latest 12, Demo latest 0, absent versus failed records and a billion-scale ID with bounded work. Package typecheck passed. These checks do not replace browser or signed-action frontend acceptance.
 
+Round selection preserves explicit `?round=ID` URLs, including zero and the maximum u32 ID **4,294,967,295**; out-of-domain or malformed values do not trigger an impossible historical lookup. Without an explicit URL, revealed-round selection waits for bounded discovery instead of flashing a sealed latest record and jumping when history arrives. Explicit absent records remain absent, never successful empty logs or picker entries. Nine selection regressions passed with the five history cases (**14 affected tests**); typecheck and formatting of the final three-file boundary correction passed. The earlier build/browser smoke was not repeated for that boundary-only correction.
+
 ### 5. Keeper (P6.2, D20)
 
 1. **Docs [V] 2026-11-04:** [Workers Cron](https://developers.cloudflare.com/workers/configuration/cron-triggers/), [limits](https://developers.cloudflare.com/workers/platform/limits/) (free: 5 cron triggers, 10 ms CPU per invocation), [secrets](https://developers.cloudflare.com/workers/configuration/secrets/); [GitHub Actions schedule](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule) (minimum 5 minutes, can be delayed or dropped); [Healthchecks pricing](https://healthchecks.io/pricing/).

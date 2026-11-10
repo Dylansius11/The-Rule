@@ -187,6 +187,14 @@ Pinned public exports also passed the actual native CLI and browser-target WASM 
 **Cloud monitoring access:** the relay route available to this session exposed an unrelated Phala tab, which was untouched. New tabs at the authorized Cloudflare account and Healthchecks project redirected to login and were closed without authenticating or changing settings. The last independently verified empty Cron/paused checks remain D38's historical evidence, not a fresh 2026-11-10 dashboard verification. Owner authentication in the intended relay route is required before future cloud inspection or separately approved mutation.
 
 
+#### B8 bounded actual-round discovery (locally verified, 2026-11-10)
+
+`apps/web/src/chain/round-history.ts` and the shared game hooks now anchor history to `get_round(mode)`'s actual latest record. Each mode inspects at most **30 candidate IDs including latest**, with at most **29 older lookups** and **four concurrent older lookups**; two modes may therefore have eight lookups in flight. Null records are omitted, while rejected reads remain explicit failures alongside successfully observed records. The current lookup-only ABI cannot enumerate arbitrary sparse retained history; this bounded window is not a complete archive.
+
+Latest-round and discovery query keys include deployment/mode. The latest record is refreshed independently; the discovery result never turns a next scheduled slot into a round count. Public local integration overrides remain the R3/Demo mapping above; committed defaults still target R2, and this change publishes or redeploys nothing.
+
+Five behavioral history regressions passed, including sparse latest 12, Demo latest 0, absent versus failed records and a billion-scale ID with bounded work. Package typecheck passed. These checks do not replace browser or signed-action frontend acceptance.
+
 ### 5. Keeper (P6.2, D20)
 
 1. **Docs [V] 2026-11-04:** [Workers Cron](https://developers.cloudflare.com/workers/configuration/cron-triggers/), [limits](https://developers.cloudflare.com/workers/platform/limits/) (free: 5 cron triggers, 10 ms CPU per invocation), [secrets](https://developers.cloudflare.com/workers/configuration/secrets/); [GitHub Actions schedule](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule) (minimum 5 minutes, can be delayed or dropped); [Healthchecks pricing](https://healthchecks.io/pricing/).

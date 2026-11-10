@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { toUiError } from '@/chain/errors';
 import { getNearBalance } from '@/chain/rpc';
+import { discoverRoundHistory } from '@/chain/round-history';
+import { active } from '@/config/env';
 import * as v from '@/chain/views';
 import type { Mode, Round } from './types';
 
@@ -19,7 +21,7 @@ export const useNextSlot = (mode: Mode) =>
   });
 export function useRound(mode: Mode, roundId: number | null | undefined) {
   return useQuery({
-    queryKey: ['round', mode, roundId],
+    queryKey: ['round', mode, roundId, active.game],
     queryFn: () => v.getRound(mode, roundId!),
     enabled: roundId != null,
     refetchInterval: q => (live(q.state.data) ? 4000 : false),
@@ -27,32 +29,66 @@ export function useRound(mode: Mode, roundId: number | null | undefined) {
 }
 export function useLatestRound(mode: Mode) {
   return useQuery({
-    queryKey: ['latestRound', mode],
-    queryFn: async () => {
-      const active = (await v.getActiveRounds())
-        .filter(r => r.mode === mode)
-        .sort((a, b) => b.roundId - a.roundId);
-      if (active.length) return active[0];
-      const slot = await v.getNextSlot(mode);
-      return slot.round_id ? v.getRound(mode, slot.round_id - 1) : v.getRound(mode);
-    },
+    queryKey: ['latestRound', mode, active.game],
+    queryFn: () => v.getRound(mode),
     refetchInterval: q => (live(q.state.data) ? 4000 : 30000),
   });
 }
-export function useLatestRevealedRound() {
-  return useQuery({
-    queryKey: ['latestRevealed'],
-    queryFn: async () => {
-      for (const mode of [0, 1] as const) {
-        const slot = await v.getNextSlot(mode);
-        for (let id = slot.round_id - 1; id >= 0; id--) {
-          const round = await v.getRound(mode, id);
-          if (round?.rule) return round;
-        }
-      }
-      return null;
-    },
+export interface RoundHistory {
+  latest: Round | null;
+  rounds: Round[];
+  loading: boolean;
+  error: unknown;
+  limited: boolean;
+  from: number | null;
+  to: number | null;
+  retry: () => void;
+}
+
+/** Lookup-only ABI: inspect at most 30 IDs ending at the actual latest record, never the next scheduled slot. */
+export function useRoundHistory(mode: Mode): RoundHistory {
+  const latest = useLatestRound(mode);
+  const discovery = useQuery({
+    queryKey: ['roundHistory', active.game, mode, latest.data?.roundId, !!latest.data?.rule],
+    enabled: latest.isSuccess && latest.data != null,
+    queryFn: () => discoverRoundHistory(mode, latest.data ?? null),
   });
+  const current = latest.data;
+  const rounds = current
+    ? [current, ...(discovery.data?.rounds.filter(r => r.roundId !== current.roundId) ?? [])]
+    : [];
+  return {
+    latest: latest.data ?? null,
+    rounds,
+    loading: latest.isLoading || (latest.data != null && discovery.isLoading),
+    error: latest.error ?? discovery.error ?? discovery.data?.failures[0]?.error ?? null,
+    limited: discovery.data?.limited ?? false,
+    from: discovery.data?.from ?? null,
+    to: discovery.data?.to ?? null,
+    retry: () => {
+      void latest.refetch();
+      if (latest.data) void discovery.refetch();
+    },
+  };
+}
+
+export function useLatestRevealedRound() {
+  const solo = useRoundHistory(0);
+  const team = useRoundHistory(1);
+  const candidates = [...solo.rounds, ...team.rounds].filter(r => r.rule);
+  candidates.sort((a, b) => (b.sealedAtMs ?? 0) - (a.sealedAtMs ?? 0));
+  const error = solo.error ?? team.error;
+  return {
+    data: candidates[0] ?? null,
+    isLoading: solo.loading || team.loading,
+    isError: error != null,
+    error,
+    limited: solo.limited || team.limited,
+    refetch: () => {
+      solo.retry();
+      team.retry();
+    },
+  };
 }
 export function useLog(mode: Mode, roundId: number | null | undefined, options: { follow?: boolean } = {}) {
   const query = useQuery({

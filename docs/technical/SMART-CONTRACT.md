@@ -639,6 +639,24 @@ Separate Solo sweep fixtures passed in the same completed command, including exa
 
 **Why completion can fail:** a callback is a separate receipt, with independent gas/runtime/storage limits, code and input parsing. NEAR does not retry it automatically. The current bounded callbacks avoid untrusted large-result parsing; earlier maximum-root local samples burnt 2.501/10 Tgas (`on_withdraw`) and 2.301/10 Tgas (`on_platform`). Those samples are not universal upper bounds. D32 subsequently completed both native withdrawals and the platform payment on real game testnet with no failed callback observed; selected success costs are recorded below. Actual errors must be preserved rather than inferred from pending state. Historical local RULE fault instrumentation deliberately removed callback export names; that is not evidence of a naturally occurring native gas failure.
 
+### D31 historical-outcome feasibility review (2026-11-10)
+
+[V] The reviewed `credit.rs`, platform settlement, request enum and `recovery.rs` still expose no authenticated historical native-transfer result. `promise_result_checked` reads the dependency of the currently executing callback, not an arbitrary old receipt. The [NEAR callback-failure guide](https://docs.near.org/smart-contracts/security/cross-contract-calls/callback-failures.md), checked again on 2026-11-10, confirms independent rollback and no automatic retry of a failed callback. A prior successful native transfer is not reverted with that callback.
+
+The [RPC outcome-proof API](https://docs.near.org/api-reference/post-light_client_proof) can return receipt execution proofs relative to a supplied light-client head. It is not an on-chain recovery endpoint or a self-authenticating assertion. A future trust-preserving resolver would need all of:
+
+1. An authenticated finality anchor and updates across epochs, not a caller-supplied block hash accepted on trust.
+2. Verification of the outcome and block proofs against that anchor, with bounded input, gas and storage.
+3. Binding of the proven execution to the exact pending request, receiver and amount, plus once-only settlement and late-callback fencing.
+
+Current `Request::Withdraw` stores actor/amount and `Request::Platform` stores amount; neither stores a native receipt ID. A proof of some other transfer with matching fields is insufficient. Recovering an existing request requires proving that exact causal relationship, not just demonstrating that a proof API exists.
+
+[I] The platform's hashing/signature primitives do not rule out a future light-client implementation, but there is no such implementation or completed binding/gas/liveness proof in this game. The [NEAR light-client specification](https://nomicon.io/ChainSpec/LightClient.html) explicitly warns that it is outdated and its linked reference implementation is archived; it cannot be treated as a ready audited dependency. No resolver, verifier contract, payout-asset or custody change is introduced by this review.
+
+**Decision boundary:** preserve the founder's testnet-only residual-risk acceptance. Before freeze, either implement and independently review a feasible authenticated recovery design under separate scope approval, or obtain explicit acceptance of the remaining native-payment liveness risk for the intended release. This review grants neither. A trusted operator assertion, timeout refund/resend or intermediary's own unjournaled native transfer is not an equivalent recovery design.
+
+No new exploit or recipient-controlled callback failure was confirmed in this bounded review. Existing credit, callback-fence, refund-order and payment-permutation evidence remains the applicable local coverage; no duplicate testnet round or fault-injection runtime was rerun. Conservative pending principal can continue reducing available operator collateral, even after a transfer succeeded, until its callback completes. That availability cost and a blocked subsequent withdrawal must remain visible rather than being called recovered.
+
 ### Local acceptance mapping (2026-11-06)
 
 This finite native/runtime composition accepts P2.4/P2.8 locally. Actual-WASM tests use **MOCK OutLayer**; none replaces P2.9 or promises every possible receipt schedule.

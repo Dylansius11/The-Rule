@@ -351,6 +351,20 @@ The first harness attempt read before the detached verdict callback was observed
 
 Local non-reproducible game WASM: **531,785 bytes**, SHA-256 `3604a0e3ddadc606de44efade7f336fcc9b760dd1e2f50a9d27137785f99284d`. No contract was redeployed, no referee bytes changed and no live round was repeated. Applying the correction on testnet requires a separately approved artifact/deployment step; existing R3/Demo still run their recorded artifacts. P8.1/B6 and freeze remain open for the separate unresolved gates.
 
+### Season batch and page capacity sample (locally verified, 2026-11-10)
+
+`p6-runtime season-bounds` runs the same actual local game WASM above against a genuine sandbox with MOCK OutLayer. One genuinely admitted/resolved NO participant supplies the Borsh template; explicit sandbox-only state patches expand it to **240 candidates**, with entity records across seven slots and alternating nonzero/zero shares. A genuine Unsolved settlement invalidates a completed index, then copied settled round records populate all seven slot reads. These synthetic records isolate ranking/read costs; they are not 240 paid players, seven real rounds, a custody/accounting proof or testnet load.
+
+The final run completed twelve maximum-size 20-candidate batches for initial indexing and twelve for rebuilding, verified dirty-board E50 after settlement, unchanged revision during rebuild and readiness only at completion. Actual maximum-size `get_season` cursor pages contained **200, 40, then 0** rows, with exact ID coverage/order, no duplicate/omitted rows and exact synthetic seven-slot scores. The runtime now rejects a sampled index batch that exceeds the keeper's existing **200-Tgas** allocation; no batch/page acceptance limit was reduced.
+
+| Final sample | Maximum observed gas across twelve batches |
+| --- | ---: |
+| Initial 20-candidate index | 16,406,311,896,159 |
+| Seven-slot rebuild, including old-rank removal | 34,894,705,373,519 |
+
+`cargo run --locked -p sandbox-tests --profile fast --example p6-runtime -- season-bounds`, focused example clippy with `-D warnings` and formatting passed. This is a 240-node Solo/Unsolved tree sample, not a mathematical gas ceiling for arbitrary population, Team-sized records or winning-commit reads. Terminal changes can still reset progress; readiness requires indexing throughput to exceed new work and eventually stable terminal scores. P8.1 remains open for final review/release evidence; no ABI, production contract code, deployed bytes, funds or dependency changed in this proof unit.
+
+
 
 ### Panic codes
 

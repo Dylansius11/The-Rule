@@ -632,6 +632,268 @@ async fn season_progress(worker: &SandboxWorker) -> Res<()> {
     Ok(())
 }
 
+// Synthetic local storage expands one genuine NO participant into 240 candidates.
+// It isolates ranking/read costs, not paid-play, accounting, or testnet behavior.
+async fn season_bounds(worker: &SandboxWorker) -> Res<()> {
+    const COUNT: u32 = 240;
+    let Env { mock, game, .. } = fixture(worker, 120).await?;
+    let actor = worker.dev_create_account().await?;
+    actor
+        .call(game.id(), "deposit_credit")
+        .deposit(NearToken::from_near(1))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+    let rule: rule_core::CanonicalRule =
+        serde_json::from_value(json!({"v":"g1","form":0,"lits":[[0,0]]}))?;
+    let commitment = serde_json::to_value(protocol::round_commitment(&rule, &[5; 32]))?;
+    start(&game, &mock, commitment.as_str().ok_or("bad commitment")?).await?;
+    let play = actor
+        .call(game.id(), "play")
+        .args_json(json!({"mode":0,"number":1,"word":"otter"}))
+        .max_gas()
+        .transact_async()
+        .await?;
+    wait_requests(&mock, 2).await?;
+    resolve(&mock, 1, json!({"v":0}), false).await?;
+    tokio::time::timeout(Duration::from_secs(30), play)
+        .await??
+        .into_result()?;
+    for _ in 0..100 {
+        let entity: Value = game
+            .view("get_entity")
+            .args_json(json!({"mode":0,"id":0,"account":actor.id()}))
+            .await?
+            .json()?;
+        if entity["shares"] == 1 && entity["pending"] == false {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    let entity: Value = game
+        .view("get_entity")
+        .args_json(json!({"mode":0,"id":0,"account":actor.id()}))
+        .await?
+        .json()?;
+    assert_eq!(entity["shares"], 1);
+    assert_eq!(entity["pending"], false);
+    let player: Value = game
+        .view("get_player")
+        .args_json(json!({"account":actor.id()}))
+        .await?
+        .json()?;
+    let original = u32::try_from(player["index"].as_u64().ok_or("missing player index")?)?;
+    assert!(original < 1_000);
+
+    // near-sdk store::LookupMap uses Identity(prefix || Borsh(key)).
+    let key = |prefix: &[u8], round: u32, id: Option<u32>| {
+        let mut k = prefix.to_vec();
+        k.push(0); // Solo mode
+        k.extend(round.to_le_bytes());
+        if let Some(id) = id {
+            if prefix == b"e" || prefix == b"se" {
+                k.push(0);
+            } // Solo entity
+            k.extend(id.to_le_bytes());
+        }
+        k
+    };
+    let state = game.view_state().await?;
+    let template = state
+        .get(&key(b"e", 0, Some(original)))
+        .ok_or("missing actual entity record")?
+        .clone();
+    let header_key = key(b"sh", 0, None);
+    let mut header = state
+        .get(&header_key)
+        .ok_or("missing season header")?
+        .clone();
+    assert_eq!(header.len(), 16);
+    assert_eq!(&header[..4], &1u32.to_le_bytes());
+    header[..4].copy_from_slice(&COUNT.to_le_bytes());
+    header[8..16].copy_from_slice(&u64::from(COUNT).to_le_bytes());
+    let mut patches = vec![(header_key, header)];
+    let ids: Vec<u32> = std::iter::once(original)
+        .chain(1_000..1_000 + COUNT - 1)
+        .collect();
+    for (index, id) in ids.iter().copied().enumerate() {
+        let mut value = vec![0]; // Entity::Solo
+        value.extend(id.to_le_bytes());
+        patches.push((key(b"sc", 0, Some(index as u32)), value));
+        patches.push((key(b"se", 0, Some(id)), vec![0])); // rank: None
+        let mut entity_record = template.clone();
+        assert_eq!(&entity_record[2..4], &1u16.to_le_bytes());
+        if index % 2 != 0 {
+            entity_record[2..4].copy_from_slice(&0u16.to_le_bytes());
+        }
+        for round_id in 0..7 {
+            patches.push((key(b"e", round_id, Some(id)), entity_record.clone()));
+        }
+    }
+    worker
+        .patch(game.id())
+        .states(patches.iter().map(|(k, v)| (k.as_slice(), v.as_slice())))
+        .transact()
+        .await?;
+    let mut first_max = 0;
+    for end in (20..=COUNT).step_by(20) {
+        let batch = actor
+            .call(game.id(), "index_season")
+            .args_json(json!({"mode":0,"season":0,"limit":20}))
+            .max_gas()
+            .transact()
+            .await?;
+        first_max = first_max.max(batch.total_gas_burnt.as_gas());
+        batch.into_result()?;
+        let status: Value = game
+            .view("get_season_status")
+            .args_json(json!({"mode":0,"season":0}))
+            .await?
+            .json()?;
+        assert_eq!(status["indexed"], end);
+        assert_eq!(status["total"], COUNT);
+        assert_eq!(status["ready"], end == COUNT);
+    }
+    let state = round(&game).await?;
+    due(
+        worker,
+        state["investigation_end_ns"]
+            .as_u64()
+            .ok_or("missing deadline")?,
+        200,
+    )
+    .await?;
+    actor
+        .call(game.id(), "advance")
+        .args_json(json!({"mode":0,"round_id":0}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+    let reveal = phase(&game, "Reveal").await?;
+    due(
+        worker,
+        reveal["reveal_deadline_ns"]
+            .as_u64()
+            .ok_or("missing reveal deadline")?,
+        400,
+    )
+    .await?;
+    let opening = actor
+        .call(game.id(), "finalize")
+        .args_json(json!({"mode":0,"round_id":0}))
+        .max_gas()
+        .transact_async()
+        .await?;
+    wait_requests(&mock, 3).await?;
+    resolve(&mock, 2, json!({"rule":rule,"salt":"05".repeat(32)}), false).await?;
+    tokio::time::timeout(Duration::from_secs(30), opening)
+        .await??
+        .into_result()?;
+    let settled = phase(&game, "Settled").await?;
+    assert_eq!(settled["outcome"]["kind"], "Unsolved");
+    let dirty: Value = game
+        .view("get_season_status")
+        .args_json(json!({"mode":0,"season":0}))
+        .await?
+        .json()?;
+    assert_eq!(dirty["indexed"], 0);
+    assert_eq!(dirty["total"], COUNT);
+    assert_eq!(dirty["ready"], false);
+    assert!(
+        format!(
+            "{:?}",
+            game.view("get_season")
+                .args_json(json!({"mode":0,"season":0,"from":null,"limit":200}))
+                .await
+                .expect_err("dirty board exposed")
+        )
+        .contains("E50")
+    );
+
+    // Copy the genuinely settled record to six slots; synthetic aggregate accounting
+    // is deliberately not asserted. Every row now reads seven settled entity records.
+    let state = game.view_state().await?;
+    let settled_record = state
+        .get(&key(b"r", 0, None))
+        .ok_or("missing settled round")?;
+    let rounds: Vec<_> = (1..7)
+        .map(|id| (key(b"r", id, None), settled_record.clone()))
+        .collect();
+    worker
+        .patch(game.id())
+        .states(rounds.iter().map(|(k, v)| (k.as_slice(), v.as_slice())))
+        .transact()
+        .await?;
+    let mut rebuild_max = 0;
+    for end in (20..=COUNT).step_by(20) {
+        let batch = actor
+            .call(game.id(), "index_season")
+            .args_json(json!({"mode":0,"season":0,"limit":20}))
+            .max_gas()
+            .transact()
+            .await?;
+        rebuild_max = rebuild_max.max(batch.total_gas_burnt.as_gas());
+        batch.into_result()?;
+        let status: Value = game
+            .view("get_season_status")
+            .args_json(json!({"mode":0,"season":0}))
+            .await?
+            .json()?;
+        assert_eq!(status["indexed"], end);
+        assert_eq!(status["revision"], dirty["revision"]);
+        assert_eq!(status["ready"], end == COUNT);
+    }
+    let mut rows = Vec::<Value>::new();
+    let mut cursor = Value::Null;
+    for expected_len in [200, 40, 0] {
+        let page: Vec<Value> = game
+            .view("get_season")
+            .args_json(json!({"mode":0,"season":0,"from":cursor,"limit":200}))
+            .await?
+            .json()?;
+        assert_eq!(page.len(), expected_len);
+        if let Some(last) = page.last() {
+            cursor = last["cursor"].clone();
+        }
+        rows.extend(page);
+    }
+    let expected_ids: Vec<u64> = ids
+        .iter()
+        .step_by(2)
+        .chain(ids.iter().skip(1).step_by(2))
+        .map(|&id| u64::from(id))
+        .collect();
+    assert_eq!(
+        rows.iter()
+            .map(|r| r["entity_id"].as_u64().unwrap())
+            .collect::<Vec<_>>(),
+        expected_ids
+    );
+    let pot = settled["pot"]
+        .as_str()
+        .ok_or("missing pot")?
+        .parse::<u128>()?;
+    let earned = (pot * 4000 / 10000 * 7).to_string();
+    for (index, row) in rows.iter().enumerate() {
+        assert_eq!(row["rounds_won"], 0);
+        assert_eq!(row["shares"], if index < 120 { 7 } else { 0 });
+        assert_eq!(
+            row["earned"],
+            if index < 120 { earned.as_str() } else { "0" }
+        );
+    }
+    assert!(
+        first_max <= Gas::from_tgas(200).as_gas() && rebuild_max <= Gas::from_tgas(200).as_gas(),
+        "sample index batch exceeded the keeper's 200-Tgas allocation"
+    );
+    println!(
+        "season-bounds local synthetic: {COUNT} rows, seven settled reads/row; first_batch_max_gas={first_max}, rebuild_batch_max_gas={rebuild_max}; pages=200,40,0"
+    );
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Res<()> {
     println!(
@@ -642,10 +904,11 @@ async fn main() -> Res<()> {
         match case.as_str() {
             "season" => season(&worker).await?,
             "season-progress" => season_progress(&worker).await?,
+            "season-bounds" => season_bounds(&worker).await?,
             "advance" | "pending" | "race" | "worker" => keeper_case(&worker, &case).await?,
             _ => {
                 return Err(
-                    "expected advance, pending, race, worker, season or season-progress".into(),
+                    "expected advance, pending, race, worker, season, season-progress or season-bounds".into(),
                 );
             }
         }

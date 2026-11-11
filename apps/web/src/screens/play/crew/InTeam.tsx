@@ -10,7 +10,8 @@ import { Button } from '@/ui/Button';
 import { InkBox } from '@/ui/InkBox';
 import { isActive, phaseLabel, pad3 } from '@/screens/shared/round';
 import { Roster } from './Roster';
-import { TextField, busy } from './parts';
+import { CopyField, TextField, busy } from './parts';
+import { inviteLink } from './invite';
 
 export function InTeam({ team, me }: { team: Team; me: string }) {
   const actions = useTeamActions();
@@ -36,6 +37,15 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
         <div className="mono text-[14px] font-bold">
           vault <b>{formatNear(team.vault, 3)} NEAR</b>
         </div>
+      </InkBox>
+
+      <InkBox className="p-4" fill="#fff" tilt={-0.3}>
+        <CopyField label="Invite link" value={inviteLink(window.location.origin, team.teamId)} />
+        <p className="mt-1 text-[14px] font-semibold">
+          Send this to a friend, then add their account name under “Invite a member”. The link fills in the
+          team id for them; it does not let anyone in without your invite.
+          {captain ? '' : ' Only the captain can send invites.'}
+        </p>
       </InkBox>
 
       <Roster team={team} me={me} />
@@ -181,7 +191,7 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
             <ActionSlip
               state={actions.invite.state}
               onReset={actions.invite.reset}
-              doneText="Invite sent. They can join with this team id."
+              doneText="Invite sent. They can now join from your invite link or with this team id."
             />
             <div>
               <Button

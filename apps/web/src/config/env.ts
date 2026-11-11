@@ -57,8 +57,8 @@ export const config = {
   rpcUrls: e2e
     ? [e2e.rpcUrl]
     : [
-        read('VITE_RPC_URL', 'https://test.rpc.fastnear.com'),
-        read('VITE_RPC_FALLBACK_URL', 'https://near-testnet.drpc.org'),
+        read('VITE_RPC_URL', 'https://near-testnet.drpc.org'),
+        read('VITE_RPC_FALLBACK_URL', 'https://test.rpc.fastnear.com'),
       ],
   explorerTx: (hash: string) => `https://testnet.nearblocks.io/txns/${hash}`,
   explorerAccount: (account: string) => `https://testnet.nearblocks.io/address/${account}`,

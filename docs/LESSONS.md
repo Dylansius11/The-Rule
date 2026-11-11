@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-11: a verifier must be run against a live deployment before the ceremony trusts it
+
+- **What happened:** the first ceremony `verify` compared the live game's `get_params` to the planned init params for equality. A read-only call against `demo-game.therule.testnet` showed it returns three extra fields (`demo`, `user_referee_request_limit`, `max_pending_referee_requests`), so the check would have refused the real key deletion. The same smoke showed `drpc` answers 403 to Python's default user agent.
+- **Root cause:** the check was written from the init schema, not from a real view response. The fake chain in the first tests used the same dict as the plan, so a test that changed the chain also changed the plan and passed for the wrong reason.
+- **Rule:** run every verifier read-only against a real deployment before relying on it; compare the planned keys, not whole objects; give each fake chain its own copy of the data it is meant to differ on.
+
 ### 2026-11-11: a rate-limited public RPC looked like a transaction failure in the browser
 
 - **What happened:** a connected player on the Demo Stamp tab saw the setup checklist stuck on "checking…" and a card saying "Could not complete the request … the transaction outcome may be unknown", though nothing had been sent.

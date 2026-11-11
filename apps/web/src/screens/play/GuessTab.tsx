@@ -12,6 +12,7 @@ import { Button } from '@/ui/Button';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorCard } from '@/ui/ErrorCard';
 import { InkBox } from '@/ui/InkBox';
+import { GuessBoard } from './GuessBoard';
 import { CostPayout } from './CostPayout';
 import { CommitStep } from './guess/CommitStep';
 import { GuessSummary } from './guess/GuessSummary';
@@ -143,6 +144,18 @@ export function GuessTab() {
                   {step === 2 ? 'Skip to reveal' : 'Next'}
                 </Button>
               )}
+            </div>
+          </InkBox>
+
+          <InkBox
+            className="mx-auto mt-6 max-w-[920px] p-5 md:p-6 xl:mx-0 xl:max-w-none"
+            fill="#fff"
+            tilt={0.3}
+            aria-label="Sealed guesses this round"
+          >
+            <h2 className="display text-[clamp(30px,5vw,40px)] leading-none">Sealed this round</h2>
+            <div className="mt-3">
+              <GuessBoard mode={mode} round={round} account={accountId} />
             </div>
           </InkBox>
 

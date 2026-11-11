@@ -1,6 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatNear, formatRule } from '@/chain/format';
+import { useMedia } from '@/layout/useMedia';
 import { toUiError } from '@/chain/errors';
 import { useLog, useRound } from '@/game';
 import { Drip } from '@/mascot/Drip';
@@ -25,8 +26,7 @@ type Verdict = 'all' | 'yes' | 'no';
 type Parity = 'all' | 'even' | 'odd';
 type Sort = 'new' | 'old';
 
-const GRID =
-  'grid grid-cols-[52px_minmax(0,1fr)_96px] items-center gap-x-2 md:grid-cols-[64px_minmax(0,1.5fr)_84px_minmax(0,1fr)_64px_104px_150px]';
+const COLS = 'md:grid-cols-[64px_minmax(0,1.5fr)_84px_minmax(0,1fr)_64px_104px_150px] md:gap-x-2';
 
 /** S2: the heron's ledger. Search and filter, virtualized crisp rows, completeness meter, export of exactly the filtered rows. */
 export function LedgerTab() {
@@ -57,12 +57,14 @@ export function LedgerTab() {
     return sort === 'new' ? out.reverse() : out;
   }, [log.rows, q, verdict, parity, sort]);
 
+  const mobile = useMedia('(max-width: 767px)');
   const virt = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scroller.current,
-    estimateSize: () => 46,
+    estimateSize: () => (mobile ? 68 : 46),
     overscan: 14,
   });
+  useEffect(() => virt.measure(), [mobile, virt]);
   const yes = rows.filter(r => r.verdict).length;
   const chosen = open === null ? null : (log.rows.find(r => r.logIdx === open) ?? null);
   const filtered = verdict !== 'all' || parity !== 'all' || q.trim() !== '';
@@ -265,7 +267,7 @@ export function LedgerTab() {
           ) : (
             <InkBox className="mt-5 p-2.5 md:p-4" fill="#fff" tilt={-0.3}>
               <div
-                className={`${GRID} border-b-4 border-ink px-2 pb-2 pt-2 font-display text-[18px] font-black uppercase tracking-wider`}
+                className={`hidden ${COLS} border-b-4 border-ink px-2 pb-2 pt-2 font-display text-[18px] font-black uppercase tracking-wider md:grid`}
                 aria-hidden="true"
               >
                 <span>#</span>
@@ -317,14 +319,20 @@ export function LedgerTab() {
                             onClick={() => setOpen(r.logIdx)}
                             aria-label={`Play ${r.logIdx}: ${r.account}, ${pad3(r.number)} ${r.word}, ${r.verdict ? 'YES' : 'NO'}. Open details.`}
                             aria-pressed={open === r.logIdx}
-                            className={`${GRID} mono h-full w-full border-b-2 border-dashed border-ink/30 px-2 text-left text-[14px] font-semibold hover:bg-sun/40 ${open === r.logIdx ? 'bg-sun/60' : ''}`}
+                            className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 ${COLS} mono h-full w-full border-b-2 border-dashed border-ink/30 px-2 text-left text-[14px] font-semibold hover:bg-sun/40 ${open === r.logIdx ? 'bg-sun/60' : ''}`}
                           >
-                            <span>{r.logIdx}</span>
+                            <span className="min-w-0 md:hidden">
+                              <span className="block truncate font-sans text-[20px] font-extrabold leading-tight">
+                                {pad3(r.number)} <span className="font-semibold">{r.word}</span>
+                              </span>
+                              <span className="block truncate text-[12px] font-bold text-ink-soft">
+                                #{r.logIdx} · {r.account}
+                                {r.minted > 0n ? ' · minted RULE' : ''}
+                              </span>
+                            </span>
+                            <span className="max-md:hidden">{r.logIdx}</span>
                             <span className="truncate max-md:hidden">{r.account}</span>
                             <span className="max-md:hidden">{pad3(r.number)}</span>
-                            <span className="md:hidden">
-                              {pad3(r.number)} {r.word}
-                            </span>
                             <span className="truncate max-md:hidden">{r.word}</span>
                             <span className="max-md:hidden">{r.minuteDigit}</span>
                             <span>

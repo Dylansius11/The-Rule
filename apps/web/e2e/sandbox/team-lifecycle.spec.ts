@@ -116,10 +116,11 @@ test('two wallets exit the vault and claim the deleted team’s historical rewar
     .poll(async () => ((await view('get_round', { mode: 1, id: 0 })) as { phase: string }).phase)
     .toBe('Settled');
   await page.goto('/play/team/crew');
-  const desk = page.getByRole('heading', { name: 'Settle & claim' }).locator('..');
+  const desk = page.getByRole('heading', { name: 'After the round' }).locator('..');
+  await desk.getByText('Use another round or team').click();
   await desk.getByLabel('Team id', { exact: true }).fill('0');
   await desk.getByLabel('Round id', { exact: true }).fill('0');
-  await desk.getByRole('button', { name: 'Settle team', exact: true }).click();
+  await desk.getByRole('button', { name: 'Unlock team', exact: true }).click();
   await expect.poll(async () => (await team())?.active_round).toBeNull();
   expect(BigInt((await team())!.vault)).toBe(
     BigInt(afterPlay.vault) - BigInt(params.storage_charge_per_play),
@@ -154,26 +155,27 @@ test('two wallets exit the vault and claim the deleted team’s historical rewar
     [secondPage, bob],
   ] as const) {
     await p.goto('/play/team/crew');
-    const claims = p.getByRole('heading', { name: 'Settle & claim' }).locator('..');
+    const claims = p.getByRole('heading', { name: 'After the round' }).locator('..');
     await expect(claims.getByText(`Team round ${latest.round_id} ·`, { exact: false })).toBeVisible();
+    await claims.getByText('Use another round or team').click();
     await claims.getByLabel('Round id', { exact: true }).fill('4294967296');
     await claims.getByLabel('Team id', { exact: true }).fill('0');
-    await expect(claims.getByRole('button', { name: 'Claim team reward', exact: true })).toBeDisabled();
+    await expect(claims.getByRole('button', { name: 'Claim my reward', exact: true })).toBeDisabled();
     await claims.getByLabel('Round id', { exact: true }).fill('0');
     await expect(claims.getByText('Team round 0 ·', { exact: false })).toBeVisible();
     await claims.getByLabel('Team id', { exact: true }).fill('4294967296');
-    await expect(claims.getByRole('button', { name: 'Claim team reward', exact: true })).toBeDisabled();
+    await expect(claims.getByRole('button', { name: 'Claim my reward', exact: true })).toBeDisabled();
     await claims.getByLabel('Round id', { exact: true }).fill('0');
     await claims.getByLabel('Team id', { exact: true }).fill('0');
     const before = BigInt((await player(account)).credit);
-    await claims.getByRole('button', { name: 'Claim team reward', exact: true }).click();
+    await claims.getByRole('button', { name: 'Claim my reward', exact: true }).click();
     await expect.poll(async () => BigInt((await player(account)).credit)).toBe(before + claimEach);
     await expect(
       claims.getByText(
         'Reward added to your play credit. Withdraw credit separately to move it to your wallet.',
       ),
     ).toBeVisible();
-    await claims.getByRole('button', { name: 'Claim team reward', exact: true }).click();
+    await claims.getByRole('button', { name: 'Claim my reward', exact: true }).click();
     await expect(claims.getByRole('alert')).toBeVisible();
     expect(BigInt((await player(account)).credit)).toBe(before + claimEach);
   }

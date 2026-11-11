@@ -6,8 +6,7 @@ import { useLatestRound } from '@/game';
 import type { Mode } from '@/game/types';
 import { ROOM_TABS } from '@/layout/nav';
 import { Segmented } from '@/ui/Segmented';
-import { Tag } from '@/ui/Tag';
-import { isActive, phaseLabel } from '@/screens/shared/round';
+import { RoundStatusTag } from '@/screens/shared/RoundTimer';
 import type { Room } from './room';
 
 const tabOf = (pathname: string): RoomTab => {
@@ -73,7 +72,7 @@ export function RoomLayout() {
                 <span className="max-sm:hidden">
                   {slugOf(mode)} · round {round.roundId}
                 </span>
-                <Tag tone={isActive(round) ? 'sun' : 'soft'}>{phaseLabel(round.phase)}</Tag>
+                <RoundStatusTag round={round} ticking />
                 <span className="hidden lg:inline">pot {formatNear(round.pot, 3)} NEAR</span>
               </>
             ) : latest.isLoading ? (

@@ -19,6 +19,7 @@ import { PlaySlip } from '@/ui/Slip';
 import { SpeechBubble } from '@/ui/SpeechBubble';
 import { timeAgo } from '@/chain/format';
 import { modeName, pad3 } from '@/screens/shared/round';
+import { RoundTimer } from '@/screens/shared/RoundTimer';
 import { WordPicker } from './WordPicker';
 
 const BLOT: Record<PlayState['kind'], BlotState> = {
@@ -172,6 +173,7 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
             {modeName(mode)} #{round.roundId} · No. {pad3(number)}
           </span>
         </div>
+        <RoundTimer round={round} className="mb-3 mt-1" />
         {mode === 1 ? (
           <p className="mt-1 text-[15px] font-bold">
             Your team plays as one: this play is paid from the team vault and uses the team&apos;s single

@@ -10,12 +10,13 @@ import { ErrorCard } from '@/ui/ErrorCard';
 import { HashText } from '@/ui/HashText';
 import { InkBox } from '@/ui/InkBox';
 import { ProgressMeter } from '@/ui/ProgressMeter';
-import { Tag, VerdictTag } from '@/ui/Tag';
+import { VerdictTag } from '@/ui/Tag';
 import { RoundPicker } from '@/screens/shared/RoundPicker';
 import { PageHead } from '@/screens/shared/PageHead';
 import { pct } from '@/screens/shared/format';
 import { downloadLog } from '@/screens/shared/exportLog';
-import { isActive, modeName, pad3, phaseLabel } from '@/screens/shared/round';
+import { isActive, modeName, pad3 } from '@/screens/shared/round';
+import { RoundStatusTag } from '@/screens/shared/RoundTimer';
 import { useRoundSelection } from '@/screens/shared/useRoundSelection';
 import { RoundHistoryNotice } from '@/screens/shared/RoundHistoryNotice';
 import { useRoom } from './room';
@@ -86,7 +87,7 @@ export function LedgerTab() {
         <RoundPicker rounds={sel.rounds} value={sel.roundId} onChange={sel.setRound} />
         {round.data ? (
           <span className="flex flex-wrap items-center gap-3 text-[15px] font-bold">
-            <Tag tone={isActive(round.data) ? 'sun' : 'soft'}>{phaseLabel(round.data.phase)}</Tag>
+            <RoundStatusTag round={round.data} />
             <span className="mono">pot {formatNear(round.data.pot, 3)} NEAR</span>
           </span>
         ) : null}

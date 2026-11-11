@@ -3,7 +3,8 @@ import { useLog, usePlayer, useWallet } from '@/game';
 import { Art } from '@/art/Art';
 import { PageHead } from '@/screens/shared/PageHead';
 import { pct } from '@/screens/shared/format';
-import { isActive, isPlayable } from '@/screens/shared/round';
+import { isActive } from '@/screens/shared/round';
+import { usePlaysOpen } from '@/screens/shared/useRoundClock';
 import { Band } from '@/ui/Band';
 import { StarField } from '@/ui/Doodle';
 import { ErrorCard } from '@/ui/ErrorCard';
@@ -23,6 +24,7 @@ export function StampTab() {
   const { status, accountId } = useWallet();
   const player = usePlayer(accountId);
   const log = useLog(mode, round?.roundId ?? null, { follow: isActive(round) });
+  const playing = usePlaysOpen(round);
   const needsTeam =
     mode === 1 && status === 'connected' && player.isSuccess && (player.data?.teamId ?? null) === null;
   const yes = log.rows.filter(r => r.verdict).length;
@@ -86,7 +88,7 @@ export function StampTab() {
           </div>
         ) : needsTeam ? (
           <TeamSetup />
-        ) : round && isPlayable(round) ? (
+        ) : round && playing ? (
           <PlayDesk mode={mode} round={round} />
         ) : (
           <div className="wrap">

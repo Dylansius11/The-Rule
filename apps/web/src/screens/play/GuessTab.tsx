@@ -5,7 +5,9 @@ import { stakeFor } from '@/game/cost';
 import { roomPath } from '@/app/paths';
 import { useGuide } from '@/layout/guide';
 import { PageHead } from '@/screens/shared/PageHead';
-import { isPlayable, modeName, phaseLabel } from '@/screens/shared/round';
+import { modeName, phaseLabel } from '@/screens/shared/round';
+import { RoundTimer } from '@/screens/shared/RoundTimer';
+import { usePlaysOpen } from '@/screens/shared/useRoundClock';
 import { Button } from '@/ui/Button';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorCard } from '@/ui/ErrorCard';
@@ -49,7 +51,7 @@ export function GuessTab() {
   const { show } = useGuide();
   const [step, setStep] = useState(0);
 
-  const open = isPlayable(round);
+  const open = usePlaysOpen(round);
   const wide = useWide();
   const committing = actions.commit.state.kind === 'signing' || actions.commit.state.kind === 'pending';
   const stake =
@@ -92,12 +94,13 @@ export function GuessTab() {
             }
           >
             {round
-              ? `${modeName(mode)} round ${round.roundId} is ${phaseLabel(round.phase).toLowerCase()}. `
+              ? `${modeName(mode)} round ${round.roundId} is ${round.phase === 'Investigation' ? 'closed to new plays' : phaseLabel(round.phase).toLowerCase()}. `
               : `No ${modeName(mode).toLowerCase()} round has started. `}
             Guesses can be sealed only while plays are open. You can still write one and test it for free.
           </EmptyState>
         </div>
       ) : null}
+      {round ? <RoundTimer round={round} className="mt-6" /> : null}
 
       <div
         className={wide ? 'mt-8 grid grid-cols-[minmax(300px,360px)_minmax(0,1fr)] items-start gap-8' : ''}

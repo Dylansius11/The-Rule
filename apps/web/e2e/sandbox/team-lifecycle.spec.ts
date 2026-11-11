@@ -10,6 +10,12 @@ test('two wallets exit the vault and claim the deleted team’s historical rewar
   control,
   view,
 }) => {
+  // The spec waits for the next scheduled slot. The default fixture's 24 h period never arrives in a
+  // wall-clock test, so a default run would burn its whole wait budget and fail. Skip with a visible reason.
+  test.skip(
+    process.env.THE_RULE_E2E_PROFILE !== 'transitions',
+    'needs THE_RULE_E2E_PROFILE=transitions (180 s slots)',
+  );
   test.setTimeout(360_000);
   const bob = sandbox.accounts[1]!.accountId;
   const alice = actor.accountId;

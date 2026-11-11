@@ -31,7 +31,7 @@ export function HeroBlot({ className = '' }: HeroBlotProps) {
             className="absolute -inset-x-[8%] -top-[4%] bottom-0"
             onReady={() => setReady(true)}
             onError={() => setFailed(true)}
-            onPoke={() => play('blot')}
+            onPoke={() => play('jump')}
           />
         </Suspense>
       ) : null}

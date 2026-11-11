@@ -1,4 +1,4 @@
-// Prompt: Calm, playful ink-and-wax game cabinet ambience, soft mallets, warm pads and gentle plucks, warm and unhurried, instrumental, no vocals, no drums that pop, narrow dynamic range, loopable.
+// Prompt: Playful detective-caper game cabinet theme, light sneaking walking upright bass, pizzicato strings, vibraphone and muted trumpet, brushed drums, curious and mischievous, soft and unhurried, instrumental, no vocals, narrow dynamic range, loopable.
 // One Music generation; falls back to a single sound-effects generation only for plan/permission errors.
 // Post-process: ffmpeg -y -i source.mp3 -af loudnorm=I=-24:TP=-6:LRA=7 -codec:a libmp3lame -b:a 96k public/music/ambient.mp3
 import { readFile, mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const prompt =
-  'Calm, playful ink-and-wax game cabinet ambience, soft mallets, warm pads and gentle plucks, warm and unhurried, instrumental, no vocals, no drums that pop, narrow dynamic range, loopable.';
+  'Playful detective-caper game cabinet theme, light sneaking walking upright bass, pizzicato strings, vibraphone and muted trumpet, brushed drums, curious and mischievous, soft and unhurried, instrumental, no vocals, narrow dynamic range, loopable.';
 const env = await readFile(
   'C:/Users/HP Victus/Documents/personal-projects/hackathon/near-hackathon/the-rule/.env',
   'utf8',

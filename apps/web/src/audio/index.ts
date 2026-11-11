@@ -30,6 +30,7 @@ export type SoundName =
   | 'replay-fail'
   | 'mint'
   | 'blot'
+  | 'jump'
   | 'success';
 
 type SoundControls = {
@@ -63,6 +64,7 @@ const GAINS: Record<SoundName, number> = {
   'replay-fail': 0.65,
   mint: 0.6,
   blot: 0.6,
+  jump: 0.65,
   success: 0.65,
 };
 const MAX_VOICES = 6;

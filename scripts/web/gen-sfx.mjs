@@ -68,6 +68,10 @@ const sounds = {
     0.8,
     "A cheerful soft wooden two-note chime and a paper slip landing.",
   ],
+  jump: [
+    0.7,
+    "A small wax mascot hopping: a quick soft springy rubber boing as it leaps, then a tiny squishy paper-desk landing pat.",
+  ],
 };
 const outputFormat = "mp3_44100_64";
 const influence = 0.55;

@@ -102,12 +102,14 @@ def prepare(config):
     obj(config, ("deployment_kind", "network", "game_account", "token_account", "game_wasm", "token_wasm", "referee_wasm", "referee_sha256", "referee_build_log", "token_cap", "token_metadata", "demo", "params", "init_gas", "token_storage_deposit", "registration_payer", "registration_gas", "token_operation_funding", "operation_funding_payer", "operation_funding_gas"), 'config')
     require(config['network'] == 'testnet', 'network must be testnet')
     kind = config['deployment_kind']
-    require(kind in ('rehearsal', 'demo'), 'deployment_kind must be rehearsal or demo')
+    require(kind in ('rehearsal', 'demo', 'production'), 'deployment_kind must be rehearsal, demo or production')
     game, token = config['game_account'], config['token_account']
     account(game, 'game_account'); account(token, 'token_account')
     require(game != token, 'game and token must be different accounts')
     if kind == 'rehearsal':
         require(re.fullmatch(r'game-r[1-9][0-9]*\.therule\.testnet', game) is not None and token == game.replace('game-r', 'token-r', 1), 'rehearsal accounts must be matching game-rN/token-rN.therule.testnet')
+    elif kind == 'production':
+        require(game == 'game.therule.testnet' and token == 'token.therule.testnet', 'production accounts must be game.therule.testnet and token.therule.testnet')
     else:
         match = re.fullmatch(r'demo-game(-r[1-9][0-9]*)?\.therule\.testnet', game)
         require(match is not None and token == 'demo-token' + (match.group(1) or '') + '.therule.testnet', 'demo accounts must be matching demo-game/demo-token, optionally with matching -rN')
@@ -142,6 +144,7 @@ def prepare(config):
     require(metadata['spec'] == 'ft-1.0.0' and isinstance(metadata['name'], str) and bool(metadata['name']) and metadata['symbol'] == 'RULE' and metadata['decimals'] == 18, 'invalid token metadata')
     require(type(config['demo']) is bool, 'demo must be boolean')
     require(kind != 'demo' or config['demo'], 'demo deployment requires demo=true')
+    require(kind != 'production' or not config['demo'], 'production deployment requires demo=false')
     uint(config['init_gas'], 64, 'init_gas', True)
     require(config['init_gas'] <= 300_000_000_000_000, 'init_gas exceeds 300 Tgas')
     p = obj(config['params'], PARAM_KEYS, 'params')
@@ -201,7 +204,7 @@ def prepare(config):
     registration_args = {'account_id': game, 'registration_only': True}
     registration = ['near-rule', 'contract', 'call-function', 'as-transaction', token, 'storage_deposit', 'json-args', json.dumps(registration_args, separators=(',', ':')), 'prepaid-gas', cli_gas(config['registration_gas']), 'attached-deposit', config['token_storage_deposit'] + ' yoctoNEAR', 'sign-as', config['registration_payer'], 'network-config', 'testnet', 'sign-with-legacy-keychain', 'send']
     funding = ['near-rule', 'contract', 'call-function', 'as-transaction', token, 'fund_operations', 'json-args', '{}', 'prepaid-gas', cli_gas(config['operation_funding_gas']), 'attached-deposit', config['token_operation_funding'] + ' yoctoNEAR', 'sign-as', config['operation_funding_payer'], 'network-config', 'testnet', 'sign-with-legacy-keychain', 'send']
-    label = 'Demo Mode - preselected rule' if kind == 'demo' else 'TESTNET REHEARSAL — KEYS RETAINED' + ('; compressed schedule; non-demo referee; no preselected rule' if config['demo'] else '; non-demo schedule')
+    label = {'demo': 'Demo Mode - preselected rule', 'production': 'PRODUCTION (testnet) - keys deleted only by scripts/ceremony'}.get(kind) or 'TESTNET REHEARSAL — KEYS RETAINED' + ('; compressed schedule; non-demo referee; no preselected rule' if config['demo'] else '; non-demo schedule')
     return {'label': label, 'deployment_kind': kind, 'sha256': {name: hashlib.sha256(data).hexdigest() for name, data in blobs.items()}, 'token_init': token_args, 'game_init': game_args, 'game_token_registration': {'args': registration_args, 'deposit': config['token_storage_deposit'], 'payer': config['registration_payer']}, 'token_operation_funding': {'deposit': config['token_operation_funding'], 'payer': config['operation_funding_payer'], 'nonrefundable': True}, 'commands': [command('token', token_args), funding, command('game', game_args), registration]}
 
 
@@ -221,6 +224,8 @@ def main():
     if not args.execute:
         print('OFFLINE: no network, signature or transaction. Review prerequisites before authorized execution.')
         return
+    if plan['deployment_kind'] == 'production':
+        raise ValueError('production is deployed only through scripts/ceremony/ceremony.py')
     print('Executing token, operation funding, game, then game token registration; stop on failure. Keys are retained.', flush=True)
     for command in plan['commands']:
         subprocess.run(command, check=True)

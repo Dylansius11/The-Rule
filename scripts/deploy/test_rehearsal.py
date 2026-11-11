@@ -194,6 +194,33 @@ class OperationFundingPlanTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 prepare(bad)
 
+    def as_production(self):
+        config = self.config
+        config.update(deployment_kind='production', demo=False, game_account='game.therule.testnet', token_account='token.therule.testnet')
+        config['params'].update(token='token.therule.testnet', genesis_ns=time.time_ns() + 20_000_000_000_000,
+                                round_period_ns=86_400_000_000_000, investigation_max_ns=82_800_000_000_000,
+                                reveal_window_ns=600_000_000_000, begin_timeout_ns=600_000_000_000, open_timeout_ns=600_000_000_000)
+        self.bind_referee('production')
+
+    def test_production_binds_only_the_final_accounts_and_never_demo(self):
+        self.as_production()
+        plan = prepare(self.config)
+        self.assertIn('PRODUCTION', plan['label'])
+        for change in ({'game_account': 'game-r2.therule.testnet'}, {'token_account': 'token-r2.therule.testnet'}, {'demo': True}):
+            config = copy.deepcopy(self.config)
+            config.update(change)
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                prepare(config)
+        self.bind_referee('demo')
+        with self.assertRaises(ValueError):
+            prepare(self.config)
+
+    def test_production_refuses_a_first_slot_less_than_two_hours_away(self):
+        self.as_production()
+        self.config['params']['genesis_ns'] = time.time_ns() + 3_600_000_000_000
+        with self.assertRaises(ValueError):
+            prepare(self.config)
+
     def test_missing_or_invalid_funding_is_rejected(self):
         for key, value in [('token_operation_funding', '0'),
                            ('token_operation_funding', '01'),

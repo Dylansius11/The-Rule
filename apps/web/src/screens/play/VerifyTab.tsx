@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { toUiError } from '@/chain/errors';
 import { roomPath } from '@/app/paths';
 import { useSound } from '@/audio';
-import { useLog, useParams, useRound } from '@/game';
+import { useLog, useParams, useRound, useWallet } from '@/game';
 import type { ReplayState } from '@/game/types';
 import { REPLAY_LIMIT } from '@/config/env';
 import { Art } from '@/art/Art';
@@ -27,6 +27,7 @@ import { RoundHistoryNotice } from '@/screens/shared/RoundHistoryNotice';
 import { useRoom } from './room';
 import { Check, type CheckTone } from './verify/Check';
 import { Payouts } from './verify/Payouts';
+import { WinnerBanner } from './verify/WinnerBanner';
 
 function replaySummary(state: ReplayState): string {
   if (state.kind === 'done') {
@@ -47,6 +48,7 @@ export function VerifyTab() {
   const round = roundQ.data ?? null;
   const log = useLog(mode, round?.rule ? sel.roundId : null);
   const params = useParams();
+  const { accountId } = useWallet();
   const reduced = useReduced();
   const sound = useSound();
   const text = useRuleText(round?.rule ?? null);
@@ -197,6 +199,18 @@ export function VerifyTab() {
             ]}
           />
           <LiveRegion message={replaySummary(state)} assertive={state.kind === 'error'} />
+          {state.kind === 'done' ? (
+            <div className="wrap relative mb-10 empty:hidden">
+              <WinnerBanner
+                mode={mode}
+                round={round}
+                account={accountId}
+                verified={state.result.pass}
+                matched={state.result.matched}
+                total={state.result.total}
+              />
+            </div>
+          ) : null}
           <div className="wrap relative grid items-start gap-10 lg:grid-cols-[1.15fr_0.85fr]">
             <InkBox className="p-6 text-ink md:p-9" tilt={-1.6} fill="var(--color-paper)">
               <h2 className="display text-[clamp(44px,6vw,64px)] leading-[0.9]">The rule was…</h2>

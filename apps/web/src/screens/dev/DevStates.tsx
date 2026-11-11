@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { WinnerBanner } from '@/screens/play/verify/WinnerBanner';
 import { Blot, type BlotState } from '@/mascot/Blot';
 import type { PlayState, UiError } from '@/game/types';
 import { Button } from '@/ui/Button';
@@ -170,6 +171,24 @@ export function DevStates() {
         <Button size="sm" onClick={() => setBurst(n => n + 1)}>
           Burst
         </Button>
+      </div>
+      <h2 className="display mt-8 text-[36px]">Winner moment, solved by you (SAMPLE, no chain data)</h2>
+      <div className="mt-4">
+        <WinnerBanner
+          key={burst}
+          mode={0}
+          round={{
+            ...SAMPLE_ROUND,
+            phase: 'Settled',
+            logLen: 52,
+            outcome: { kind: 'Solved', account: 'sample.testnet', entityTag: 0, entityId: 0 },
+          }}
+          account="sample.testnet"
+          verified
+          matched={52}
+          total={52}
+        />
+        <p className="mono mt-2 text-[13px]">Press Burst above to replay it.</p>
       </div>
       <h2 className="display mt-8 text-[36px]">Misc</h2>
       <div className="flex flex-wrap items-center gap-4">

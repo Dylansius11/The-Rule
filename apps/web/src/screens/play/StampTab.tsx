@@ -14,6 +14,7 @@ import { MiniLog } from './MiniLog';
 import { NoRoundOpen } from './NoRoundOpen';
 import { PlayDesk } from './PlayDesk';
 import { RoundStrip } from '@/screens/shared/RoundStrip';
+import { SetupChecklist } from '@/screens/shared/SetupChecklist';
 import { TeamSetup } from './crew/TeamSetup';
 import { useRoom } from './room';
 
@@ -77,6 +78,9 @@ export function StampTab() {
             { x: 97, y: 66, s: 40, r: -14, n: 'doodles/star-outline' },
           ]}
         />
+        <div className="wrap mb-8 empty:hidden">
+          <SetupChecklist />
+        </div>
         {q.isError ? (
           <div className="wrap">
             <ErrorCard error={toUiError(q.error)} onRetry={() => void q.refetch()} />

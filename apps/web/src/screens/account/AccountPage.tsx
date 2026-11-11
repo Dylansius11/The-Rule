@@ -19,6 +19,7 @@ import { LockPanel } from './LockPanel';
 import { SessionKeyPanel } from './SessionKeyPanel';
 import { TokenRecovery } from './TokenRecovery';
 import { PageHead } from '@/screens/shared/PageHead';
+import { SetupChecklist } from '@/screens/shared/SetupChecklist';
 
 function Balance({
   label,
@@ -136,6 +137,8 @@ export function AccountPage() {
           <ErrorCard error={toUiError(player.error)} onRetry={() => void player.refetch()} />
         </div>
       ) : null}
+
+      <SetupChecklist className="mt-7" />
 
       <section aria-label="Balances" className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <Balance

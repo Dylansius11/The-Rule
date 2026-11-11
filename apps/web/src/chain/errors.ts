@@ -1,4 +1,5 @@
 import type { UiError } from '@/game/types';
+import { isRateLimited, isUnreachable, RpcError } from './rpc';
 
 const noCharge = 'No game charge was applied; transaction gas may apply.';
 const retry = 'Check the round and try again when the action is available.';
@@ -101,6 +102,25 @@ export function toUiError(error: unknown): UiError {
     };
   }
   if (code && messages[code]) return { code, ...messages[code], retryable: true };
+  if (error instanceof RpcError) {
+    // A failed read, not a failed transaction. The wording stays safe if it lands right after a send.
+    return {
+      code: null,
+      title: isRateLimited(error)
+        ? 'The chain data service is busy'
+        : isUnreachable(error)
+          ? 'Could not reach the chain'
+          : 'Could not read the chain',
+      funds:
+        'Reading the chain never spends anything. If you just sent a transaction, check the ledger before sending it again.',
+      next: isRateLimited(error)
+        ? 'Too many requests reached the public node. Wait a few seconds and try again.'
+        : isUnreachable(error)
+          ? 'The public node may be busy, or your connection is down. Wait a few seconds and try again.'
+          : 'Check your connection and try again.',
+      retryable: true,
+    };
+  }
   return {
     code,
     title: 'Could not complete the request',

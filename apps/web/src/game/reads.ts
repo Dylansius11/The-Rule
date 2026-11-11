@@ -6,6 +6,12 @@ import { active } from '@/config/env';
 import * as v from '@/chain/views';
 import type { Mode, Round } from './types';
 
+/**
+ * Per-account state (credit, token storage, lock) changes only through this player's own transactions, and every
+ * action invalidates all queries when it lands, so it refreshes slowly. Shared round state stays at 4 s while live.
+ */
+const ACCOUNT_POLL_MS = 10_000;
+
 const live = (round: Round | null | undefined) =>
   !!round && !['Settled', 'Cancelled', 'Void'].includes(round.phase);
 export const useParams = () => useQuery({ queryKey: ['params'], queryFn: v.getParams });
@@ -137,7 +143,7 @@ export const usePlayer = (account: string | null) =>
     queryKey: ['player', account],
     queryFn: () => v.getPlayer(account!),
     enabled: !!account,
-    refetchInterval: 4000,
+    refetchInterval: ACCOUNT_POLL_MS,
   });
 export function useEntity(mode: Mode, roundId: number | null | undefined, account: string | null) {
   return useQuery({
@@ -196,7 +202,7 @@ export const useLock = (mode: Mode, roundId: number | null | undefined, account:
     queryKey: ['lock', mode, roundId, account],
     queryFn: () => v.getLock(mode, roundId!, account!),
     enabled: roundId != null && !!account,
-    refetchInterval: 4000,
+    refetchInterval: ACCOUNT_POLL_MS,
   });
 export const useSeason = (mode: Mode, season: number) =>
   useQuery({ queryKey: ['season', mode, season], queryFn: () => v.getSeason(mode, season) });
@@ -206,7 +212,7 @@ export const useTokenStorage = (account: string | null) =>
     queryKey: ['tokenStorage', account],
     queryFn: () => v.getTokenStorage(account!),
     enabled: !!account,
-    refetchInterval: 4000,
+    refetchInterval: ACCOUNT_POLL_MS,
   });
 export const useTokenStorageMinimum = () =>
   useQuery({ queryKey: ['tokenStorageMinimum'], queryFn: v.getTokenStorageMinimum });
@@ -215,5 +221,5 @@ export const useTokenState = (account: string | null) =>
     queryKey: ['tokenState', account],
     queryFn: () => v.getTokenState(account!),
     enabled: !!account,
-    refetchInterval: 4000,
+    refetchInterval: query => (query.state.data === 'pending' ? 4000 : ACCOUNT_POLL_MS),
   });

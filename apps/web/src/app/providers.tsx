@@ -9,7 +9,7 @@ import type { WalletState } from '@/game/types';
 type WalletContextValue = WalletState & { connect(): Promise<void>; disconnect(): Promise<void> };
 const WalletContext = createContext<WalletContextValue | null>(null);
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 10_000, retry: 1, refetchOnWindowFocus: true } },
+  defaultOptions: { queries: { staleTime: 10_000, retry: 2, refetchOnWindowFocus: true } },
 });
 function WalletProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<WalletState>({ status: 'loading', accountId: null });

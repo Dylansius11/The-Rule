@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { toUiError } from '@/chain/errors';
 import { formatNear } from '@/chain/format';
 import { useSessionKey } from '@/chain/session/useSessionKey';
 import {
@@ -15,6 +16,7 @@ import { useConnect } from '@/layout/useConnect';
 import { ActionSlip } from '@/ui/ActionSlip';
 import { AmountField, readNear } from '@/ui/AmountField';
 import { Button } from '@/ui/Button';
+import { ErrorCard } from '@/ui/ErrorCard';
 import { InkBox } from '@/ui/InkBox';
 import { isReadyToPlay, nextStep, setupSteps, type SetupStep, type StepId } from './setup';
 
@@ -60,6 +62,8 @@ export function SetupChecklist({ className = '' }: { className?: string }) {
   const next = nextStep(steps);
   const ready = isReadyToPlay(input);
   const keyActive = session.status === 'active' || session.status === 'low';
+  // A read that failed with nothing cached would otherwise leave its rows saying "checking…" forever.
+  const failed = [player, params, storage, token].filter(q => q.isError && q.data === undefined);
 
   // With a session key the game's registration check signs silently, so finish it as soon as storage is paid.
   const confirmed = useRef(false);
@@ -213,7 +217,9 @@ export function SetupChecklist({ className = '' }: { className?: string }) {
                       : step.status === 'unavailable'
                         ? 'not available'
                         : step.status === 'loading'
-                          ? 'checking…'
+                          ? failed.length
+                            ? 'could not read'
+                            : 'checking…'
                           : step.required
                             ? 'needed'
                             : 'recommended'}
@@ -228,6 +234,17 @@ export function SetupChecklist({ className = '' }: { className?: string }) {
           );
         })}
       </ol>
+
+      {failed.length ? (
+        <div className="mt-4">
+          <ErrorCard
+            error={toUiError(failed[0]!.error)}
+            onRetry={() => {
+              for (const query of failed) void query.refetch();
+            }}
+          />
+        </div>
+      ) : null}
 
       {session.notice ? (
         <p className="mt-4 text-[14px] font-bold" role="status">

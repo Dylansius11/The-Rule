@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-11: a rate-limited public RPC looked like a transaction failure in the browser
+
+- **What happened:** a connected player on the Demo Stamp tab saw the setup checklist stuck on "checking…" and a card saying "Could not complete the request … the transaction outcome may be unknown", though nothing had been sent.
+- **Root cause:** the Stamp tab polled about eight views every 4 s, and FastNear's anonymous limit allowed 20 parallel reads but returned HTTP 429 for a burst of 60. Its 429 carries no `Access-Control-Allow-Origin` header (checked with curl), so the browser hides the reply and `fetch` rejects with a bare `TypeError`, not a readable 429. The configured fallback `rpc.testnet.near.org` also answers 429 "endpoint is deprecated", so every read failed. The `TypeError` fell into the generic transaction-error copy.
+- **Rule:** never trust an RPC default without calling it from a browser origin and from a burst. Poll per-account state slowly (actions already invalidate queries), skip a limiting endpoint for a cooldown, treat a bare `fetch` rejection as unreachable, and word read failures as reads. The fallback is now `near-testnet.drpc.org` (CORS allows the origin, free tier, checked 2026-11-11).
+
 ### 2026-11-10: sandbox block counts are not elapsed seconds
 
 - **What happened:** two fixture controls advanced a block count derived from seconds and failed with E50 or a control timeout; an assertion also searched receipt outcomes for a method name they never contain.

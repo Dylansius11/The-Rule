@@ -23,7 +23,7 @@ Read [/CONTEXT.md](/CONTEXT.md) for the combined reference and atom appendix; [/
 This read-only JSON-RPC request fetches Solo round 0 from the exercised rehearsal. `args_base64` is UTF-8 JSON `{"mode":0,"id":0}` encoded as base64. It uses finality `final`:
 
 ```sh
-curl https://rpc.testnet.near.org -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":"round","method":"query","params":{"request_type":"call_function","finality":"final","account_id":"game-r2.therule.testnet","method_name":"get_round","args_base64":"eyJtb2RlIjowLCJpZCI6MH0="}}'
+curl https://test.rpc.fastnear.com -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":"round","method":"query","params":{"request_type":"call_function","finality":"final","account_id":"game-r2.therule.testnet","method_name":"get_round","args_base64":"eyJtb2RlIjowLCJpZCI6MH0="}}'
 ```
 
 Decode the returned `result.result` byte array as UTF-8, then parse JSON. Read `log_len`, then request `get_log` with JSON arguments `{"mode":0,"id":0,"from_idx":0,"limit":200}`, base64-encoded in the same way. Page until all rows are loaded; compare the count with `log_len`. Fetch `get_word_list` and map each row's `play.word_id` to its word. Treat monetary strings as integers, not floating-point numbers. See the [contract reference](/docs/agents/contract-reference).

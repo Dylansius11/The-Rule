@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-12: a warning phrased as an instruction read like a block on committing
+
+- **What happened:** the founder believed Seal & commit was blocked when the free ledger check disagreed. The screenshot shows the real cause: Solo 334 was in `Reveal`, so the button was disabled by "Commits are closed". The check never touched `disabled`, and the contract cannot check a sealed hash against the ledger. The red "Go back to change it" text made a warning read like a gate.
+- **Root cause:** a local, free, optional check had its own step and wording that implied authority it did not have, while sitting in front of a decision the game deliberately lets players get wrong (a wrong stake is half lost, which is the game).
+- **Rule:** the founder decided (2026-11-12) that Guess has three steps (Write, Commit, Reveal) and that any guess may be sealed. The Test step, the "Free check" panel row, the Blot "disagrees" pose in that panel and `checkConsistent` in `apps/web/src/verify` are removed. No contract, token or referee change. Ledger replay after the rule opens is unchanged. Locally tested only (typecheck, vitest, docs lint); the sandbox e2e specs were updated but not run.
+
 ### 2026-11-12: with no keeper running, a finished round stays sealed and the page said nothing useful
 
 - **What happened:** Demo Solo 334 ended its reveal window at 07:49:33 UTC and was still `Reveal` at 08:09 with `rule: null`, so Verify said "Still sealed". Nothing was broken on chain: `finalize` is permissionless and nobody had sent it. D42 leaves the keeper stopped for Demo, and the web had no way to send `advance` or `finalize`.

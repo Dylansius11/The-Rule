@@ -33,10 +33,10 @@ export type TermKey = keyof typeof GLOSSARY;
 /** Where each term is explained in the docs: a page, and the heading on it when the term has its own section. */
 export const TERM_DOCS: Record<TermKey, string> = {
   atom: `${DOCS_PATH}/play/the-law-and-the-grammar`,
-  commit: `${DOCS_PATH}/play/how-to-play#guess-in-four-steps`,
-  salt: `${DOCS_PATH}/play/how-to-play#guess-in-four-steps`,
+  commit: `${DOCS_PATH}/play/how-to-play#guess-in-three-steps`,
+  salt: `${DOCS_PATH}/play/how-to-play#guess-in-three-steps`,
   stake: `${DOCS_PATH}/play/costs-and-payouts#guess-stakes`,
-  reveal: `${DOCS_PATH}/play/how-to-play#guess-in-four-steps`,
+  reveal: `${DOCS_PATH}/play/how-to-play#guess-in-three-steps`,
   ledger: `${DOCS_PATH}/play/how-to-play#stamp-and-read`,
   'contributor share': `${DOCS_PATH}/play/costs-and-payouts#pot-split`,
   attempt: `${DOCS_PATH}/rule/locking-for-attempts`,

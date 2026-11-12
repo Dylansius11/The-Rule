@@ -147,7 +147,7 @@ test.describe('sandbox with mock OutLayer, not testnet evidence', () => {
       await expect(page.getByText('2 of 2 plays loaded')).toBeVisible();
       await expect(page.getByRole('list', { name: 'Plays' }).getByRole('listitem')).toHaveCount(2);
     });
-    await test.step('free guess check sends no transaction; commit and reveal are signed', async () => {
+    await test.step('commit and reveal are signed', async () => {
       await page.goto('/play/solo/guess');
       await page
         .getByRole('radiogroup', { name: 'Rule shape' })
@@ -159,15 +159,10 @@ test.describe('sandbox with mock OutLayer, not testnet evidence', () => {
         .first()
         .click();
       await page.getByRole('button', { name: 'Next', exact: true }).click();
-      const before = (await player()).credit;
-      await page.getByRole('button', { name: 'Check against the ledger', exact: true }).click();
-      await expect(page.getByText(/Consistent with all 2 logged verdicts/).first()).toBeVisible();
-      expect((await player()).credit).toBe(before);
-      await page.getByRole('button', { name: 'Next', exact: true }).click();
       await page.getByRole('button', { name: 'Seal & commit', exact: true }).click();
       await expect(
         page.getByText(
-          'Committed. Your guess is a hash on chain now. Reveal it in step 4 after the minimum delay.',
+          'Committed. Your guess is a hash on chain now. Reveal it in step 3 after the minimum delay.',
         ),
       ).toBeVisible();
       await control({ op: 'advance', blocks: 5 });

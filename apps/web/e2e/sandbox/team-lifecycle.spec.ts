@@ -99,11 +99,10 @@ test('two wallets exit the vault and claim the deleted team’s historical rewar
     .click();
   await page.getByRole('radiogroup', { name: 'Atom atoms', exact: true }).getByRole('radio').first().click();
   await page.getByRole('button', { name: 'Next', exact: true }).click();
-  await page.getByRole('button', { name: 'Next', exact: true }).click();
   await page.getByRole('button', { name: 'Seal & commit', exact: true }).click();
   await expect(
     page.getByText(
-      'Committed. Your guess is a hash on chain now. Reveal it in step 4 after the minimum delay.',
+      'Committed. Your guess is a hash on chain now. Reveal it in step 3 after the minimum delay.',
     ),
   ).toBeVisible();
   const stake =

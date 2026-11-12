@@ -11,12 +11,11 @@ A new play is pending while the referee works. Only a settled response is YES or
 
 Read the ledger for the complete recorded play context and verdicts. Look for a pattern, including changes in time or the previous accepted play. Export the log for closer inspection.
 
-## Guess in four steps
+## Guess in three steps
 
 1. **Write** a candidate from the published grammar.
-2. **Test free** against the loaded ledger locally. A match is evidence, not proof of equivalence.
-3. **Commit** the candidate with a secret salt and the quoted stake. Preserve the salt and candidate securely.
-4. **Reveal** the same candidate and salt at least two blocks later, before the deadline. The referee checks the meaning, not just the wording.
+2. **Commit** the candidate with a secret salt and the quoted stake. Preserve the salt and candidate securely. A candidate that contradicts the ledger can still be committed; it cannot be the rule, so it will not win, and its stake is split as for any wrong guess.
+3. **Reveal** the same candidate and salt at least two blocks later, before the deadline. The referee checks the meaning, not just the wording.
 
 The earliest correct commit sequence wins, even if callbacks arrive in another order. After a valid opening, claim the amount owed to game credit; withdrawal to a wallet is a separate action. See [costs and payouts](/docs/play/costs-and-payouts).
 

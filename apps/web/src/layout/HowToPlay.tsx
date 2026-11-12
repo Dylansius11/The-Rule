@@ -50,7 +50,7 @@ const STEPS: readonly Step[] = [
     artWidth: 230,
     title: 'Commit a guess with a stake',
     note: 'seal it, then open it',
-    body: 'Write your guess as one or two published atoms, test it free against the ledger, then seal it with a stake. The earliest correct commit wins 40% of the pot.',
+    body: 'Write your guess as one or two published atoms, then seal it with a stake. The earliest correct commit wins 40% of the pot.',
     doodle: 'doodles/envelope',
   },
   {

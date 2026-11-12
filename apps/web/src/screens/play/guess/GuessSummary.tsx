@@ -27,11 +27,11 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** The sticky left column of the wide guess page: the guess so far, its free check and what committing costs. */
+/** The sticky left column of the wide guess page: the guess so far and what committing costs. */
 export function GuessSummary({ draft, mode, round, committing }: GuessSummaryProps) {
   const params = useParams();
-  const { rule, text, preview, form, catalog, check } = draft;
-  const state = summaryState(rule !== null, check, committing);
+  const { rule, text, preview, form, catalog } = draft;
+  const state = summaryState(rule !== null, committing);
   const shape = catalog.forms.find(f => f.id === form)?.name ?? ['Single', 'AND', 'OR'][form] ?? '';
   const words = text ? text.english : preview.filter(Boolean).join(form === 1 ? ' and ' : ' or ');
   const cost = params.data ? guessCost(params.data, mode, round ? round.pot : null) : null;
@@ -55,12 +55,6 @@ export function GuessSummary({ draft, mode, round, committing }: GuessSummaryPro
             <Row label="Rule shape">{shape}</Row>
             <Row label="Your guess in words">
               {words ? words : <span className="font-semibold text-ink-soft">Not written yet.</span>}
-            </Row>
-            <Row label="Free check">
-              <span aria-live="polite" className={state.disagrees ? 'text-tomato-deep' : undefined}>
-                {state.disagrees ? <span aria-hidden="true">✗ </span> : null}
-                {state.status}
-              </span>
             </Row>
             <Row label="Committing costs">
               {cost ? (

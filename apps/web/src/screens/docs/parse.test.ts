@@ -137,7 +137,7 @@ describe('links', () => {
     ['https://example.com', 'external'],
     ['mailto:a@b.co', 'external'],
     ['/docs/play/how-to-play', 'route'],
-    ['/docs/play/how-to-play#guess-in-four-steps', 'route'],
+    ['/docs/play/how-to-play#guess-in-three-steps', 'route'],
     ['/season', 'route'],
     ['/CONTEXT.md', 'file'],
     ['/grammar.json', 'file'],

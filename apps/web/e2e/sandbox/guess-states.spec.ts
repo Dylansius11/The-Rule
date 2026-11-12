@@ -47,14 +47,13 @@ test('browser guesses move through Wrong, Refunded and Unrevealed with exact sta
   await page.getByRole('radiogroup', { name: 'Atom atoms', exact: true }).getByRole('radio').first().click();
   await page.getByRole('button', { name: 'Use the opposite', exact: true }).click();
   await page.getByRole('button', { name: 'Next', exact: true }).click();
-  await page.getByRole('button', { name: 'Next', exact: true }).click();
 
   for (let count = 1; count <= 3; count++) {
     await page.getByRole('button', { name: 'Seal & commit', exact: true }).click();
     await expect.poll(async () => (await commits()).length).toBe(count);
     await expect(
       page.getByText(
-        'Committed. Your guess is a hash on chain now. Reveal it in step 4 after the minimum delay.',
+        'Committed. Your guess is a hash on chain now. Reveal it in step 3 after the minimum delay.',
       ),
     ).toBeVisible();
   }

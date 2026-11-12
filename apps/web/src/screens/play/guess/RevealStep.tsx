@@ -30,7 +30,7 @@ interface RevealStepProps {
   account: string | null;
 }
 
-/** Step 4: open a committed guess so the program can check it, and follow each commit's status. */
+/** Step 3: open a committed guess so the program can check it, and follow each commit's status. */
 export function RevealStep({ actions, commits, round, account }: RevealStepProps) {
   const mine = (commits.data ?? []).filter(c => c.actor === account);
   const sending = actions.reveal.state.kind === 'signing' || actions.reveal.state.kind === 'pending';

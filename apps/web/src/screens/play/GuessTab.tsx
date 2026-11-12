@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { toUiError } from '@/chain/errors';
-import { useCommits, useGuessActions, useLog, useParams, usePlayer, useWallet } from '@/game';
+import { useCommits, useGuessActions, useParams, usePlayer, useWallet } from '@/game';
 import { stakeFor } from '@/game/cost';
 import { roomPath } from '@/app/paths';
 import { useGuide } from '@/layout/guide';
@@ -19,36 +19,28 @@ import { GuessSummary } from './guess/GuessSummary';
 import { HypothesisStep } from './guess/HypothesisStep';
 import { RevealStep } from './guess/RevealStep';
 import { StepNav, type GuessStep } from './guess/StepNav';
-import { TestStep } from './guess/TestStep';
 import { useGuessDraft } from './guess/useGuessDraft';
 import { useWide } from './guess/useWide';
 import { useRoom } from './room';
 
 const STEPS: readonly GuessStep[] = [
   { title: 'Write', note: 'what is your hunch?' },
-  { title: 'Test', note: 'free, nothing is sent' },
   { title: 'Commit', note: 'seal it with a stake' },
   { title: 'Reveal', note: 'then open it' },
 ];
 
-const HEADINGS = [
-  'Write your hypothesis',
-  'Test it free against the ledger',
-  'Commit your guess',
-  'Reveal it',
-];
+const HEADINGS = ['Write your hypothesis', 'Commit your guess', 'Reveal it'];
 
-/** The guess tab: four steps from a hunch to a revealed commit. The newest round of the room's mode is the one guessed on. */
+/** The guess tab: three steps from a hunch to a revealed commit. The newest round of the room's mode is the one guessed on. */
 export function GuessTab() {
   const { mode, latest } = useRoom();
   const round = latest.data ?? null;
   const params = useParams();
   const { status, accountId } = useWallet();
   const player = usePlayer(accountId);
-  const log = useLog(mode, round?.roundId ?? null);
   const commits = useCommits(mode, round?.roundId ?? null);
   const actions = useGuessActions(mode, round?.roundId ?? 0);
-  const draft = useGuessDraft(log);
+  const draft = useGuessDraft();
   const { show } = useGuide();
   const [step, setStep] = useState(0);
 
@@ -59,7 +51,7 @@ export function GuessTab() {
     round && params.data ? stakeFor(round.pot, params.data.stakeBps[mode], params.data.stakeMin) : null;
   const needsTeam =
     mode === 1 && status === 'connected' && player.isSuccess && (player.data?.teamId ?? null) === null;
-  const reachable = (i: number) => i === 0 || i === 3 || draft.rule !== null;
+  const reachable = (i: number) => i === 0 || i === 2 || draft.rule !== null;
   const last = step === STEPS.length - 1;
 
   return (
@@ -97,7 +89,7 @@ export function GuessTab() {
             {round
               ? `${modeName(mode)} round ${round.roundId} is ${round.phase === 'Investigation' ? 'closed to new plays' : phaseLabel(round.phase).toLowerCase()}. `
               : `No ${modeName(mode).toLowerCase()} round has started. `}
-            Guesses can be sealed only while plays are open. You can still write one and test it for free.
+            Guesses can be sealed only while plays are open. You can still write one.
           </EmptyState>
         </div>
       ) : null}
@@ -122,11 +114,10 @@ export function GuessTab() {
             </div>
             <div className="mt-4">
               {step === 0 ? <HypothesisStep draft={draft} /> : null}
-              {step === 1 ? <TestStep draft={draft} log={log} /> : null}
-              {step === 2 ? (
+              {step === 1 ? (
                 <CommitStep draft={draft} actions={actions} open={open} stake={stake} needsTeam={needsTeam} />
               ) : null}
-              {step === 3 ? (
+              {step === 2 ? (
                 <RevealStep actions={actions} commits={commits} round={round} account={accountId} />
               ) : null}
             </div>
@@ -136,12 +127,12 @@ export function GuessTab() {
               </Button>
               {last ? null : (
                 <Button
-                  variant={step === 2 ? 'paper' : 'red'}
+                  variant={step === 1 ? 'paper' : 'red'}
                   size="sm"
                   disabled={!reachable(step + 1)}
                   onClick={() => setStep(step + 1)}
                 >
-                  {step === 2 ? 'Skip to reveal' : 'Next'}
+                  {step === 1 ? 'Skip to reveal' : 'Next'}
                 </Button>
               )}
             </div>

@@ -56,7 +56,6 @@ test('the "Your guess" summary sits beside the card from 1280px and is absent be
   await openGuess(page, 1568);
   const summary = page.getByRole('complementary', { name: 'Your guess' });
   await expect(summary).toBeVisible();
-  await expect(summary.getByText('Free check')).toBeVisible();
   await expect(summary.getByText('Committing costs')).toBeVisible();
   const card = await page.locator('h2', { hasText: 'Write your hypothesis' }).boundingBox();
   const side = await summary.boundingBox();

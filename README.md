@@ -4,9 +4,7 @@
 
 <br>
 
-### A memecoin with a secret law that nobody knows, not even its creators. Find the rule, win the pot.
-
-**The first private rule guessing game on NEAR.**
+**A memecoin game with a secret law that nobody knows, not even its creators.**
 
 A sealed program inside an Intel TDX enclave picks a hidden law each day. You pay a few cents to test a number and a word, and it answers YES or NO.<br>
 Every YES mints $RULE, every fee grows a NEAR pot, and the first player to name the law wins it.<br>
@@ -35,13 +33,14 @@ Built for the NEAR Hackathon 2026 · **Memecoins** · **Games** · Sister entry:
 
 ## The problem
 
-Memecoins and hidden-rule games share one weakness: **the insider**.
+Guessing is one of the oldest paid habits in the world, and it has one weakness everywhere it appears: **the insider**.
 
-- In a memecoin launch, the creators know things the buyers do not.
-- In a classic hidden-rule game (Zendo, Eleusis, Mastermind), the host knows the answer. Online, the host can play from a second account and win their own pot.
-- A salted hash commitment proves the host did not *change* the answer. It cannot stop the host from *knowing* it.
+- **Memecoins** are crypto's biggest retail market, yet almost none of that attention buys anything to *do*. Holders wait, and the creators always know more than the buyers.
+- **Hidden-rule games** (Zendo, Eleusis, Mastermind) are deeply fun, but the host knows the answer. Online, the host can play from a second account and win their own pot.
+- **Prediction and betting markets** prove people will pay to be right: venues like Kalshi and Polymarket now report tens of billions of dollars in monthly volume. But they settle on events in the outside world, where someone, somewhere, usually knows more, and the operator still decides what counts as the outcome.
+- **A salted hash commitment** proves a host did not *change* the answer. It cannot stop the host from *knowing* it.
 
-So every "guess the secret" game with real stakes is either trust-me, or a game where the house can always win.
+So every "guess the secret" game with real stakes is either trust-me, or a game where the house can always win. THE RULE aims at the missing version: an answer hidden from everyone, the operator included, with a public check afterwards.
 
 ## The solution: a game master nobody controls
 
@@ -110,6 +109,16 @@ A teammate can be an **AI agent**. Agents call exactly the same contract methods
 
 Blot is the ink blot who stamps every play. Blot cheers your YES, shrugs at your NO, and celebrates when your team cracks the law. The whole game is hand-inked: paper, stamps, doodles and a soundtrack that keeps the table lively.
 
+## See it
+
+<p align="center"><img src="docs/assets/screens/mobile-strip.png" alt="THE RULE on a phone: a stamped play accepted with Blot cheering, the public ledger, and the You cracked it win screen" width="900"></p>
+
+The interface is built phone first: a thumb bar for Stamp, Ledger, Guess and Verify, reels you can tap or type into, and a win screen that lets you claim and verify in one place. On a wide screen the live plays rail sits beside the desk, and the Verify tab replays every verdict in your browser:
+
+<p align="center"><img src="docs/assets/screens/desktop-verify.png" alt="The Verify tab after a solved round: You cracked it, replayed 3 of 3 verdicts" width="900"></p>
+
+<sub>Screens are real UI captured from a local sandbox with a mock referee, so they illustrate the interface only and are not testnet evidence. The sandbox banner is visible in the top bar of each shot.</sub>
+
 ## Architecture
 
 ```mermaid
@@ -177,13 +186,26 @@ flowchart LR
 
 ## The opportunity
 
-Memecoins are one of crypto's largest retail markets: roughly **$30 billion** in market value entering Q4 2026 ([crypto.news](https://crypto.news/memecoin-outlook-for-q4-2026-can-the-sector-find-lasting-buyers)), and about **$1.75 billion** in daily volume across the top 230 coins ([MemeFees](https://memefees.com/coins), observed 2026-11-12). Almost none of that volume buys anything to *do*. THE RULE turns a memecoin into a reason to come back every day: a fresh puzzle, a shared pot, and a token that is minted by being right.
+**Guessing is a market, and it is growing fast.** Combined monthly volume on the two leading prediction markets, Kalshi and Polymarket, rose from under **$5 billion** in September 2025 to about **$24 billion** in April 2026, more than the roughly $14 billion a month Americans wagered through legal sportsbooks in 2025 ([Pew Research Center](https://www.pewresearch.org/short-reads/2026/05/27/trading-volume-on-prediction-markets-has-soared-in-recent-months/)). In October 2026, eight U.S. venues reported **$120.7 billion** in contract volume ([DeFi Rate](https://defirate.com/news/prediction-market-volume-reaches-120-7-billion-october)). Both figures count the face value of contracts traded, not cash spent, and most of it is sports. They show demand, not revenue.
 
-Deduction games and daily puzzles already prove the habit. THE RULE adds what they never had: real stakes with no house, and a public ledger that makes every player's experiment useful to everyone else, including AI agents hunting for patterns. We built it to be the best game on NEAR to play with friends, with agents, and against them.
+**Memecoins are the other half.** Roughly **$30 billion** in market value entering Q4 2026 ([crypto.news](https://crypto.news/memecoin-outlook-for-q4-2026-can-the-sector-find-lasting-buyers)) and about **$1.75 billion** in daily volume across the top 230 coins ([MemeFees](https://memefees.com/coins), observed 2026-11-12), with almost nothing to do between trades.
+
+**The gap THE RULE fills.** Prediction markets let you bet on what the world will do. THE RULE is a guessing market on something that exists only inside a sealed program, so there is no insider, no news edge and no operator who can win by knowing. Players, teams and AI agents earn by running better experiments and reasoning from a public ledger. The pot, the token mint and the winner are all decided by contract code. A fresh puzzle every day gives a memecoin a reason to be opened daily, and a token that is minted by being right.
+
+| Market | What people pay to guess | Who can know more than you |
+| --- | --- | --- |
+| Sportsbooks and prediction markets | Real-world events | Insiders, oddsmakers, the operator that settles the market |
+| Memecoin launches | Where attention goes next | The creators |
+| Daily puzzles (Wordle, Connections) | A fixed answer, free | A publisher who knows the answer |
+| **THE RULE** | **A hidden law that no human has seen** | **Nobody, until the authorized reveal, under the TEE trust model** |
+
+These are demand signals, not forecasts for THE RULE. Real stakes also bring legal duties: a mainnet launch with real money needs a legal review first, and nothing here promises any return on $RULE.
 
 **How it earns.** The protocol takes 5% of every play fee and 10% of every round pot, paid on chain to the platform account. More players means bigger pots, which means more players.
 
 ## Roadmap
+
+> **North star: the best and most addictive game with real memecoin utility on NEAR.** Every step below is judged by one question: does it make people want to come back tomorrow, and does the token do something real when they do?
 
 | When | What |
 | --- | --- |

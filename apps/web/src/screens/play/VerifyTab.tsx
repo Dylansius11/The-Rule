@@ -24,6 +24,8 @@ import { downloadLog } from '@/screens/shared/exportLog';
 import { modeName, outcomeLabel, phaseLabel } from '@/screens/shared/round';
 import { useRoundSelection } from '@/screens/shared/useRoundSelection';
 import { RoundHistoryNotice } from '@/screens/shared/RoundHistoryNotice';
+import { SettleRound } from '@/screens/shared/SettleRound';
+import { useRoundClock } from '@/screens/shared/useRoundClock';
 import { useRoom } from './room';
 import { Check, type CheckTone } from './verify/Check';
 import { Payouts } from './verify/Payouts';
@@ -52,6 +54,7 @@ export function VerifyTab() {
   const reduced = useReduced();
   const sound = useSound();
   const text = useRuleText(round?.rule ?? null);
+  const clock = useRoundClock(round);
   const replay = useReplay(round?.rule ? round : null);
   const [opened, setOpened] = useState(false);
   const started = useRef(false);
@@ -168,8 +171,13 @@ export function VerifyTab() {
       ) : !round.rule || !round.salt || !round.commit ? (
         <div className="wrap pb-20">
           <EmptyState title="Still sealed" art="stickers/hiding" artWidth={170}>
-            {modeName(mode)} round {round.roundId} is {phaseLabel(round.phase).toLowerCase()}. The rule opens
-            only at the reveal, and this page has nothing to show before that.
+            {modeName(mode)} round {round.roundId}{' '}
+            {clock.stage === 'reveal-ended'
+              ? 'has finished its reveal window and is waiting to be settled'
+              : clock.stage === 'plays-closed'
+                ? 'has closed its plays and is waiting to move on'
+                : `is ${phaseLabel(round.phase).toLowerCase()}`}
+            . The rule opens only once the round is settled, and this page has nothing to show before that.
             {sel.revealed ? (
               <>
                 {' '}
@@ -180,6 +188,7 @@ export function VerifyTab() {
               <> No opened {modeName(mode)} law was found in the bounded lookup window.</>
             )}
           </EmptyState>
+          <SettleRound round={round} className="mx-auto mt-5 max-w-[62ch] text-center" />
           {sel.revealed && sel.revealed.roundId !== round.roundId ? (
             <div className="mt-5 text-center">
               <Button to={roomPath(mode, 'verify', sel.revealed.roundId)} variant="red">

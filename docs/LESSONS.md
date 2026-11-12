@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-12: with no keeper running, a finished round stays sealed and the page said nothing useful
+
+- **What happened:** Demo Solo 334 ended its reveal window at 07:49:33 UTC and was still `Reveal` at 08:09 with `rule: null`, so Verify said "Still sealed". Nothing was broken on chain: `finalize` is permissionless and nobody had sent it. D42 leaves the keeper stopped for Demo, and the web had no way to send `advance` or `finalize`.
+- **Root cause:** the UI treated the keeper as the only lifecycle actor and described an overdue round as an ordinary wait.
+- **Rule:** an overdue deadline says what is missing, and after a 90 s keeper grace the page offers the permissionless `advance`/`finalize` through the player's wallet (gas only, zero deposit, not on the session-key list). Locally tested only; the button is not yet exercised on testnet.
+
 ### 2026-11-12: the Stamp button waited on the send path while the ledger already held the verdict
 
 - **What happened:** on the Demo Stamp tab the button and Blot stayed on "Signing with your session key" while the Ledger already listed the play as YES. On-chain, the 517 play was included at 07:45:24 UTC and its verdict callback landed 6.6 s later (receipt timeline from `demo-game` and `outlayer.testnet`), but the screenshot was taken about 33 s after inclusion. The page leaves `signing` only when `sendWithKey` returns, which also waits for the root receipt to be final.

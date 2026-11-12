@@ -63,6 +63,13 @@ export function useClaimActions(mode: Mode, roundId: number) {
   };
 }
 
+/** The permissionless lifecycle calls the keeper normally sends: `advance` after plays close, `finalize` after the reveal window. */
+export function useSettleAction(mode: Mode, roundId: number) {
+  return useAction<'advance' | 'finalize'>(step =>
+    step === 'advance' ? calls.advance(mode, roundId) : calls.finalize(mode, roundId),
+  );
+}
+
 export function useTeamActions() {
   return {
     create: useAction<string>(async name => {

@@ -1,4 +1,5 @@
-import { Link } from 'react-router';
+import { useState } from 'react';
+import { Link, useSearchParams } from 'react-router';
 import { roomPath } from '@/app/paths';
 import { toUiError } from '@/chain/errors';
 import { usePlayer, useTeam, useWallet } from '@/game';
@@ -7,10 +8,14 @@ import { Button } from '@/ui/Button';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorCard } from '@/ui/ErrorCard';
 import { HashText } from '@/ui/HashText';
+import { InkBox } from '@/ui/InkBox';
 import { PageHead } from '@/screens/shared/PageHead';
 import { InTeam } from './crew/InTeam';
 import { NoTeam } from './crew/NoTeam';
 import { PastRounds } from './crew/PastRounds';
+import { ClaimAll } from '@/screens/shared/ClaimAll';
+import { JoinCard } from './crew/JoinCard';
+import { joinIdFromSearch } from './crew/invite';
 
 /** The crew desk: roster, vault, locks, settle. Reached from the Team room's Crew tab. */
 export function CrewTab() {
@@ -18,7 +23,10 @@ export function CrewTab() {
   const { accountId } = useWallet();
   const player = usePlayer(accountId);
   const teamId = player.data?.teamId ?? null;
+  const [search] = useSearchParams();
+  const linkId = joinIdFromSearch(search.toString());
   const team = useTeam(teamId);
+  const [left, setLeft] = useState(false);
 
   return (
     <div className="wrap pb-20 pt-7 md:pt-10">
@@ -45,22 +53,26 @@ export function CrewTab() {
             Looking for your wallet…
           </p>
         ) : wallet.status !== 'connected' || !accountId ? (
-          <EmptyState
-            title="Connect to use the team desk"
-            art="stickers/pointing"
-            artWidth={130}
-            actions={
-              <Button variant="red" size="lg" onClick={connect} busy={connecting}>
-                Connect wallet
-              </Button>
-            }
-          >
-            Teams, vaults and rewards belong to an account. You can still read every Team round on the{' '}
-            <Link to={roomPath(1, 'ledger')} className="font-extrabold underline decoration-2">
-              ledger
-            </Link>
-            .
-          </EmptyState>
+          linkId !== null ? (
+            <JoinCard teamId={linkId} prominent />
+          ) : (
+            <EmptyState
+              title="Connect to use the team desk"
+              art="stickers/pointing"
+              artWidth={130}
+              actions={
+                <Button variant="red" size="lg" onClick={connect} busy={connecting}>
+                  Connect wallet
+                </Button>
+              }
+            >
+              Teams, vaults and rewards belong to an account. You can still read every Team round on the{' '}
+              <Link to={roomPath(1, 'ledger')} className="font-extrabold underline decoration-2">
+                ledger
+              </Link>
+              .
+            </EmptyState>
+          )
         ) : player.isError ? (
           <ErrorCard error={toUiError(player.error)} onRetry={() => void player.refetch()} />
         ) : player.isLoading || (teamId !== null && team.isLoading) ? (
@@ -69,13 +81,37 @@ export function CrewTab() {
           </p>
         ) : teamId !== null && team.data ? (
           <>
-            <InTeam team={team.data} me={accountId} />
+            {linkId !== null && linkId !== teamId ? <JoinCard teamId={linkId} prominent /> : null}
+            <ClaimAll />
+            <InTeam team={team.data} me={accountId} onLeft={() => setLeft(true)} />
             <HashText value={accountId} kind="account" full label="account" />
           </>
         ) : (
-          <NoTeam />
+          <>
+            {left ? (
+              <InkBox className="p-4" fill="var(--color-lime)" tilt={-0.4}>
+                <p className="font-extrabold" role="status">
+                  You left the team. Your share of the vault is now game credit.{' '}
+                  <Link to="/account" className="underline decoration-2">
+                    Withdraw it to your wallet on the Account page
+                  </Link>
+                  .
+                </p>
+              </InkBox>
+            ) : null}
+            <NoTeam />
+          </>
         )}
-        {wallet.status === 'connected' ? <PastRounds teamIdGuess={teamId} /> : null}
+        {wallet.status === 'connected' ? (
+          <details>
+            <summary className="min-h-[44px] cursor-pointer font-extrabold underline decoration-2 underline-offset-2">
+              Unlock or claim one specific round by hand
+            </summary>
+            <div className="mt-3">
+              <PastRounds teamIdGuess={teamId} />
+            </div>
+          </details>
+        ) : null}
       </div>
     </div>
   );

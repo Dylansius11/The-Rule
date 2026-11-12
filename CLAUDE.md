@@ -52,8 +52,8 @@ Lead (Opus 5.5) owns architecture, founder gates, the `crates/rule-core` and `cr
 
 | Work | Agent | Required resolved model |
 | --- | --- | --- |
-| Contracts, referee, verifier, keeper, scripts, tests, technical docs, all research | `executor` via `task` | `@task` = `openai-codex/gpt-6.1-terra:high` |
-| Visual UI, interaction, motion, `docs/DESIGN.md` (Phase 7) | `secondary-executor`, or the lead | `@secondary` = `anthropic/claude-sonnet-5-5:high` |
+| Contracts, referee, verifier, keeper, scripts, tests, technical docs, all research | `executor` via `task` | `@task` = `openai-codex/gpt-6.1-sol:high` (founder, 2026-11-12) |
+| Frontend: visual UI, interaction, motion, `docs/DESIGN.md` | `secondary-executor`, or the lead | `@secondary` = `anthropic/claude-sonnet-5-5:high`, one at a time |
 
 Before trusting a worker, read the first `model_change` record in its session file and stop on `resolvedModelIsFallback: true`. Each worker gets self-contained context: owned and forbidden paths, interfaces, copied acceptance criteria, evidence rules, no commits, no full suites, no installs outside its owned package. The lead reviews every landed change, then runs proportionate checks once. On a usage limit, keep a short ledger of worker states and continue inline.
 

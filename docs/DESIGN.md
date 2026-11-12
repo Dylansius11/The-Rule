@@ -100,7 +100,7 @@ The landing and the game are separate (founder, 2026-11-08). The landing sells a
 - **Deployment strip:** under every header, the label from `deploymentLabel(active.kind)` plus a Live/Demo toggle. Without a configured demo instance, Demo opens an honest "not deployed yet" dialog; with one, it switches and reloads. In Demo Mode the strip is a permanent tomato tape reading "Demo Mode - preselected rule" on every page.
 - **Mobile (390 px):** in the app, a bottom tab bar (Stamp, Ledger, Guess, Verify, More) with More holding Season, Account, Team crew, How to play, Settings and Demo. Tap targets 44 px minimum. No horizontal scroll at any width. Wide screens use a fluid container up to 1440 px with full-bleed bands and doodles in the gutters.
 - **Footer:** the full footer (trust sentence, replay limit, testnet and no-price disclaimer, accounts, Blot in the pool) lives on the landing. The app has one slim line whose "Trust model" opens a sheet with the same sentences; Verify keeps the replay limit beside its results.
-- **Settings (gear):** sound on/off and volume, reduce motion (for people who get dizzy from animation; the OS setting always applies too), show How to play.
+- **Settings (gear):** sound on/off and volume, music on/off and volume (default on at 0.3, starts after the first tap), reduce motion (for people who get dizzy from animation; the OS setting always applies too), show How to play.
 - **How to play:** a five-step illustrated modal that opens on the first visit to `/play` and from `?`: pick a number and a word; the sealed law stamps YES or NO (YES mints $RULE, fees fund the pot); read the ledger and spot the pattern; commit a guess with a stake (earliest correct commit wins); the rule opens and your browser replays every verdict.
 
 ## Screens
@@ -112,12 +112,15 @@ Solo and Team run side by side every day, each with its own rule, pot, log and s
 | Landing | `/` | 3D Blot hero with "FIND THE RULE!", live round strip stickers, marquee ribbon with hanging Blot, how it works, the sealed-law scroll story, season teaser, full footer |
 | S1 Stamp | `/play/:mode` | Round header (round, phase, time, pot, plays, accept rate), the stamp desk (reels, word chips, STAMP, slip, Blot reactions), attempts, own line, credit, mini ledger. Team mode without a team shows the create/join card first |
 | S2 Ledger | `/play/:mode/ledger` | Heron's ledger: search and filters as sticker chips, virtualized crisp table, completeness meter with Drip crawling, export CSV/JSON |
-| S3 Guess | `/play/:mode/guess` | Four steps: write a hypothesis from published atoms, test it free against the ledger, commit with a stake quote, reveal in the window; statuses as slips |
+| S3 Guess | `/play/:mode/guess` | Three steps: write a hypothesis from published atoms (one line per atom, the DSL on its own small line), commit with a stake quote, reveal in the window; statuses as slips. Nothing is checked or blocked before the commit: the player may seal any guess. From 1280 px a sticky "Your guess" summary (shape, sentence, cost, Blot idle/pending only) sits beside the step card; below it the single column stays |
 | S4 Verify | `/play/:mode/verify` | The seal cracks open, the rule types out (English, DSL, canonical JSON), salt and commitment check, replay meter N of N, `make verify` command, log download; `?round=` for past rounds |
 | S5 Team crew | `/play/team/crew` | Heron's team desk: roster stickers, vault, locks, settle and claim |
 | S6 Account | `/account` | Wallet NEAR vs game credit vs vault, separate pending slips, $RULE balance and locks, claims, token operation recovery |
 | S7 Season | `/season` | Ledger-style boards per mode plus round history linking to each ledger and verify; when the deployment has no season view, an honest empty state |
 | S8 Demo | deployment strip | Live/Demo toggle as above |
+| Docs | `/docs`, `/docs/:section/:slug` | Reading layout, not game layout: body at 18-19 px with a 70-character measure in the app body font (display font only for titles), left section navigation, right scroll-spy contents from 1280 px, sheets below. The home has the Feed-this-to-your-agent card (copy, open raw, download `CONTEXT.md`), search (`/` focuses it) and the exact trust sentence. Sections come from `public/docs/index.json`, generated from `content/docs/**` with `CONTEXT.md`, `llms.txt` and `grammar.json`; headings get anchors; raw pages are served as `text/plain` |
+
+**Plain-language help.** `Term` is an inline glossary button (hover, tap or keyboard; Esc closes; portalled so tilted cards never clip it) with a Read more link into the docs. The collapsible **Cost & payout** panel under the stamp desk and in the Guess summary reads `get_params` live and never shows a number before they load. Lock tiers are labelled by amount order: **Ribbon**, **Wax**, **Signet** (labels only, no rank or price).
 
 Old paths (`/log`, `/guess`, `/reveal`, `/team`, `/wallet`) redirect to their new homes with mode and round kept.
 
@@ -154,7 +157,9 @@ Curves: `--spring: cubic-bezier(.34,1.7,.5,1)` for pops, `--out: cubic-bezier(.2
 
 ## Sound
 
-Short, dry, tactile SFX from a hand-inked paper world (rubber stamps, wax, paper, a rubbery mascot), generated once with ElevenLabs by `scripts/web/gen-sfx.mjs` and shipped as small MP3s under `public/sfx/` (about 90 KB total). Sounds answer only a user action or the user's own result (stamp, verdict, replay, poke, modal, tab); never page load, scroll or polling. On by default at a moderate volume, muted or adjusted in Settings, silent until the first gesture. No music for now (founder, 2026-11-08).
+Short, dry, tactile SFX from a hand-inked paper world (rubber stamps, wax, paper, a rubbery mascot), generated once with ElevenLabs by `scripts/web/gen-sfx.mjs` and shipped as small MP3s under `public/sfx/` (about 154 KB total, 25 sounds including nav, sign, stamp-roll, win and correct; Blot's squeak is a faster, lower, male cartoon vocalization, 2026-11-12). Sounds answer only a user action or the user's own result (stamp, verdict, replay, poke, modal, tab); never page load, scroll or polling. Poking the 3D hero Blot plays a springy `jump` as he hops; the 2D fallback keeps the `blot` squeak because it does not hop. On by default at a moderate volume, muted or adjusted in Settings, silent until the first gesture.
+
+**Music (founder, 2026-11-09; theme changed to playful detective 2026-11-11):** one quiet playful-detective-caper bed (sneaking upright bass, pizzicato strings, vibraphone, muted trumpet, brushed drums; `public/music/ambient.mp3`, 30 s, about -17.6 LUFS, 128 kbps stereo; since 2026-11-12 the original loop is kept as the base and a cheerful marimba, pluck, glockenspiel and clap layer is mixed on its measured beat grid (about 112 BPM) by `scripts/web/gen-music.mjs`; the Music API needs a paid plan and refused this key; not audited by ear). On by default but it can only start after the first tap, loads lazily, loops with a two-second crossfade, dips to under half while any effect plays, pauses when the tab is hidden, and has its own switch and volume in Settings (default 0.3). It never changes meaning: it carries no information about verdicts.
 
 ## Voice
 

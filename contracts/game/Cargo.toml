@@ -17,7 +17,7 @@ container_build_command = ["cargo", "near", "build", "non-reproducible-wasm", "-
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-near-sdk = "=5.30.0"
+near-sdk = { version = "=5.30.0", features = ["unstable"] }
 borsh = "=1.8.1"
 protocol = { path = "../../crates/protocol" }
 rule-core = { path = "../../crates/rule-core" }

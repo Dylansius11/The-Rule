@@ -4,22 +4,31 @@ import { roomPath } from '@/app/paths';
 import { useSound, type SoundName } from '@/audio';
 import { Art } from '@/art/Art';
 import { formatNear } from '@/chain/format';
-import { useEntity, usePlay, usePlayer, useParams, useTeam, useWords } from '@/game';
+import { useEntity, useLog, usePlay, usePlayer, useParams, useTeam, useWords } from '@/game';
 import type { Mode, PlayState, Round } from '@/game/types';
+import { playCost } from '@/game/cost';
 import { useConnect } from '@/layout/useConnect';
 import { Blot, type BlotState } from '@/mascot/Blot';
+import { Confetti } from '@/mascot/Confetti';
 import { Drip } from '@/mascot/Drip';
 import { Doodle } from '@/ui/Doodle';
 import { useNow } from '@/motion/hooks';
 import { useReduced } from '@/motion/prefs';
 import { Button } from '@/ui/Button';
+import { Amount } from '@/ui/Amount';
 import { InkBox } from '@/ui/InkBox';
+import { InkSplash } from '@/ui/InkSplash';
 import { ReelNumber } from '@/ui/Reel';
+import { StatSticker } from '@/ui/Sticker';
 import { PlaySlip } from '@/ui/Slip';
 import { SpeechBubble } from '@/ui/SpeechBubble';
 import { timeAgo } from '@/chain/format';
 import { modeName, pad3 } from '@/screens/shared/round';
+import { ClaimAll } from '@/screens/shared/ClaimAll';
+import { RoundTimer } from '@/screens/shared/RoundTimer';
 import { WordPicker } from './WordPicker';
+import { teamMinted } from './crew/vault';
+import { sameFace } from './sameFace';
 
 const BLOT: Record<PlayState['kind'], BlotState> = {
   idle: 'idle',
@@ -68,9 +77,15 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
   const team = useTeam(mode === 1 ? (player.data?.teamId ?? null) : null);
   const play = usePlay(mode, round.roundId);
   const now = useNow(15_000);
+  const log = useLog(mode, round.roundId);
+  const mintedMine =
+    wallet.accountId && player.data?.teamId != null
+      ? teamMinted(log.rows, player.data.teamId, wallet.accountId).mine
+      : 0n;
 
   const [number, setNumber] = useState(417);
   const [word, setWord] = useState<string | null>(null);
+  const repeats = sameFace(log.rows, number, word);
   const [pressed, setPressed] = useState(false);
   const desk = useRef<HTMLDivElement>(null);
   const reduced = useReduced();
@@ -80,7 +95,7 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
     if (word === null && list.length) setWord(list[Math.floor(list.length / 9)] ?? list[0] ?? null);
   }, [list, word]);
 
-  const fee = params.data?.playFee ?? null;
+  const price = params.data ? playCost(params.data).total : null;
   const balance = mode === 0 ? player.data?.credit : team.data?.vault;
   const left = entity.data ? entity.data.limit - entity.data.attempts : null;
   const inFlight = BUSY.includes(play.state.kind);
@@ -95,7 +110,8 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
     if (lastKind.current === stateKind) return;
     lastKind.current = stateKind;
     const cue: Partial<Record<PlayState['kind'], SoundName>> = {
-      pending: 'pending',
+      signing: 'sign',
+      pending: 'stamp-roll',
       accepted: 'yes',
       rejected: 'no',
       known: 'duplicate',
@@ -112,24 +128,29 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
     if (waiting && !inFlight)
       reason = { text: 'A play is already waiting for the sealed program. One at a time.' };
     else if (left !== null && left <= 0) reason = { text: 'No attempts left in this round for your line.' };
-    else if (fee !== null && balance !== undefined && balance < fee)
+    else if (price !== null && balance !== undefined && balance < price)
       reason = {
-        text: `Not enough ${mode === 0 ? 'game credit' : 'team vault'} for the ${formatNear(fee)} NEAR fee.`,
+        text: `Not enough ${mode === 0 ? 'game credit' : 'team vault'} for one play: ${formatNear(price)} NEAR (the ${formatNear(params.data?.playFee ?? 0n)} NEAR fee plus ${formatNear(params.data?.storagePerPlay ?? 0n)} NEAR storage).`,
         to: mode === 0 ? '/account' : roomPath(1, 'crew'),
         cta: mode === 0 ? 'Add credit' : 'Open the crew desk',
       };
   }
-  const canStamp = wallet.status === 'connected' && !reason && !inFlight && word !== null && fee !== null;
+  const canStamp = wallet.status === 'connected' && !reason && !inFlight && word !== null && price !== null;
 
   function stamp() {
     if (!canStamp || word === null) return;
     setPressed(true);
     if (!reduced)
       desk.current?.animate(
-        [{ transform: 'translateY(0)' }, { transform: 'translateY(5px)' }, { transform: 'translateY(0)' }],
-        { duration: 220, easing: 'cubic-bezier(.2,.8,.2,1)' },
+        [
+          { transform: 'translateY(0) rotate(0)' },
+          { transform: 'translateY(10px) rotate(-0.35deg)', offset: 0.28 },
+          { transform: 'translateY(-4px) rotate(0.2deg)', offset: 0.62 },
+          { transform: 'translateY(0) rotate(0)' },
+        ],
+        { duration: 340, easing: 'cubic-bezier(.2,.8,.2,1)' },
       );
-    setTimeout(() => setPressed(false), 140);
+    setTimeout(() => setPressed(false), 300);
     play.stamp({ number, word });
   }
 
@@ -139,6 +160,10 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
   const pulse = 'row' in play.state ? play.state.row.seq : play.state.kind;
   const burst = play.state.kind === 'accepted' ? play.state.row.seq : null;
   const slipError = play.state.kind === 'error' ? play.state.error : null;
+  const splash =
+    play.state.kind === 'accepted' || play.state.kind === 'rejected'
+      ? { verdict: play.state.kind === 'accepted', fire: play.state.row.seq }
+      : null;
 
   const slip = (
     <PlaySlip
@@ -149,7 +174,8 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
   );
 
   return (
-    <div ref={desk} className="wrap grid items-start gap-6 md:grid-cols-[0.9fr_1.1fr] md:gap-11">
+    <div ref={desk} className="grid items-start gap-6 md:grid-cols-[0.9fr_1.1fr] md:gap-9 xl:gap-10">
+      <ClaimAll className="md:col-span-2" />
       <InkBox
         className="relative px-5 pb-6 pt-7 text-center md:order-1 md:px-6"
         tilt={-1.2}
@@ -166,17 +192,33 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
 
       <InkBox className="relative p-5 md:order-2 md:p-8" tilt={0.8}>
         <Drip pose="peek" width={104} className="pointer-events-none absolute -top-[46px] right-8 z-10" />
+        {splash ? <InkSplash verdict={splash.verdict} fire={splash.fire} /> : null}
+        <Confetti fire={splash?.verdict ? splash.fire : null} />
         <div className="mb-2 flex items-baseline justify-between gap-3">
           <h2 className="display text-[clamp(40px,6vw,52px)]">Make a play</h2>
           <span className="mono rounded-full bg-ink px-2.5 py-1 text-[14px] font-bold text-sun">
             {modeName(mode)} #{round.roundId} · No. {pad3(number)}
           </span>
         </div>
+        <RoundTimer round={round} className="mb-3 mt-1" />
         {mode === 1 ? (
-          <p className="mt-1 text-[15px] font-bold">
-            Your team plays as one: this play is paid from the team vault and uses the team&apos;s single
-            line.
-          </p>
+          <>
+            <p className="mt-1 text-[15px] font-bold">
+              Your team plays as one: this play is paid from the team vault and uses the team&apos;s single
+              line.
+            </p>
+            <dl className="mt-3 grid grid-cols-3 gap-3">
+              <StatSticker label="Team vault" tone="sun" tilt={-1.5} mono className="!min-w-0">
+                {team.data ? <Amount kind="near" value={team.data.vault} digits={3} /> : 'no team'}
+              </StatSticker>
+              <StatSticker label="Round pot" tone="paper" tilt={1} mono className="!min-w-0">
+                <Amount kind="near" value={round.pot} digits={3} />
+              </StatSticker>
+              <StatSticker label="Your RULE" tone="lime" tilt={-1} mono className="!min-w-0">
+                <Amount kind="rule" value={mintedMine} />
+              </StatSticker>
+            </dl>
+          </>
         ) : null}
 
         <div className="hand mt-3 flex items-baseline gap-3 text-[26px]">
@@ -185,6 +227,9 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
             <Doodle name="doodles/hand" size={26} rot={-10} />{' '}
             <small className="mono text-[12px] font-bold">tap the triangles</small>
           </span>
+          <small className="mono hidden text-[12px] font-bold opacity-70 md:inline">
+            click a digit and type 516, or use ▲ ▼
+          </small>
         </div>
         <div className="flex flex-wrap items-center gap-4">
           <ReelNumber value={number} onChange={setNumber} disabled={inFlight} />
@@ -234,6 +279,18 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
               : ''}
           {left !== null ? ` · attempts left ${left} of ${entity.data?.limit}` : ''}
         </p>
+        {repeats.length > 0 ? (
+          <p
+            className="mb-4 rounded-2xl border-[3px] border-ink bg-sun px-3 py-2 text-[14px] font-bold"
+            role="status"
+          >
+            {pad3(number)} · {word} was already stamped{' '}
+            {repeats.length === 1 ? 'once' : `${repeats.length} times`} this round (last at minute digit{' '}
+            {repeats[repeats.length - 1]?.minuteDigit}: {repeats[repeats.length - 1]?.verdict ? 'YES' : 'NO'}
+            ). The law can read the minute digit, your previous play and how long ago it was, so a repeat in a
+            different context is a new paid play. A different pair tells you more.
+          </p>
+        ) : null}
 
         {wallet.status === 'connected' ? (
           <Button
@@ -247,8 +304,8 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
             sound="stamp"
           >
             {inFlight ? 'Stamping…' : 'STAMP!'}
-            {fee !== null && !inFlight ? (
-              <span className="mono text-[16px] font-bold tracking-wide">{formatNear(fee)} NEAR</span>
+            {price !== null && !inFlight ? (
+              <span className="mono text-[16px] font-bold tracking-wide">{formatNear(price)} NEAR</span>
             ) : null}
           </Button>
         ) : (

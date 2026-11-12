@@ -9,6 +9,10 @@ impl Game {
             .get(&(m, id))
             .unwrap_or_else(|| env::panic_str("E10"));
         near_sdk::require!(round.phase == Phase::Investigation, "E10");
+        near_sdk::require!(
+            env::block_timestamp() < round.investigation_end_ns.unwrap_or(0),
+            "E10"
+        );
         let word_id = rule_core::words::normalize(&word).unwrap_or_else(|| env::panic_str("E11"));
         near_sdk::require!(number <= 999, "E11");
         let actor = env::predecessor_account_id();
@@ -174,10 +178,10 @@ impl Game {
         let amount = p.play_fee.0 + p.storage_charge_per_play.0;
         let parsed_play = serde_json::from_str::<Play>(&play).ok();
         let valid = parsed_play.is_some()
-            && self
-                .rounds
-                .get(&(mode, round))
-                .is_some_and(|r| r.phase == Phase::Investigation);
+            && self.rounds.get(&(mode, round)).is_some_and(|r| {
+                r.phase == Phase::Investigation
+                    && env::block_timestamp() < r.investigation_end_ns.unwrap_or(0)
+            });
         let entity_key = (mode, round, entity);
         if let Some(player) = self.players.get_mut(&actor) {
             player.pending_play = false;
@@ -231,6 +235,7 @@ impl Game {
         self.compute_float += compute;
         self.platform_accrued += platform;
         self.storage_reserve += p.storage_charge_per_play.0;
+        self.season_candidate(mode, round, entity);
         self.total_pots += pot;
         let mut mint_request = None;
         if let Some(r) = self.rounds.get_mut(&(mode, round)) {

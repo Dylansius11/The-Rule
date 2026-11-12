@@ -11,7 +11,8 @@ import type {
   TokenOperation,
   TokenOutcome,
 } from '@/game/types';
-import { view, MethodNotFound } from './rpc';
+import { view, MethodNotFound, RpcError } from './rpc';
+import { readSeasonPages, type SeasonBoard, type SeasonRow, type SeasonStatus } from '@/game/season';
 
 type Wire = Record<string, any>;
 const ms = (v: number | string | null | undefined): number | null =>
@@ -66,6 +67,10 @@ export async function getParams(): Promise<Params> {
   const p = await view<Wire>('get_params');
   return {
     playFee: BigInt(p.play_fee),
+    feeSplitBps: p.fee_split_bps,
+    wrongReturnBps: p.wrong_return_bps,
+    solvedSplitBps: p.solved_split_bps,
+    unsolvedSplitBps: p.unsolved_split_bps,
     storagePerPlay: BigInt(p.storage_charge_per_play),
     storagePerAccount: BigInt(p.storage_charge_account),
     stakeBps: p.stake_bps,
@@ -198,17 +203,22 @@ export async function getLock(mode: Mode, roundId: number, account: string): Pro
 export async function getRuleBalance(account: string): Promise<bigint> {
   return BigInt(await view<string>('ft_balance_of', { account_id: account }, active.token));
 }
-export async function getSeason(
-  mode: Mode,
-  season: number,
-): Promise<{ supported: false } | { supported: true; rows: unknown[] }> {
+export async function getSeason(mode: Mode, season: number): Promise<SeasonBoard> {
   try {
-    return {
-      supported: true,
-      rows: await view<unknown[]>('get_season', { mode, season, from: 0, limit: 200 }),
-    };
+    return await readSeasonPages(
+      () => view<SeasonStatus>('get_season_status', { mode, season }),
+      (from, limit) => view<SeasonRow[]>('get_season', { mode, season, from, limit }),
+    );
   } catch (e) {
     if (e instanceof MethodNotFound) return { supported: false };
+    // Indexing can restart between the readiness view and a page read. E50 is not a generic failure.
+    if (e instanceof RpcError && /\bE50\b/.test(JSON.stringify(e.detail))) {
+      return {
+        supported: true,
+        ready: false,
+        status: await view<SeasonStatus>('get_season_status', { mode, season }),
+      };
+    }
     throw e;
   }
 }
@@ -267,4 +277,22 @@ export async function getTokenOutcome(operationId: number): Promise<TokenOutcome
   ];
   if (!statuses.includes(result.status)) throw new Error('Invalid token operation status');
   return { operation: decodeTokenOperation(result.operation), status: result.status };
+}
+
+export interface TokenStorageBalance {
+  total: string;
+  available: string;
+}
+export const getTokenStorage = (account: string) =>
+  view<TokenStorageBalance | null>('storage_balance_of', { account_id: account }, active.token);
+export async function getTokenStorageMinimum(): Promise<bigint> {
+  const bounds = await view<{ min: string; max: string | null }>('storage_balance_bounds', {}, active.token);
+  if (!/^\d+$/.test(bounds.min)) throw new Error('Invalid token storage minimum');
+  return BigInt(bounds.min);
+}
+export async function getTokenState(account: string): Promise<'none' | 'pending' | 'registered'> {
+  const state = await view<string>('get_token_state', { account });
+  if (state !== 'none' && state !== 'pending' && state !== 'registered')
+    throw new Error('Invalid token registration state');
+  return state;
 }

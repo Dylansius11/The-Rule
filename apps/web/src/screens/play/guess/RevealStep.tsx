@@ -9,6 +9,7 @@ import { Button } from '@/ui/Button';
 import { ErrorCard } from '@/ui/ErrorCard';
 import { LiveRegion } from '@/ui/LiveRegion';
 import { Tag } from '@/ui/Tag';
+import { Term } from '@/ui/Term';
 
 type Actions = ReturnType<typeof useGuessActions>;
 type Commits = ReturnType<typeof useCommits>;
@@ -29,16 +30,16 @@ interface RevealStepProps {
   account: string | null;
 }
 
-/** Step 4: open a committed guess so the program can check it, and follow each commit's status. */
+/** Step 3: open a committed guess so the program can check it, and follow each commit's status. */
 export function RevealStep({ actions, commits, round, account }: RevealStepProps) {
   const mine = (commits.data ?? []).filter(c => c.actor === account);
   const sending = actions.reveal.state.kind === 'signing' || actions.reveal.state.kind === 'pending';
   return (
     <div>
       <p className="text-[17px] font-semibold">
-        After the minimum delay you open your guess so the sealed program can check it against the rule. Open
-        it before the reveal window closes, or half your stake is lost. Commit order decides ties: the
-        earliest correct commit wins.
+        After the minimum delay you <Term term="reveal">open</Term> your guess so the sealed program can check
+        it against the rule. Open it before the reveal window closes, or half your stake is lost. Commit order
+        decides ties: the earliest correct commit wins.
       </p>
       {round?.revealDeadlineMs ? (
         <p className="mono mt-2 text-[14px] font-bold">

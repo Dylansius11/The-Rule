@@ -1,6 +1,6 @@
 # THE RULE: smart contract specification
 
-This is the protocol contract between the game contract, the token contract, the OutLayer referee, the verifier and every client. Core Solo behavior is locally tested with a mock OutLayer; Phase 0 probe receipts are recorded below. The real game/referee rehearsal and whole-system security review remain open (status 2026-11-05).
+This is the protocol contract between the game contract, the token contract, the OutLayer referee, the verifier and every client. Local sandbox evidence explicitly uses MOCK OutLayer; dated testnet receipts distinguish real referee runs. The separate D37 Demo completed paid verdicts, Wrong/Correct, open and payouts; D38 completed the native-signer r3 lifecycle. Keeper Free CPU acceptance, whole-system security review and production freeze remain open (status 2026-11-09).
 
 ## TL;DR and necessity
 
@@ -69,11 +69,15 @@ The game account name is compiled into the referee manifest (`callers.contract.o
 
 **Key-retaining rehearsal exception (D32, authorized 2026-11-06):** `game-r1` may set `demo=true` solely for compressed scheduling while using production economic/storage floors and the published non-demo referee, without `RULE_DEMO`. Its operator label explicitly says compressed rehearsal with no preselected rule; it is not the D17 preselected-rule demo or production-schedule evidence. Product Demo Mode labeling remains required for the separate actual demo instance. Do not infer the referee's build feature or a preselected answer from the schedule flag alone.
 
+**Demo secret reference (locally tested, 2026-11-09):** `params.referee.demo_secrets_ref` is an optional public `{profile, account_id}` pointer, not a rule or credential. `demo=false` rejects any non-null reference with E11. Demo accepts only a 1-to-64-byte ASCII alphanumeric/underscore/hyphen profile and a valid `.testnet` owner. The immutable reference is persisted and passed as OutLayer's top-level `secrets_ref` for begin/verdict/guess/open; the production path always sends null. Missing/null is valid for the existing non-demo compressed rehearsal. This changes Borsh state again: fresh initialization only, never an r2 upgrade.
+
+For the separate preselected-rule Demo, the owner must store manual `RULE_DEMO` encrypted under the exact demo WASM hash, profile and owner, with access restricted to the Demo game predecessor. Direct `WasmUrl` cannot use project `author_secrets`. Local admission/storage checks and a current-WASM sandbox advance passed; real secret delivery remains unexercised. Production and Demo builds have different features/hashes; neither the selected rule nor plaintext secret belongs in public init arguments. See [OutLayer secrets](https://app.outlayer.ai/docs/secrets#secrets-binding) and [execution schema](https://app.outlayer.ai/docs/near-integration#request-execution).
+
 Initialization also rejects a mint base above the round allowance, callbacks below 60 Tgas, OutLayer calls below 100 Tgas, token calls below 10 Tgas, or callback-plus-outgoing sums above 250 Tgas (E11). These conservative local bounds leave headroom in a 300 Tgas initiating call; they do not constitute real OutLayer callback measurements or recovery from every possible callback failure. Whole-path gas proof and timeout recovery review remain pre-freeze work.
 
 Root-state size is bounded independently of fee/gas values: `chain_id == "testnet"`, one or two referee URLs of at most 2,048 UTF-8 bytes each, at most three lock tiers, and team size from one to five (E11). At most ten nonterminal rounds may be tracked; starting another rejects E23 before mutation. Completing/cancelling an old round frees capacity, and retrying the same Sealing round consumes no new round slot.
 
-**Operator collateral:** each new round requires unallocated balance for pre-init code/account storage, an 8,192-byte root ceiling, 1,024 bytes per retained round including the new one, and ten 1,024-byte refundable referee-request exposures. `get_ledger.operator_storage_required` quotes the current-round budget; add one 1,024-byte allowance for a new round. `operator_storage_available` subtracts credit, vaults, pots, carry, stakes, claims, compute, platform accrual, pending play debits, pending native payments and player-paid storage reserves from account balance. Shortage rejects E24 before a round/request/debit is created. An ordinary NEAR transfer to the contract funds this unallocated collateral; `deposit_credit`, `seed_pot` and `fund_compute` do not. Budgets grow with retained history, rather than assuming a fixed lifetime round count.
+**Operator collateral:** each new round requires unallocated balance for pre-init code/account storage, an 8,192-byte root ceiling, 1,024 bytes per actually created retained round including the new one, and ten 1,024-byte refundable referee-request exposures. A persistent counter increments once on creation, never on begin retry; skipped slot numbers allocate no records or collateral. `get_ledger.operator_storage_required` quotes the retained-record budget; add one 1,024-byte allowance for a new round. `operator_storage_available` subtracts credit, vaults, pots, carry, stakes, claims, compute, platform accrual, pending play debits, pending native payments and player-paid storage reserves from account balance. Shortage rejects E24 before a round/request/debit is created. An ordinary NEAR transfer to the contract funds this unallocated collateral; `deposit_credit`, `seed_pot` and `fund_compute` do not. Budgets grow with retained history, rather than assuming a fixed lifetime round count.
 
 `pending_native_payments` reserves withdrawal/platform principal from scheduling until its matching callback completes. This prevents a failed transfer's returned principal becoming operator collateral before the callback restores credit/accrual. It intentionally double-reserves principal while already escrowed or paid, so admission can reject a financially safe start until the callback completes. A failed, uncompleted callback retains this conservative reservation; the counter is not an authenticated outcome or a recovery mechanism. Do not add it again to the receipt-aware solvency equation, which already accounts for payment exposure separately.
 
@@ -97,6 +101,7 @@ Game {
   teams: LookupMap<u32, Team>                       // members (<= 5), invites, vault, lock state
   rounds: LookupMap<RoundKey, Round>
   current: [Option<u32>; 2]                         // active round id per mode
+  retained_rounds: u64                              // actual created records, not slot ids
   carry: [u128; 2]                                  // rollover waiting for the next round of that mode
   log: LookupMap<RoundKey, Vector<LogRow>>          // settled verdicts, append-only, paged view
   seen: LookupMap<(RoundKey, u64 play_key), u32>    // play_key -> log index or PENDING
@@ -105,7 +110,10 @@ Game {
   pending_native_payments: u128                      // conservative operator-admission reservation
   commits: LookupMap<(RoundKey, u32 commit_seq), Commit>
   entity_round: LookupMap<(RoundKey, Entity), EntityRound> // attempts, shares, line, pending flag, locks
-  seasons: LookupMap<(Mode, u32 season), SeasonBoard>
+  season_headers: LookupMap<(Mode, u32), SeasonHeader> // candidate count, cursor, revision
+  season_candidates: LookupMap<(Mode, u32, u32), Entity>
+  season_entries: LookupMap<(Mode, u32, Entity), SeasonEntry>
+  season_ranks: TreeMap<RankKey, ()>                 // one mutable AVL index, bounded rebuild
   compute_float: u128, platform_accrued: u128, storage_reserve: u128
   next_request_id: u64, next_seq: u64                // global contract sequence for plays and commits
 }
@@ -139,11 +147,11 @@ stateDiagram-v2
   Void --> [*]
 ```
 
-- **Investigation:** plays and new commits are accepted. Reveals of existing commits are also accepted, so a confident player can end the round early.
-- **Freeze:** when the first `correct: true` guess result is applied, the round moves to Reveal at once. New plays and new commits are rejected. Plays still in flight are refunded with no mint and no share. Existing commits may reveal until `reveal_deadline_ns = freeze_ns + reveal_window_ns`.
+- **Investigation:** plays and new commits require both the stored Investigation phase and `now < investigation_end_ns`. In-flight verdicts completing after that logical cutoff refund, even if the keeper has not called `advance`. Reveals of existing commits are also accepted, so a confident player can end the round early.
+- **Freeze:** the first Correct result moves the round to Reveal. Its logical freeze is `min(callback_timestamp, investigation_end_ns)`, not an outage-extended timestamp; `reveal_deadline_ns = freeze_ns + reveal_window_ns`. New plays and commits reject, in-flight plays refund without mint/share, and existing commits may reveal strictly before the deadline. A reveal during the original logical Reveal window does not require a prior keeper `advance`.
 - **Winner:** the Correct commit with the smallest `seq`, never the first callback. A later Correct commit gets its stake back but no win.
 - **Outcome:** `Solved{winner}` if any commit is Correct at finalize, otherwise `Unsolved`. Payouts become claimable only in Settled, after the hash check. This is "proof before money".
-- **Next round:** the next round of a mode cannot start before its slot time and before the previous round of that mode has left Investigation and Reveal. One round per day per mode; a solved round leaves the rest of its day empty.
+- **Next round:** the next round of a mode cannot start before its slot and before the preceding round has left Investigation/Reveal. The id is the larger of the next unconsumed id and the current elapsed slot; empty missed slots are skipped, never started in a burst. Production Investigation ends at `slot + investigation_max_ns`, bounded by `slot + period - reveal_window` and `slot + 24h - reveal_window`. Production parameters reject impossible phase durations, offsets and initial timestamp overflow. A production begin/start after the logical Investigation end is cancelled/rejected; at equality a valid begin enters Reveal with its full original window. Begin responses at/after their independent initiation timeout cancel. Demo timing may be compressed and relative to begin success; late `advance` still never extends its fixed window.
 
 ## Public interfaces
 
@@ -177,7 +185,7 @@ The Team vault pays the game's play/storage charges and guess stakes; it does **
 
 `play(mode, number: u16, word: String) -> PlayAck` `[fck]`
 
-1. Round of `mode` is in Investigation (E10). Caller's entity is resolved: Solo is the caller; Team is the caller's team (E32 if none).
+1. Round of `mode` is in Investigation and before its logical Investigation deadline (E10). Caller's entity is resolved: Solo is the caller; Team is the caller's team (E32 if none).
 2. `number <= 999`; `word` is normalized (trim ASCII whitespace, ASCII lowercase) and must be in the published 128-word list (E11). Normalization is part of `rule-core` grammar `g1`.
 3. Build `Play{number, word_id, minute_digit, prev}` from the block timestamp and the entity's line (its last ACCEPT this round), then compute `play_key`.
 4. **Duplicate:** if `seen` has `play_key` with a settled verdict, return `PlayAck::Known{verdict, log_idx}`. No fee, no state change, no enclave call, no mint, no share, no log row (D9). If it is PENDING, panic E12 (nothing charged).
@@ -188,7 +196,7 @@ The Team vault pays the game's play/storage charges and guess stakes; it does **
 
 `on_verdict(request_id)` `#[private]`, never panics after loading the request:
 
-- Parse the promise result strictly as `{"v":0|1}`. Anything else, JSON `null` (OutLayer's failure encoding [V](https://raw.githubusercontent.com/out-layer/outlayer/main/contract/src/execution.rs)), a promise error, a wrong round, or a round that has left Investigation leads to **refund**: credit back fee + storage charge, attempt restored, `seen` entry removed, pending cleared, event `play_refunded{reason}`.
+- Parse the promise result strictly as `{"v":0|1}`. Anything else, JSON `null` (OutLayer's failure encoding [V](https://raw.githubusercontent.com/out-layer/outlayer/main/contract/src/execution.rs)), a promise error, a wrong round, a round that has left Investigation, or its expired logical Investigation deadline leads to **refund**: credit back fee + storage charge, attempt restored, `seen` entry removed, pending cleared, event `play_refunded{reason}`.
 - Refund cleanup removes an otherwise empty entity only if it has no open/correct commits, pot contribution or prior claim. A play and a guess may overlap; restoring a play attempt must not erase another operation's stake, refund entitlement or three-open-commit limit.
 - On a valid verdict: pot += 80% of fee, compute_float += 15%, platform_accrued += 5%. Append the `LogRow`. Set `seen[play_key] = log_idx`. Shares += 1 if under `share_cap`, and `total_shares` += 1 likewise. If ACCEPT, advance the line and mint (below). Clear pending. Event `play_settled`.
 - Mint on ACCEPT: `m = mint_base * allowance_left / round_allowance * bucket_bps / 10_000` (exact integer math with a 128-bit mul-div), with bucket 10000 Rare, 5000 Mid, 2500 Common. Initialization rejects `mint_base > round_allowance`; the result is capped at remaining allowance. For a Registered player and positive `m`, reserve allowance and log `minted = m`, then send token `execute_operation` of kind `mint` using the immutable game request id and original actor. Only a matching terminal rejection restores allowance and zeros the row (`mint_failed`); the YES stands. Unknown transport retains the reservation, including after settlement or a later round starts. Pending intended mint amounts are not confirmed supply. Direct user-paid NEP-145 registration and the game's zero-deposit check remain separate (D29).
@@ -218,24 +226,24 @@ The export masking and redeployment are **sandbox-only fault injection on a key-
 
 `commit_guess(mode, hash: hex[32]) -> CommitAck{commit_seq, seq, stake, block}` `[fck]`
 
-- Investigation only (E10). Entity has fewer than 3 open commits this round (E15) [I].
+- Investigation only and strictly before its logical deadline (E10). Entity has fewer than 3 open commits this round (E15) [I].
 - Stake = `max(stake_min, pot * stake_bps[mode] / 10_000)` from the current pot, debited now from credit or vault (E20). Stored with `seq` and `block`. The stake is fixed at commit and never recomputed. [I] Each commit record also pays `storage_charge_per_play` into `storage_reserve`, never refunded (the record stays on chain even when the stake is refunded). Commit-record lifecycle events: `guess_checked{mode, round_id, commit_seq, result: correct|wrong|refunded}`.
 
 `reveal_guess(mode, commit_seq, guess: hex, salt: hex[32]) -> request_id` `[fck]`
 
-- Round is in Investigation or Reveal and before `reveal_deadline_ns` (E16). Caller is the commit's `actor` (E17). Commit status is Committed and `block_height >= commit.block + min_reveal_delay_blocks` (E18).
+- During Investigation, before `investigation_end_ns + reveal_window_ns`; during Reveal, strictly before its stored `reveal_deadline_ns` (E16). This keeps reveals available through a keeper outage without accepting expired new plays/commits. Caller is the commit's `actor` (E17). Commit status is Committed and `block_height >= commit.block + min_reveal_delay_blocks` (E18).
 - `sha256(commit_preimage(...)) == hash` (E19). `guess` parses and fits the round's tier (E11). Otherwise the reveal panics and the commit stays Committed; it can still be revealed correctly before the deadline.
-- Status becomes Checking, `pending_checks += 1`, call referee `guess`, then `.then(on_guess(request_id))`. `advance` at `investigation_max` also sets `freeze_ns`, so `freeze_ns` marks the start of Reveal however it began; a later Correct callback never moves it or the deadline.
+- Status becomes Checking, `pending_checks += 1`, call referee `guess`, then `.then(on_guess(request_id))`. A late `advance` stores the original Investigation end as `freeze_ns`; a subsequent Correct callback cannot move that freeze or deadline.
 
-`on_guess`: `{"correct":true}` sets Correct. If no freeze yet, freeze now. `best` = min(best, seq). `{"correct":false}` sets Wrong: 50% of the stake goes to the payer's claimable balance (Solo credit, Team vault) and 50% to the pot. Any failure sets **Refunded**: the full stake returns and the commit may not be revealed again (D7). `pending_checks -= 1`. There is no counterexample, ever (D11).
+`on_guess`: `{"correct":true}` sets Correct. If no freeze exists, freeze at `min(now, investigation_end_ns)` and retain that original reveal deadline. A valid check requested in time can complete after the deadline without reopening gameplay. `best` = min(best, seq). `{"correct":false}` sets Wrong: 50% of the stake goes to the payer's claimable balance (Solo credit, Team vault) and 50% to the pot. Any failure sets **Refunded**: the full stake returns and the commit may not be revealed again (D7). `pending_checks -= 1`. There is no counterexample, ever (D11).
 
 ### Round lifecycle (permissionless; the keeper calls them, anyone may)
 
 | Method | Precondition | Effect |
 | --- | --- | --- |
-| `start_round(mode)` | Slot time reached, previous round of mode out of Investigation/Reveal, no round Sealing | Creates the round, `seed = env::random_seed()`, moves `carry[mode]` into the pot, `allowance_left = round_allowance`, calls referee `begin`. A retry is allowed if a begin request failed and `begin_timeout` has not passed |
-| `advance(mode)` | Investigation and `now >= investigation_end_ns` (`begin_ok_ns + investigation_max_ns`) | Moves to Reveal with `reveal_deadline = now + reveal_window` |
-| `finalize(mode) -> Option<request_id>` | Reveal, `now >= reveal_deadline`, `pending_checks == 0`, compute float covers the `open` deposit (E22) | Sweeps at most 20 commits per call: every commit still Committed becomes Unrevealed and is treated as Wrong (50/50, D12). While commits remain it returns `None` and the keeper calls again; on the last batch it computes `outcome` (`Solved{winner}` if any commit is Correct, by smallest `seq`), moves to Opening and calls referee `open` (returns its request id) |
+| `start_round(mode, round_id?)` | Slot reached, previous round out of Investigation/Reveal, or failed Sealing eligible for retry; supplied id equals actual next/retry target (E50) | Creates one retained round, samples seed, moves carry into pot and calls `begin`. Skipped numbered slots create no records. Retry reuses seed/id/collateral |
+| `advance(mode, round_id?)` | Investigation, `now >= investigation_end_ns`, supplied id equals current id (E50) | Moves to Reveal with `freeze = investigation_end_ns` and `reveal_deadline = investigation_end_ns + reveal_window`, independent of keeper lateness |
+| `finalize(mode, round_id?) -> Option<request_id>` | Reveal, deadline passed, no pending checks, sufficient compute (E22), supplied id equals current id (E50) | Sweeps at most 20 commits per call. Remaining Committed entries become Unrevealed and use the existing 50/50 rule. Returns `None` while more remain; the final batch chooses the smallest Correct `seq`, moves to Opening and requests `open` |
 | `retry_open(mode, round_id) -> request_id` | Opening, last open failed, before `open_timeout` | Calls `open` again |
 | `cancel(mode, round_id)` | Sealing past `begin_timeout` (no begin pending), or Opening with a failed open past `open_timeout` | Cancelled refund path (below) |
 | `expire_request(request_id) -> bool` | Pending referee or read-only token registration request at least 10 minutes old (E50 before that deadline) | Applies the normal failure cleanup exactly once: begin clears pending and may cancel, verdict refunds fee/storage and restores attempt, guess refunds the full stake and clears both Checking counters, open becomes failed, registration resets None without moving money. Returns false for absent/completed requests or withdraw/platform/mint/unlock. No external call |
@@ -243,6 +251,8 @@ The export masking and redeployment are **sandbox-only fault injection on a key-
 | `claim_platform() -> request_id` | anyone; `platform_accrued > 0` (E56) | Transfers `platform_accrued` to `platform`; a failed transfer restores it in `on_platform` |
 | `seed_pot(mode)` payable | anyone | Adds to `carry[mode]` (sponsor seed) |
 | `fund_compute()` payable | anyone | Adds to `compute_float` (sponsor top-up; never withdrawable, never pot money) |
+
+Optional `round_id` is a compare-and-set fence checked before any mutation, allocation or debit. Omitted/null calls intentionally target current state permissionlessly; the keeper always supplies the exact observed id. A transaction signed for an old slot cannot consume a later slot. P6 adds retained-round/season state and therefore requires fresh initialization, never upgrading accepted r2 state. API/FE integration with future deployment is separate; these local changes do not alter r2's deployed ABI.
 
 `on_open`: strict `{"rule":CanonicalRule,"salt":hex32}`. If `sha256(canonical_bytes(rule) || salt) == round.commit`: store both, phase Settled, compute payouts (formulas below), update the season board. A mismatch sets Void and emits `round_void`. A failure sets `open_status = failed` and keeps Opening, so `retry_open` (or, past the timeout, `cancel`) is possible. A stale or duplicate callback is a no-op. `get_claimable(mode, round_id, account)` returns what `claim` would credit now.
 
@@ -276,11 +286,85 @@ The fixed-seed native property `seeded_same_owner_withdrawal_overlaps_solo_plays
 
 `get_player(account)` returns `index`, string-valued `credit`, `pending_play`, `pending_withdrawal`, `checking_guesses` and nullable `team_id`. There is no aggregate `pending` alias. `get_entity.pending` remains the entity's play flag; it says nothing about payment completion. Clients must show a pending payment separately from a verdict and may spend only returned available credit.
 
+**Season boards:** season `s` covers numbered slots `7s..7s+6`, independently per mode, including skipped empty slots. Rows count only Settled rounds: wins descending, shares descending, earliest winning commit block ascending, then entity id. `earned` includes actual winner/contributor rewards, excludes returned stakes/principal/refunds, and applies the same per-member Team dust floors as payouts. Claims or later roster deletion cannot change historical totals.
+
+Funded actions enroll an entity once per season. Appending a new candidate increases `total` and `revision` while preserving `indexed`: it cannot change previously cached Settled scores. Terminal changes reset `indexed` to zero and increment `revision`, because existing rows may change. Permissionless `index_season(mode, season, limit=1..20)` updates at most that many candidates, replaces old rank keys without retaining generations, and returns `{ready,total,indexed,revision}`. `get_season_status` reports the same status. `get_season(mode, season, from: null|cursor, limit<=200)` rejects E50 while dirty, never presents partial ranks as complete, and starts strictly after the returned rank cursor. Read all pages at the same final block/revision. This is bounded work with lifetime-funded history, not bounded total storage or a completed FE integration. Append-progress preservation is locally verified below, not deployed to the existing R3/Demo.
+
 For Team rewards, `get_claimable` and `claim(Team, round_id)` resolve the account's **current** membership. After leaving, that view returns zero; it does not erase the stored round-snapshot entitlement. Historical members use `claim_team(Team, round_id, team_id)` with the original team id, including after the live roster is deleted. Vault principal is separate: `settle_team` releases terminal participation and returns Correct stakes/refundable pot contribution, then `team_withdraw` credits each depositor's pro-rata remainder before any native withdrawal. A client must not present a current-membership zero as loss of a historical reward.
 
-**`RoundView` fields (decided 2026-11-04, so the keeper, verifier and web read one shape).** `mode`, `round_id`, `phase`, `slot_ns` (`genesis_ns + round_id * round_period_ns + mode_offset_ns[mode]`), `sealing_started_ns` (when `start_round` was applied; the origin of `begin_timeout_ns`), `begin_status` (`none | pending | failed | ok`), `investigation_end_ns` (`begin_ok_ns + investigation_max_ns`, set when `begin` succeeds), `freeze_ns`, `reveal_deadline_ns`, `pending_checks`, `opening_started_ns` (when `finalize` was applied; the origin of `open_timeout_ns`), `open_status` (`none | pending | failed | ok`), `commit` (hex32), `header`, `pot`, `log_len`, `outcome`, and, only after Settled, `rule` and `salt`. `begin_status`/`open_status` become `failed` when the OutLayer callback reports a failure and a retry is allowed until the timeout.
+**`RoundView` fields.** `mode`, `round_id`, `phase`, `slot_ns` (`genesis_ns + round_id * round_period_ns + mode_offset_ns[mode]`), `sealing_started_ns` (the origin of `begin_timeout_ns`), `begin_status` (`none | pending | failed | ok`), `investigation_end_ns` (slot-anchored in production; begin-success-relative in compressed Demo), `freeze_ns`, `reveal_deadline_ns`, `pending_checks`, `opening_started_ns` (the origin of `open_timeout_ns`), `open_status` (`none | pending | failed | ok`), `commit`, `header`, `pot`, `log_len`, `outcome`, and, only after Settled, `rule` and `salt`. Begin/open status becomes `failed` after a failed callback; a still-pending request is never treated as permission to resend or cancel. The keeper, verifier and web read the deployed contract's shape; future P6 deployment and deferred FE integration must be coordinated explicitly.
 
-**Keeper views.** `get_params()` also returns `genesis_ns`, `round_period_ns`, `mode_offset_ns`, `investigation_max_ns`, `reveal_window_ns`, `begin_timeout_ns`, `open_timeout_ns`. `get_active_rounds()` returns every non-terminal round of both modes (at most a few, because a mode starts its next round only after the previous one left Investigation and Reveal, while an Opening round may overlap the next Sealing or Investigation round). `get_next_slot(mode)` returns `{round_id, slot_ns}` of the next round that `start_round` would accept. Missed slots: `start_round` is accepted at any time at or after `slot_ns` while the mode has no round in Scheduled to Reveal; the round's deadlines run from the actual `begin` success, never from the missed slot.
+**Keeper views.** `get_params()` includes immutable timing, offsets and gas budgets. `get_active_rounds()` returns at most ten nonterminal rounds across both modes; an old Opening round may overlap a newer Sealing/Investigation round. `get_next_slot(mode)` returns the next unconsumed numbered slot, skipping elapsed empty slots. Production begin/start is admitted only through the original logical Investigation end; production deadlines are slot-anchored, compressed Demo Investigation is begin-success-relative, and neither gives a late keeper a fresh reveal window. Keepers must include the observed `round_id` when signing each lifecycle transition.
+
+### P6 local schedule and season evidence (2026-11-08)
+
+The founder approved fixed logical deadlines; deployment remains separate. Current host-built game WASM is 527,594 bytes, SHA-256 `00924ae51356e5a2e3cfd384f1e5dd782ff9071d6d28d24d55c5dc7f4eae0592`. It is a non-reproducible local sandbox artifact, not an r2 upgrade, hosted referee asset or freeze build.
+
+Native schedule/season/lock/ABI/storage checks passed, including logical cutoff, reveals without keeper advance, late Correct callback, skipped ids, atomic wrong-target rejection and actual-retained-record admission. The 21-player actual-WASM sample completed paid NO verdicts and matching Unsolved open, then indexed 20/21 with E50 for an incomplete board and completed the final batch. The first batch burnt 15,393,958,445,109 gas and added 3,640 bytes; all sampled account/action growth was 18,331 bytes under funded charges. Cursor order, exact historical earnings and claim independence matched.
+
+Actual Node keeper and local scheduled workerd used the genuine sandbox chain id and disposable keys; dry-run, final advance, duplicate/raced transition and pending-begin heartbeat suppression passed. This is local MOCK OutLayer evidence. It does not qualify deployed Cloudflare CPU/network, monitored on-time testnet operation, production native-payment recovery or frontend integration. Reproduction and scope: keeper README and BUILD-PLAN P6.
+
+
+### D37 separate Demo acceptance (testnet, 2026-11-08 UTC; accepted 2026-11-09)
+
+`demo-game.therule.testnet` / `demo-token.therule.testnet` completed Solo 0 **Solved**, always labeled **Demo Mode - preselected rule**. This is a known/preselected rule, never creator-blind. Both deployed hashes and NEP-330 source metadata matched the selected reproducible artifacts; each account retains one access key. Exact artifacts, independent referee reproductions and public mirrors: [REPRODUCIBLE-BUILDS](REPRODUCIBLE-BUILDS.md#p6-fresh-state-artifacts-2026-11-09).
+
+Real OutLayer begin, two paid verdicts, Wrong/Correct semantic checks and open completed. The immutable secret reference is `{"profile":"the-rule-demo","account_id":"therule.testnet"}`. The encrypted row is bound to the exact Demo hash with `Predecessor(Whitelist[demo-game.therule.testnet])`; its returned metadata/access/ciphertext matched. After a pending browser wallet bridge created no row, the actual store used official ECIES v1 (X25519 ECDH, HKDF-SHA256 info `outlayer-keystore-v1`, ChaCha20-Poly1305) and the isolated parent signer. Only ciphertext entered the storage transaction; production secret input remains forbidden.
+
+| Action | Testnet transaction |
+| --- | --- |
+| Deploy/init token | `3tViZtyeJ9E2CRgShAyqTtfNAh6FbVUD9v7TbV7jEGJR` |
+| Deploy/init game | `9XSiP1aNa4Ez5Lx4WigqAWQCUtqp3xJpZYNDkq6V4ALa` |
+| Store encrypted profile | `GDvQXKgJzNj4enFY8NiuN1Sr9Ggyp6TURa6oMncF2Wrg` |
+| Begin | `7tpYYLHSsnor4NTTZpyBrKHJHaCteifnD34L67D61sCW` |
+| YES / NO | `BcaKagoo2wHV2aJTZUz9Qc63oDmwwxLHcvJbuYSWARhZ` / `FpTykKU3Fk4GmPAxnURt1DeM9yF7tmKg1PaNjEpX4gFh` |
+| Wrong / Correct reveal | `GzeUhDdcgfGWNcTcYA5MQZE5BS1qJ7uHrxB7dAXHYaJ9` / `GPfBwwoNvX2cCkmAtbQ2EsjEyws5xNsErDhgtnzU3vB3` |
+| Finalize/open | `DE5h6N5QX5yF9Asz7Y78gZjhH7uDJuPmSchpMdi69PHA` |
+| Claim | `5eAnJ76KWj8t2FUH4DmoKomHcfWVkkpNpQc5C5zrDhwf` |
+| Withdrawal / platform payout | `DiQcghE85NL6wCDzbBpwj8iZ3VenFaw7oscHTnmrkdDR` / `9X3Vvv3Qex8UqEBmogLcRR3ix3aoC466E7XtyAGJdXtx` |
+
+Actual `make verify ROUND=solo/0 GAME_ACCOUNT=demo-game.therule.testnet NEAR_RPC_URL=https://test.rpc.fastnear.com` printed **PASS: 2 of 2 verdicts match**. Two paid plays and two committed guesses stayed below D37's 12/two caps. An initial reveal passed an acknowledgement object instead of numeric `commit_seq`, failed deserialization without mutation, and was corrected only after inspecting the failure and unchanged Committed state. It was not a third guess, referee failure or unknown resubmission.
+
+Independent final block **276823670**: pot 0.066 NEAR; winner/contributor reward 0.0528, returned Correct stake 0.1, claim 0.1528, carry 0.0066, platform 0.0076. The player withdrew 0.49576 NEAR after claim; its receipt-defined transfer and dependent callback both succeeded. All credit/vault/round-pot/stake/claimable/platform/native-pending/referee-pending terms were zero; compute, storage and carry remained separate and operator collateral was funded. Supply/player balance were 50 RULE, equal to logged mints. This finite path is not production native recovery, a load test, FE acceptance, freeze or key deletion. R2 was untouched. Public receipts and arithmetic remain under ignored `scratch/p6/`; transaction anchors above are durable retrieval handles.
+
+### D38 keeper lifecycle evidence
+
+The separately authorized, key-retaining r3 Solo 12 completed scheduled start, advance, real OutLayer open and Settled Unsolved with zero plays. Exact transaction identities, successful FINAL receipt graphs, final-block accounting, heartbeat arrivals, spending audit and empty-round commitment verification are recorded in the [keeper's D38 evidence](../../apps/keeper/README.md#d38-native-signer-and-exact-round-free-repeat). This did not redeploy either contract or touch r2. The lifecycle succeeded, but the measured native-signer CPU still exceeded Workers Free's documented limit, so P6.2 is not accepted. Cron stopped; no further round, paid upgrade, freeze or key deletion.
+
+### Bounded pre-freeze review continuation (2026-11-10)
+
+[V] Two Terra source-review slices and lead checks covered schedule/slot/target atomicity, season revision/cursor rebuilding, private callback/expiry fencing, settlement and historical Team rights, credit/collateral, fixed-minter funded token outcomes and standard resolver custody, referee caller/hash context and Demo separation, strict output/input boundaries, and verifier commitment/log consistency. No new exploitable finding was confirmed. The initial concern about omitted nested `Play.prev` was withdrawn: the documented operation-level exact fields do not explicitly require that nested nullable field's presence, and no asset/secrecy impact was demonstrated. No shared-core, contract or referee change was justified by that observation.
+
+Lead checks passed 34 selected game regressions and 29 protocol/referee/token checks, including four actual local token-WASM sandbox scenarios, plus selected all-target clippy. Existing 10k and prior real-OutLayer evidence were not replaced or rerun. Read-only deployed-hash, actual FE adapter and cross-target replay results are in INTEGRATIONS "R3 and Demo compatibility inspection"; no new signed testnet action occurred.
+
+**Unclosed gates:** D31's native payment callback residual is unchanged and accepted only for testnet. The deployed season code resets indexing on new candidates and terminal changes; the later local correction below removes only unnecessary append resets. Continuous terminal revisions or arrivals beyond indexing throughput can still prevent readiness, and a universal large-board gas/liveness bound has not been established. The earlier 21-player runtime is a finite sample, not that bound. This continuation is neither an independent audit certification nor closure of P8.1/B6, final freeze, attestation verification or key deletion.
+
+### Season append-progress audit correction (2026-11-10)
+
+**Finding:** new candidates were appended to an existing season but reset its indexing cursor to zero. An arrival between batches could repeatedly discard completed work even though previously indexed Settled scores had not changed. The two enrollment paths are paid verdicts and commits; terminal settlement has its own invalidation path. The correction removes only that append reset, preserving revision changes, dirty-board E50 and terminal full rebuild. ABI, Borsh layout, payout formulas and dependencies are unchanged.
+
+**Native proof:** `appending_candidates_preserves_index_progress_until_settlement` failed on the old reset (`indexed` 0 instead of 2), then passed with the correction. All **14** season cases passed, including cursor/batch, stale-rank removal, winner ordering, Team dust/history and terminal rebuilding. Game all-target clippy, the focused sandbox example's clippy and changed-file formatting checks passed.
+
+**Actual local runtime:** `cargo run --locked -p sandbox-tests --profile fast --example p6-runtime -- season-progress` deployed the current host-built game/token to a genuine sandbox with **MOCK OutLayer**. Four paid NO verdicts interleaved new candidates with one-row indexing; the cursor advanced 1, 2, 3 rather than resetting. A final batch produced exactly the observed players' four unique rows, with zero pre-settlement shares/rewards. The three sampled batches burnt 3,314,646,302,036 / 3,500,404,078,779 / 3,694,077,054,490 gas. This is a small changed-path smoke, not a 200-row view or large-tree bound.
+
+The first harness attempt read before the detached verdict callback was observed; it failed the share assertion. After using the existing bounded log-observation pattern, the next attempt caught a fixture-only assumption that player IDs began at one. The final harness compares the board to actual `get_player.index` values and passed. Neither failed attempt is reported as passing or as a production defect.
+
+Local non-reproducible game WASM: **531,785 bytes**, SHA-256 `3604a0e3ddadc606de44efade7f336fcc9b760dd1e2f50a9d27137785f99284d`. No contract was redeployed, no referee bytes changed and no live round was repeated. Applying the correction on testnet requires a separately approved artifact/deployment step; existing R3/Demo still run their recorded artifacts. P8.1/B6 and freeze remain open for the separate unresolved gates.
+
+### Season batch and page capacity sample (locally verified, 2026-11-10)
+
+`p6-runtime season-bounds` runs the same actual local game WASM above against a genuine sandbox with MOCK OutLayer. One genuinely admitted/resolved NO participant supplies the Borsh template; explicit sandbox-only state patches expand it to **240 candidates**, with entity records across seven slots and alternating nonzero/zero shares. A genuine Unsolved settlement invalidates a completed index, then copied settled round records populate all seven slot reads. These synthetic records isolate ranking/read costs; they are not 240 paid players, seven real rounds, a custody/accounting proof or testnet load.
+
+The final run completed twelve maximum-size 20-candidate batches for initial indexing and twelve for rebuilding, verified dirty-board E50 after settlement, unchanged revision during rebuild and readiness only at completion. Actual maximum-size `get_season` cursor pages contained **200, 40, then 0** rows, with exact ID coverage/order, no duplicate/omitted rows and exact synthetic seven-slot scores. The runtime now rejects a sampled index batch that exceeds the keeper's existing **200-Tgas** allocation; no batch/page acceptance limit was reduced.
+
+| Final sample | Maximum observed gas across twelve batches |
+| --- | ---: |
+| Initial 20-candidate index | 16,406,311,896,159 |
+| Seven-slot rebuild, including old-rank removal | 34,894,705,373,519 |
+
+`cargo run --locked -p sandbox-tests --profile fast --example p6-runtime -- season-bounds`, focused example clippy with `-D warnings` and formatting passed. This is a 240-node Solo/Unsolved tree sample, not a mathematical gas ceiling for arbitrary population, Team-sized records or winning-commit reads. Terminal changes can still reset progress; readiness requires indexing throughput to exceed new work and eventually stable terminal scores. P8.1 remains open for final review/release evidence; no ABI, production contract code, deployed bytes, funds or dependency changed in this proof unit.
+
+
 
 ### Panic codes
 
@@ -580,6 +664,41 @@ Separate Solo sweep fixtures passed in the same completed command, including exa
 **Founder direction (2026-11-06):** proceed with the key-retaining rehearsal first, recording receipt-defined transfer outcome, callback identity/status, allocated/burnt gas and exact error for evaluation. This is not acceptance of stranded native payments or authorization to change payout asset/custody. A callback failure after transfer success must not be called a failed transfer; pending callback state alone establishes neither outcome.
 
 **Why completion can fail:** a callback is a separate receipt, with independent gas/runtime/storage limits, code and input parsing. NEAR does not retry it automatically. The current bounded callbacks avoid untrusted large-result parsing; earlier maximum-root local samples burnt 2.501/10 Tgas (`on_withdraw`) and 2.301/10 Tgas (`on_platform`). Those samples are not universal upper bounds. D32 subsequently completed both native withdrawals and the platform payment on real game testnet with no failed callback observed; selected success costs are recorded below. Actual errors must be preserved rather than inferred from pending state. Historical local RULE fault instrumentation deliberately removed callback export names; that is not evidence of a naturally occurring native gas failure.
+
+### D31 historical-outcome feasibility review (2026-11-10)
+
+[V] The reviewed `credit.rs`, platform settlement, request enum and `recovery.rs` still expose no authenticated historical native-transfer result. `promise_result_checked` reads the dependency of the currently executing callback, not an arbitrary old receipt. The [NEAR callback-failure guide](https://docs.near.org/smart-contracts/security/cross-contract-calls/callback-failures.md), checked again on 2026-11-10, confirms independent rollback and no automatic retry of a failed callback. A prior successful native transfer is not reverted with that callback.
+
+The [RPC outcome-proof API](https://docs.near.org/api-reference/post-light_client_proof) can return receipt execution proofs relative to a supplied light-client head. It is not an on-chain recovery endpoint or a self-authenticating assertion. A future trust-preserving resolver would need all of:
+
+1. An authenticated finality anchor and updates across epochs, not a caller-supplied block hash accepted on trust.
+2. Verification of the outcome and block proofs against that anchor, with bounded input, gas and storage.
+3. Binding of the proven execution to the exact pending request, receiver and amount, plus once-only settlement and late-callback fencing.
+
+Current `Request::Withdraw` stores actor/amount and `Request::Platform` stores amount; neither stores a native receipt ID. A proof of some other transfer with matching fields is insufficient. Recovering an existing request requires proving that exact causal relationship, not just demonstrating that a proof API exists.
+
+[I] The platform's hashing/signature primitives do not rule out a future light-client implementation, but there is no such implementation or completed binding/gas/liveness proof in this game. The [NEAR light-client specification](https://nomicon.io/ChainSpec/LightClient.html) explicitly warns that it is outdated and its linked reference implementation is archived; it cannot be treated as a ready audited dependency. No resolver, verifier contract, payout-asset or custody change is introduced by this review.
+
+**Decision boundary:** preserve the founder's testnet-only residual-risk acceptance. Before freeze, either implement and independently review a feasible authenticated recovery design under separate scope approval, or obtain explicit acceptance of the remaining native-payment liveness risk for the intended release. This review grants neither. A trusted operator assertion, timeout refund/resend or intermediary's own unjournaled native transfer is not an equivalent recovery design.
+
+No new exploit or recipient-controlled callback failure was confirmed in this bounded review. Existing credit, callback-fence, refund-order and payment-permutation evidence remains the applicable local coverage; no duplicate testnet round or fault-injection runtime was rerun. Conservative pending principal can continue reducing available operator collateral, even after a transfer succeeded, until its callback completes. That availability cost and a blocked subsequent withdrawal must remain visible rather than being called recovered.
+
+### D41 native-NEAR mitigation boundary (2026-11-10)
+
+Founder reaffirmed native NEAR with the existing mitigations for continued **testnet-only** work. No resolver, new payout asset, custody intermediary or operator override is added. The following separates recovery from risk containment; prior evidence is reused, not presented as a fresh fault run:
+
+| Condition | Current behavior and evidence | Remaining limit |
+| --- | --- | --- |
+| Withdraw/platform transfer fails and its callback completes | The pending id is consumed once, native reservation released and credit/platform accrual restored; duplicate/wrong-kind callbacks cannot pay again. Existing native callback and actual-WASM effect tests cover these branches. | A failed callback is a different condition, even if the initiating transaction was successful. |
+| Withdraw/platform result is unknown because its callback did not complete | The pending request and native principal reservation remain; `expire_request` returns false for native requests. Existing refund-order/payment-permutation evidence covers withholding and replay fences. | No automatic refund, resend or authenticated recovery. Reservation may continue limiting operator admission after a successful transfer. |
+| Player withdraw is pending while other credit remains | Only the exact requested amount left spendable credit; other credit can fund play. Existing `withheld_withdrawal_does_not_block_play_or_make_its_principal_spendable` and actual-WASM isolation evidence apply. | A second withdrawal rejects E21; insufficient operator collateral can independently reject admission with E24. Isolation is not unlimited availability. |
+| A referee or read-only registration request stalls | Permissionless expiry after ten minutes applies the existing failure handler and fences late callbacks. | Round deadlines and already-spent compute remain separate; this is not a worker response SLA. |
+| RULE mint/unlock acknowledgement is unknown | Fixed-receiver same-id operation replay checks the funded immutable token outcome. Existing authenticated token-recovery runtimes prove once-only reconciliation. | This token protocol does not recover native NEAR transfers. |
+
+Operational reconciliation is read-only: retain the initiating transaction hash, inspect the complete finalized transfer/callback outcomes and compare the contract's pending/credit/reservation state. A wallet receipt or RPC observation can diagnose the outcome but cannot authorize a replacement transfer or mutate an immutable pending request. Do not ask a player to top up or repeat a withdrawal as a recovery remedy. Retained account keys permit a separately reviewed upgrade, not an existing recovery method.
+
+The D41 choice closes the architecture question for this bounded continuation, not B6's full recovery criterion or P8.1. Before an immutable release, explicitly review the intended deployment's remaining risks and final artifact evidence; neither freeze nor key deletion is authorized here.
+
 
 ### Local acceptance mapping (2026-11-06)
 

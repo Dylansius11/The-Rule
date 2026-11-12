@@ -20,6 +20,19 @@ pub(crate) fn bounded_config(params: &Params) -> bool {
     params.chain_id == "testnet"
         && (1..=2).contains(&params.referee.urls.len())
         && params.referee.urls.iter().all(|url| url.len() <= 2048)
+        && params
+            .referee
+            .demo_secrets_ref
+            .as_ref()
+            .is_none_or(|secret| {
+                (1..=64).contains(&secret.profile.len())
+                    && secret
+                        .profile
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+                    && secret.account_id.ends_with(".testnet")
+                    && secret.account_id.parse::<near_sdk::AccountId>().is_ok()
+            })
         && params.lock_tiers.len() <= 3
 }
 
@@ -124,6 +137,7 @@ pub(crate) struct StoredParams {
     urls: Vec<String>,
     hash: [u8; 32],
     build_target: String,
+    demo_secrets_ref: Option<(String, String)>,
     resource_limits: [(u64, u32, u32); 4],
     outlayer_deposit: [u128; 4],
     gas_outlayer: u64,
@@ -173,6 +187,10 @@ impl From<Params> for StoredParams {
             urls: p.referee.urls,
             hash: p.referee.hash.0,
             build_target: p.referee.build_target,
+            demo_secrets_ref: p
+                .referee
+                .demo_secrets_ref
+                .map(|secret| (secret.profile, secret.account_id)),
             resource_limits: [
                 limits(p.resource_limits.begin),
                 limits(p.resource_limits.verdict),
@@ -241,6 +259,12 @@ impl From<&StoredParams> for Params {
                 urls: p.urls.clone(),
                 hash: protocol::Hex32(p.hash),
                 build_target: p.build_target.clone(),
+                demo_secrets_ref: p.demo_secrets_ref.as_ref().map(|(profile, account_id)| {
+                    protocol::params::SecretsRef {
+                        profile: profile.clone(),
+                        account_id: account_id.clone(),
+                    }
+                }),
             },
             resource_limits: PerOp {
                 begin: limits(p.resource_limits[0]),

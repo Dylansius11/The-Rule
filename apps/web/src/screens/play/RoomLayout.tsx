@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
+import { useSound } from '@/audio';
 import { modeOf, rememberMode, roomPath, slugOf, type RoomTab } from '@/app/paths';
 import { formatNear } from '@/chain/format';
 import { useLatestRound } from '@/game';
 import type { Mode } from '@/game/types';
 import { ROOM_TABS } from '@/layout/nav';
 import { Segmented } from '@/ui/Segmented';
-import { Tag } from '@/ui/Tag';
-import { isActive, phaseLabel } from '@/screens/shared/round';
+import { RoundStatusTag } from '@/screens/shared/RoundTimer';
 import type { Room } from './room';
 
 const tabOf = (pathname: string): RoomTab => {
@@ -26,6 +26,7 @@ export function RoomLayout() {
   const { pathname } = useLocation();
   const [search] = useSearchParams();
   const navigate = useNavigate();
+  const { play } = useSound();
   const tab = tabOf(pathname);
   const round = latest.data ?? null;
   const keep = search.get('round');
@@ -57,6 +58,7 @@ export function RoomLayout() {
                   to={roomPath(mode, t.tab, withRound ? Number(keep) : null)}
                   end={t.tab === 'stamp'}
                   className="room-tab"
+                  onClick={() => play('nav')}
                 >
                   {t.label}
                 </NavLink>
@@ -73,7 +75,7 @@ export function RoomLayout() {
                 <span className="max-sm:hidden">
                   {slugOf(mode)} · round {round.roundId}
                 </span>
-                <Tag tone={isActive(round) ? 'sun' : 'soft'}>{phaseLabel(round.phase)}</Tag>
+                <RoundStatusTag round={round} ticking />
                 <span className="hidden lg:inline">pot {formatNear(round.pot, 3)} NEAR</span>
               </>
             ) : latest.isLoading ? (

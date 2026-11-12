@@ -228,6 +228,15 @@
 .meter[data-tone='lime'] > i {
   background: var(--color-lime);
 }
+.meter[data-tone='sun'] > i {
+  background: var(--color-sun);
+}
+.meter[data-tone='tomato'] > i {
+  background: var(--color-tomato);
+}
+.meter[data-ticking='true'] > i {
+  transition: width 1s linear;
+}
 .step-no {
   display: inline-grid;
   place-items: center;

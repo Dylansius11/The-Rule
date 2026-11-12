@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { WinnerBanner } from '@/screens/play/verify/WinnerBanner';
 import { Blot, type BlotState } from '@/mascot/Blot';
 import type { PlayState, UiError } from '@/game/types';
 import { Button } from '@/ui/Button';
@@ -11,6 +12,8 @@ import { Drip } from '@/mascot/Drip';
 import { Band } from '@/ui/Band';
 import { PlayDesk } from '@/screens/play/PlayDesk';
 import { TeamSetup } from '@/screens/play/crew/TeamSetup';
+import { SessionKeyView } from '@/screens/account/SessionKeyPanel';
+import type { useSessionKey } from '@/chain/session/useSessionKey';
 import type { Round } from '@/game/types';
 
 const input = { number: 7, word: 'otter' };
@@ -47,6 +50,60 @@ const STATES: PlayState[] = [
   { kind: 'rejected', input, row: { ...row, verdict: false }, txHash: null },
   { kind: 'refunded', input, txHash: null },
   { kind: 'error', input, error: SAMPLE_ERROR },
+];
+
+type Session = ReturnType<typeof useSessionKey>;
+const sampleSession = (over: Partial<Session>): Session => ({
+  status: 'off',
+  accountId: 'sample.testnet',
+  publicKey: null,
+  allowance: null,
+  reason: null,
+  notice: null,
+  busy: false,
+  via: null,
+  enable: async () => undefined,
+  revoke: async () => undefined,
+  refresh: async () => undefined,
+  dismissNotice: () => undefined,
+  ...over,
+});
+const SAMPLE_SESSIONS = [
+  {
+    label: 'off, no key on this device',
+    session: sampleSession({ reason: 'No session key on this device. Enable one (sample text).' }),
+  },
+  { label: 'checking', session: sampleSession({ status: 'checking' }) },
+  {
+    label: 'active, allowance left',
+    session: sampleSession({
+      status: 'active',
+      publicKey: 'ed25519:SAMPLE',
+      allowance: 410_000_000_000_000_000_000_000n,
+    }),
+  },
+  {
+    label: 'low allowance',
+    session: sampleSession({
+      status: 'low',
+      publicKey: 'ed25519:SAMPLE',
+      allowance: 60_000_000_000_000_000_000_000n,
+    }),
+  },
+  {
+    label: 'fell back to the wallet',
+    session: sampleSession({
+      reason: 'The session key used up its gas allowance.',
+      notice: 'The session key used up its gas allowance. Nothing was sent (sample text).',
+    }),
+  },
+  {
+    label: 'unsupported browser',
+    session: sampleSession({
+      status: 'unsupported',
+      reason: 'This browser cannot keep a non-extractable Ed25519 key (sample text).',
+    }),
+  },
 ];
 const SAMPLE_ROUND: Round = {
   mode: 0,
@@ -94,6 +151,15 @@ export function DevStates() {
       <Band tone="sun" edge={false} className="mt-4 py-14">
         <TeamSetup />
       </Band>
+      <h2 className="display mt-8 text-[36px]">Session key panel, every status (SAMPLE)</h2>
+      <div className="grid gap-5 md:grid-cols-2">
+        {SAMPLE_SESSIONS.map(s => (
+          <div key={s.label}>
+            <div className="mono text-[13px] font-bold">{s.label}</div>
+            <SessionKeyView connected session={s.session} />
+          </div>
+        ))}
+      </div>
       <h2 className="display mt-8 text-[36px]">Blot</h2>
       <div className="flex flex-wrap items-end gap-4">
         {BLOTS.map(b => (
@@ -105,6 +171,24 @@ export function DevStates() {
         <Button size="sm" onClick={() => setBurst(n => n + 1)}>
           Burst
         </Button>
+      </div>
+      <h2 className="display mt-8 text-[36px]">Winner moment, solved by you (SAMPLE, no chain data)</h2>
+      <div className="mt-4">
+        <WinnerBanner
+          key={burst}
+          mode={0}
+          round={{
+            ...SAMPLE_ROUND,
+            phase: 'Settled',
+            logLen: 52,
+            outcome: { kind: 'Solved', account: 'sample.testnet', entityTag: 0, entityId: 0 },
+          }}
+          account="sample.testnet"
+          verified
+          matched={52}
+          total={52}
+        />
+        <p className="mono mt-2 text-[13px]">Press Burst above to replay it.</p>
       </div>
       <h2 className="display mt-8 text-[36px]">Misc</h2>
       <div className="flex flex-wrap items-center gap-4">

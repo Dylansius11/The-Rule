@@ -13,11 +13,14 @@ import { InkBox } from '@/ui/InkBox';
 import { Tag } from '@/ui/Tag';
 import { Link } from 'react-router';
 import { roomPath } from '@/app/paths';
+import { ClaimAll } from '../shared/ClaimAll';
 import { ClaimsPanel } from './ClaimsPanel';
 import { CreditPanel } from './CreditPanel';
 import { LockPanel } from './LockPanel';
+import { SessionKeyPanel } from './SessionKeyPanel';
 import { TokenRecovery } from './TokenRecovery';
 import { PageHead } from '@/screens/shared/PageHead';
+import { SetupChecklist } from '@/screens/shared/SetupChecklist';
 
 function Balance({
   label,
@@ -136,6 +139,8 @@ export function AccountPage() {
         </div>
       ) : null}
 
+      <SetupChecklist className="mt-7" />
+
       <section aria-label="Balances" className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <Balance
           label="Wallet NEAR"
@@ -221,7 +226,8 @@ export function AccountPage() {
       <section aria-label="Pending" className="mt-7">
         <h2 className="display text-[40px] leading-none">Pending slips</h2>
         <p className="mb-3 mt-1 font-semibold">
-          A pending payment is not a verdict, and its principal is not available credit.
+          Things in flight right now; each reads none when nothing is waiting. A pending play is not a
+          verdict, and its stake is not available credit.
         </p>
         <div className="grid gap-4 sm:grid-cols-3">
           <PendingSlip
@@ -237,7 +243,7 @@ export function AccountPage() {
           <PendingSlip
             label="Withdrawal"
             active={!!p?.pendingWithdrawal}
-            text="Withdrawal sent, waiting for the transfer."
+            text="Withdrawal sent. Confirmation is pending."
           />
         </div>
       </section>
@@ -246,6 +252,10 @@ export function AccountPage() {
         <h2 className="display mb-4 text-[40px] leading-none">Credit</h2>
         <CreditPanel />
       </section>
+      <section aria-label="Session key" className="mt-10">
+        <h2 className="display mb-4 text-[40px] leading-none">Session key</h2>
+        <SessionKeyPanel />
+      </section>
       <section aria-label="RULE and locks" className="mt-10">
         <h2 className="display mb-4 flex items-center gap-3 text-[40px] leading-none">
           <Art name="token/seal" width={44} /> RULE and locks
@@ -253,10 +263,19 @@ export function AccountPage() {
         <LockPanel />
       </section>
       <section aria-label="Claims" className="mt-10">
+        <ClaimAll className="mb-6" />
         <ClaimsPanel />
       </section>
       <section aria-label="Token operation recovery" className="mt-10">
-        <TokenRecovery />
+        <details>
+          <summary className="display cursor-pointer text-[30px] leading-none">
+            Advanced: recover a stuck RULE operation
+          </summary>
+          <p className="mb-3 mt-2 font-semibold">
+            Only needed if a RULE mint or unlock seems stuck. You can ignore this in normal play.
+          </p>
+          <TokenRecovery />
+        </details>
       </section>
     </div>
   );

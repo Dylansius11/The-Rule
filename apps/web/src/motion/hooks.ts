@@ -49,13 +49,15 @@ export function usePreload(urls: readonly string[], enabled = true) {
   }, [urls, enabled]);
 }
 
-/** A ticking "now" in epoch ms, for relative times. */
-export function useNow(intervalMs = 1000): number {
+/** A ticking "now" in epoch ms, for relative times. While `enabled` is false it does not tick. */
+export function useNow(intervalMs = 1000, enabled = true): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
+    if (!enabled) return;
+    setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), intervalMs);
     return () => clearInterval(id);
-  }, [intervalMs]);
+  }, [intervalMs, enabled]);
   return now;
 }
 

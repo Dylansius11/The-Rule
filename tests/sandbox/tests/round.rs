@@ -19,7 +19,7 @@ async fn begin_resolves_via_mock_outlayer() -> Result<(), Box<dyn std::error::Er
     mock.call("new").transact().await?.into_result()?;
     let game = worker.dev_deploy(&std::fs::read(artifact("game"))?).await?;
     game.call("new")
-        .args_json(json!({"params":params(mock.id().as_str()),"demo":true}))
+        .args_json(json!({"params":params(mock.id().as_str(), worker.view_block().await?.timestamp()),"demo":true}))
         .transact()
         .await?
         .into_result()?;
@@ -275,7 +275,7 @@ async fn failed_begin_retries_then_cancels_after_deadline() -> Res<()> {
         .await?;
     mock.call("new").transact().await?.into_result()?;
     let game = worker.dev_deploy(&std::fs::read(artifact("game"))?).await?;
-    let mut config = params(mock.id().as_str());
+    let mut config = params(mock.id().as_str(), worker.view_block().await?.timestamp());
     config["begin_timeout_ns"] = json!(30_000_000_000u64);
     game.call("new")
         .args_json(json!({"params":config,"demo":true}))

@@ -1,7 +1,9 @@
 import { Outlet } from 'react-router';
+import { WinModal } from '@/screens/shared/WinModal';
 import { ErrorCard } from '@/ui/ErrorCard';
 import { AppFooter } from './AppFooter';
 import { AppHeader } from './AppHeader';
+import { SessionNotice } from './SessionNotice';
 import { TabBar } from './TabBar';
 import { useConnect } from './useConnect';
 
@@ -16,11 +18,13 @@ export function AppShell() {
           <ErrorCard error={error} onRetry={connect} onDismiss={clear} />
         </div>
       ) : null}
+      <SessionNotice />
       <main id="main" tabIndex={-1} className="overflow-x-clip outline-none">
         <Outlet />
       </main>
       <AppFooter />
       <TabBar />
+      <WinModal />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import { roomPath } from '@/app/paths';
+import { toUiError } from '@/chain/errors';
 import { Art } from '@/art/Art';
 import { useLatestRevealedRound, useNextSlot } from '@/game';
 import type { Mode, Round } from '@/game/types';
@@ -7,8 +8,10 @@ import { Blot } from '@/mascot/Blot';
 import { useNow } from '@/motion/hooks';
 import { Button } from '@/ui/Button';
 import { InkBox } from '@/ui/InkBox';
+import { ErrorCard } from '@/ui/ErrorCard';
 import { fmtIn, fmtUtc } from '@/screens/shared/format';
 import { modeName, phaseLabel, outcomeLabel } from '@/screens/shared/round';
+import { RoundTimer } from '@/screens/shared/RoundTimer';
 
 /**
  * The honest face of the desk when plays are closed. Says what is true (phase, next slot, last revealed round)
@@ -18,7 +21,7 @@ export function NoRoundOpen({ mode, round }: { mode: Mode; round: Round | null }
   const slot = useNextSlot(mode);
   const revealed = useLatestRevealedRound();
   const now = useNow(30_000);
-  const closing = round && ['Reveal', 'Opening'].includes(round.phase);
+  const closing = round && (round.phase === 'Investigation' || ['Reveal', 'Opening'].includes(round.phase));
   const preparing = round && ['Scheduled', 'Sealing'].includes(round.phase);
 
   const title = preparing ? 'The law is being sealed.' : closing ? 'Plays are closed.' : 'No round is open.';
@@ -35,7 +38,7 @@ export function NoRoundOpen({ mode, round }: { mode: Mode; round: Round | null }
     slot.data && scheduled
       ? slot.data.slotMs > now
         ? `Next ${modeName(mode).toLowerCase()} slot: round ${slot.data.roundId}, ${fmtUtc(slot.data.slotMs)} (${fmtIn(slot.data.slotMs, now)}).`
-        : `Next slot (round ${slot.data.roundId}) was ${fmtUtc(slot.data.slotMs)}. It opens once someone starts it; the keeper does this on this rehearsal.`
+        : `The next slot (round ${slot.data.roundId}) has been due since ${fmtUtc(slot.data.slotMs)}. It opens once someone starts it; the contract lets anyone do that.`
       : slot.isLoading
         ? 'Checking the schedule…'
         : slot.isError
@@ -51,11 +54,14 @@ export function NoRoundOpen({ mode, round }: { mode: Mode; round: Round | null }
         {title}
       </h2>
       <p className="mx-auto mt-3 max-w-[48ch] text-[19px] font-bold leading-snug">{body}</p>
+      {round && closing ? (
+        <RoundTimer round={round} className="mx-auto mt-4 max-w-[420px] text-left" />
+      ) : null}
       <p className="mono mx-auto mt-3 max-w-[56ch] text-[14px] font-bold">{next}</p>
       <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
         {revealed.data ? (
           <Button to={roomPath(revealed.data.mode, 'verify', revealed.data.roundId)} variant="red">
-            See the last opened law
+            See an opened law
           </Button>
         ) : null}
         {round ? (
@@ -66,8 +72,8 @@ export function NoRoundOpen({ mode, round }: { mode: Mode; round: Round | null }
       </div>
       {revealed.data ? (
         <p className="mt-4 text-[15px] font-semibold">
-          Last revealed: {modeName(revealed.data.mode)} round {revealed.data.roundId}, {revealed.data.logLen}{' '}
-          plays,{' '}
+          Opened law found: {modeName(revealed.data.mode)} round {revealed.data.roundId},{' '}
+          {revealed.data.logLen} plays,{' '}
           <Link
             to={roomPath(revealed.data.mode, 'verify', revealed.data.roundId)}
             className="font-extrabold underline decoration-2 underline-offset-2"
@@ -76,6 +82,11 @@ export function NoRoundOpen({ mode, round }: { mode: Mode; round: Round | null }
           </Link>
           .
         </p>
+      ) : null}
+      {revealed.isError ? (
+        <div className="mt-4">
+          <ErrorCard error={toUiError(revealed.error)} onRetry={revealed.refetch} />
+        </div>
       ) : null}
     </InkBox>
   );

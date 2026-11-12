@@ -261,10 +261,10 @@ async fn token_balance(token: &Contract, account: &str) -> Res<u128> {
         .json()?;
     Ok(amount.parse()?)
 }
-async fn locked(game: &Contract, alice: &Account) -> Res<u128> {
+async fn locked(game: &Contract, alice: &Account, round_id: u32) -> Res<u128> {
     let amount: String = game
         .view("get_lock")
-        .args_json(json!({"mode":0,"round_id":1,"account":alice.id()}))
+        .args_json(json!({"mode":0,"round_id":round_id,"account":alice.id()}))
         .await?
         .json()?;
     Ok(amount.parse()?)
@@ -272,18 +272,19 @@ async fn locked(game: &Contract, alice: &Account) -> Res<u128> {
 async fn reconcile(
     game: &Contract,
     token: &Contract,
+    round_id: u32,
     expected_allowance: u128,
     expected: &[u128],
 ) -> Res<()> {
     let round: Value = game
         .view("get_round")
-        .args_json(json!({"mode":0,"id":0}))
+        .args_json(json!({"mode":0,"id":round_id}))
         .await?
         .json()?;
     assert_eq!(round["allowance_left"], expected_allowance.to_string());
     let rows: Vec<Value> = game
         .view("get_log")
-        .args_json(json!({"mode":0,"id":0,"from_idx":0,"limit":200}))
+        .args_json(json!({"mode":0,"id":round_id,"from_idx":0,"limit":200}))
         .await?
         .json()?;
     assert_eq!(rows.len(), expected.len());
@@ -318,6 +319,17 @@ async fn unregister(alice: &Account, token: &Contract) -> Res<()> {
     assert!(removed);
     Ok(())
 }
+async fn wait_until(worker: &Worker<Sandbox>, deadline: u64) -> Res<()> {
+    let stop = std::time::Instant::now() + Duration::from_secs(120);
+    while worker.view_block().await?.timestamp() < deadline {
+        if std::time::Instant::now() >= stop {
+            return Err("sandbox deadline not reached".into());
+        }
+        worker.fast_forward(5).await?;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    Ok(())
+}
 
 #[tokio::main]
 async fn main() -> Res<()> {
@@ -341,7 +353,8 @@ async fn main() -> Res<()> {
         .await?
         .into_result()?;
     fund_token_operations(&token).await?;
-    let mut config = sandbox_tests::params(mock.id().as_str());
+    let mut config =
+        sandbox_tests::params(mock.id().as_str(), worker.view_block().await?.timestamp());
     config["token"] = json!(token.id());
     let root = worker.root_account()?;
     let platform_id = format!("effect-platform.{}", root.id());
@@ -349,9 +362,8 @@ async fn main() -> Res<()> {
     config["base_attempts"] = json!([3, 50]);
     config["round_allowance"] = json!(ALLOWANCE.to_string());
     config["mint_base"] = json!(MINT.to_string());
-    config["round_period_ns"] = json!(1);
-    config["investigation_max_ns"] = json!(1);
-    config["reveal_window_ns"] = json!(1);
+    config["round_period_ns"] = json!(30_000_000_000u64);
+    config["reveal_window_ns"] = json!(1_000_000_000u64);
     let url = format!("https://example.com/{}", "x".repeat(2028));
     assert_eq!(url.len(), 2048);
     config["referee"]["urls"] = json!([url, url]);
@@ -378,7 +390,7 @@ async fn main() -> Res<()> {
     for _ in 0..50 {
         let round: Value = game
             .view("get_round")
-            .args_json(json!({"mode":0,"id":0}))
+            .args_json(json!({"mode":0,"id":null}))
             .await?
             .json()?;
         if round["phase"] == "Investigation" {
@@ -390,14 +402,59 @@ async fn main() -> Res<()> {
     if !investigating {
         return Err("round never reached Investigation".into());
     }
-    // Reach the root-vector limit through ordinary receipts, not state patches.
-    // The live Solo round deliberately remains Investigation while nine Team
-    // rounds retain failed opens; every external-effect callback below loads all ten.
-    for round_id in 0..9u32 {
-        let begin_id = 1 + 2 * round_id;
+    // Freeze nine independent Teams early using real correct-guess callbacks;
+    // the long Solo investigation remains live for the effect receipts.
+    let solo: Value = game
+        .view("get_round")
+        .args_json(json!({"mode":0,"id":null}))
+        .await?
+        .json()?;
+    let solo_id = solo["round_id"].as_u64().ok_or("missing Solo round")? as u32;
+    let (rule, _) = rule_core::sample(b"effect-gas-team");
+    let mut previous = None;
+    for index in 0..9u32 {
+        let captain = worker.dev_create_account().await?;
+        captain
+            .call(game.id(), "deposit_credit")
+            .deposit(NearToken::from_near(1))
+            .max_gas()
+            .transact()
+            .await?
+            .into_result()?;
+        let team_id: u32 = captain
+            .call(game.id(), "create_team")
+            .args_json(json!({"name":format!("team{index}")}))
+            .max_gas()
+            .transact()
+            .await?
+            .json()?;
+        captain
+            .call(game.id(), "team_deposit")
+            .args_json(json!({"team_id":team_id}))
+            .deposit(NearToken::from_near(1))
+            .max_gas()
+            .transact()
+            .await?
+            .into_result()?;
+        let slot: Value = game
+            .view("get_next_slot")
+            .args_json(json!({"mode":1}))
+            .await?
+            .json()?;
+        let round_id = slot["round_id"].as_u64().ok_or("missing Team slot")? as u32;
+        wait_until(
+            &worker,
+            slot["slot_ns"].as_u64().ok_or("missing Team slot time")?,
+        )
+        .await?;
+        if let Some(last) = previous {
+            assert!(round_id > last);
+        }
+        previous = Some(round_id);
+        let begin_id = 1 + 3 * index;
         let begin = game
             .call("start_round")
-            .args_json(json!({"mode":1}))
+            .args_json(json!({"mode":1,"round_id":round_id}))
             .gas(Gas::from_tgas(300))
             .transact_async()
             .await?;
@@ -418,20 +475,58 @@ async fn main() -> Res<()> {
             tokio::time::sleep(Duration::from_millis(200)).await;
         }
         assert!(observed);
-        game.call("advance")
-            .args_json(json!({"mode":1}))
+        let hash = protocol::commit_hash(&protocol::CommitPreimage {
+            chain: "testnet",
+            game: game.id().as_str(),
+            mode: protocol::Mode::Team,
+            round: round_id,
+            actor: captain.id().as_str(),
+            entity: protocol::Entity::Team(team_id),
+            guess: &rule,
+            salt: &[9; 32],
+        });
+        captain
+            .call(game.id(), "commit_guess")
+            .args_json(json!({"mode":1,"hash":hash}))
             .max_gas()
             .transact()
             .await?
             .into_result()?;
+        worker.fast_forward(5).await?;
+        let reveal = captain.call(game.id(), "reveal_guess").args_json(json!({"mode":1,"commit_seq":0,"guess":serde_json::to_value(protocol::RuleHex(rule.clone()))?,"salt":"09".repeat(32)})).gas(Gas::from_tgas(300)).transact_async().await?;
+        wait_requests(&mock, begin_id + 2).await?;
+        resolve(&mock, begin_id + 1, json!({"correct":true}), false).await?;
+        reveal.await?.into_result()?;
+        let mut deadline = None;
+        for _ in 0..50 {
+            let r: Value = game
+                .view("get_round")
+                .args_json(json!({"mode":1,"id":round_id}))
+                .await?
+                .json()?;
+            if r["phase"] == "Reveal" {
+                deadline = r["reveal_deadline_ns"].as_u64();
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+        let deadline = deadline.ok_or("Team reveal not observed")?;
+        let stop = std::time::Instant::now() + Duration::from_secs(120);
+        while worker.view_block().await?.timestamp() < deadline {
+            if std::time::Instant::now() >= stop {
+                return Err("Team reveal deadline not reached".into());
+            }
+            worker.fast_forward(5).await?;
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
         let open = game
             .call("finalize")
-            .args_json(json!({"mode":1}))
+            .args_json(json!({"mode":1,"round_id":round_id}))
             .gas(Gas::from_tgas(300))
             .transact_async()
             .await?;
-        wait_requests(&mock, begin_id + 2).await?;
-        resolve(&mock, begin_id + 1, Value::Null, false).await?;
+        wait_requests(&mock, begin_id + 3).await?;
+        resolve(&mock, begin_id + 2, Value::Null, false).await?;
         open.await?.into_result()?;
         let mut observed = false;
         for _ in 0..50 {
@@ -450,6 +545,16 @@ async fn main() -> Res<()> {
     }
     let active: Vec<Value> = game.view("get_active_rounds").await?.json()?;
     assert_eq!(active.len(), 10);
+    let next: Value = game
+        .view("get_next_slot")
+        .args_json(json!({"mode":1}))
+        .await?
+        .json()?;
+    wait_until(
+        &worker,
+        next["slot_ns"].as_u64().ok_or("missing capacity slot")?,
+    )
+    .await?;
     let capacity = game
         .call("start_round")
         .args_json(json!({"mode":1}))
@@ -528,7 +633,7 @@ async fn main() -> Res<()> {
     // Unregister after the successful game check while the token balance is zero.
     unregister(&alice, &token).await?;
     assert_eq!(state(&game, &alice).await?, "registered");
-    for (id, number, success) in [(19, 2, false), (20, 3, true)] {
+    for (id, number, success) in [(28, 2, false), (29, 3, true)] {
         if success {
             register_storage(&alice, &token, minimum).await?;
         }
@@ -551,32 +656,40 @@ async fn main() -> Res<()> {
         )
         .await?;
         if success {
-            reconcile(&game, &token, ALLOWANCE - MINT, &[0, MINT]).await?;
+            reconcile(&game, &token, solo_id, ALLOWANCE - MINT, &[0, MINT]).await?;
             assert_eq!(token_balance(&token, alice.id().as_str()).await?, MINT);
         } else {
-            reconcile(&game, &token, ALLOWANCE, &[0]).await?;
+            reconcile(&game, &token, solo_id, ALLOWANCE, &[0]).await?;
             assert_eq!(token_balance(&token, alice.id().as_str()).await?, 0);
         }
     }
 
     // Move all minted tokens into a future lock; now the owner can unregister without burning.
     let amount = MINT;
+    let slot: Value = game
+        .view("get_next_slot")
+        .args_json(json!({"mode":0}))
+        .await?
+        .json()?;
+    let lock_id = slot["round_id"].as_u64().ok_or("missing lock slot")? as u32;
+    let unlock_at = slot["slot_ns"].as_u64().ok_or("missing lock time")? + 30_000_000_000;
     alice
         .call(token.id(), "ft_transfer_call")
         .args_json(json!({"receiver_id":game.id(),"amount":amount.to_string(),
-        "msg":json!({"lock":{"mode":0,"round_id":1}}).to_string()}))
+        "msg":json!({"lock":{"mode":0,"round_id":lock_id}}).to_string()}))
         .deposit(NearToken::from_yoctonear(1))
         .max_gas()
         .transact()
         .await?
         .into_result()?;
-    assert_eq!(locked(&game, &alice).await?, amount);
+    assert_eq!(locked(&game, &alice, lock_id).await?, amount);
     assert_eq!(token_balance(&token, alice.id().as_str()).await?, 0);
     assert_eq!(token_balance(&token, game.id().as_str()).await?, amount);
     unregister(&alice, &token).await?;
+    wait_until(&worker, unlock_at).await?;
     let first = alice
         .call(game.id(), "unlock")
-        .args_json(json!({"mode":0,"round_id":1}))
+        .args_json(json!({"mode":0,"round_id":lock_id}))
         .deposit(NearToken::from_yoctonear(1))
         .max_gas()
         .transact()
@@ -590,13 +703,13 @@ async fn main() -> Res<()> {
         ("execute_operation", false, "on_unlock", None),
     )
     .await?;
-    assert_eq!(locked(&game, &alice).await?, amount);
+    assert_eq!(locked(&game, &alice, lock_id).await?, amount);
     assert_eq!(token_balance(&token, game.id().as_str()).await?, amount);
     assert_eq!(token_balance(&token, alice.id().as_str()).await?, 0);
     register_storage(&alice, &token, minimum).await?;
     let retry = alice
         .call(game.id(), "unlock")
-        .args_json(json!({"mode":0,"round_id":1}))
+        .args_json(json!({"mode":0,"round_id":lock_id}))
         .deposit(NearToken::from_yoctonear(1))
         .max_gas()
         .transact()
@@ -610,12 +723,12 @@ async fn main() -> Res<()> {
         ("execute_operation", true, "on_unlock", None),
     )
     .await?;
-    assert_eq!(locked(&game, &alice).await?, 0);
+    assert_eq!(locked(&game, &alice, lock_id).await?, 0);
     assert_eq!(token_balance(&token, game.id().as_str()).await?, 0);
     assert_eq!(token_balance(&token, alice.id().as_str()).await?, amount);
     let duplicate = alice
         .call(game.id(), "unlock")
-        .args_json(json!({"mode":0,"round_id":1}))
+        .args_json(json!({"mode":0,"round_id":lock_id}))
         .deposit(NearToken::from_yoctonear(1))
         .max_gas()
         .transact()
@@ -623,7 +736,7 @@ async fn main() -> Res<()> {
         .into_result()
         .expect_err("unlock cannot return the same lock twice");
     assert!(format!("{duplicate:?}").contains("E56"));
-    reconcile(&game, &token, ALLOWANCE - amount, &[0, amount]).await?;
+    reconcile(&game, &token, solo_id, ALLOWANCE - amount, &[0, amount]).await?;
     // A 64-character withdrawing account and real transfer/callback receipt pair.
     let before = credit(&game, &alice).await?;
     let withdrawn = before / 2;

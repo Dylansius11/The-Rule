@@ -31,6 +31,13 @@ pub struct LockTier {
     pub amount: Amount,
     pub extra_attempts: u16,
 }
+/// Public pointer to an encrypted OutLayer profile, never the secret value.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SecretsRef {
+    pub profile: String,
+    pub account_id: String,
+}
 /// Pinned referee artifact and service account.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -39,6 +46,9 @@ pub struct RefereeConfig {
     pub urls: Vec<String>,
     pub hash: Hex32,
     pub build_target: String,
+    /// Preselected-rule Demo only; production initialization rejects this field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub demo_secrets_ref: Option<SecretsRef>,
 }
 /// Per-execution OutLayer limits, measured and fixed at deployment.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

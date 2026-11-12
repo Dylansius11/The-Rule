@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { toUiError } from '@/chain/errors';
 import { roomPath } from '@/app/paths';
 import { useSound } from '@/audio';
-import { useLog, useParams, useRound } from '@/game';
+import { useLog, useParams, useRound, useWallet } from '@/game';
 import type { ReplayState } from '@/game/types';
-import { REPLAY_LIMIT } from '@/config/env';
+import { active, REPLAY_LIMIT } from '@/config/env';
 import { Art } from '@/art/Art';
 import { Blot, type BlotState } from '@/mascot/Blot';
 import { useTypewriter } from '@/motion/hooks';
@@ -23,9 +23,14 @@ import { RoundPicker } from '@/screens/shared/RoundPicker';
 import { downloadLog } from '@/screens/shared/exportLog';
 import { modeName, outcomeLabel, phaseLabel } from '@/screens/shared/round';
 import { useRoundSelection } from '@/screens/shared/useRoundSelection';
+import { RoundHistoryNotice } from '@/screens/shared/RoundHistoryNotice';
+import { KeeperWait } from '@/screens/shared/KeeperWait';
+import { useRoundClock } from '@/screens/shared/useRoundClock';
 import { useRoom } from './room';
 import { Check, type CheckTone } from './verify/Check';
 import { Payouts } from './verify/Payouts';
+import { verifyCommand } from './verify/command';
+import { WinnerBanner } from './verify/WinnerBanner';
 
 function replaySummary(state: ReplayState): string {
   if (state.kind === 'done') {
@@ -46,9 +51,11 @@ export function VerifyTab() {
   const round = roundQ.data ?? null;
   const log = useLog(mode, round?.rule ? sel.roundId : null);
   const params = useParams();
+  const { accountId } = useWallet();
   const reduced = useReduced();
   const sound = useSound();
   const text = useRuleText(round?.rule ?? null);
+  const clock = useRoundClock(round);
   const replay = useReplay(round?.rule ? round : null);
   const [opened, setOpened] = useState(false);
   const started = useRef(false);
@@ -86,7 +93,7 @@ export function VerifyTab() {
       : state.kind === 'error'
         ? 'no'
         : 'pending';
-  const verifyCmd = `make verify ROUND=${modeName(mode).toLowerCase()}/${sel.roundId ?? 0}`;
+  const verifyCmd = verifyCommand(mode === 0 ? 'solo' : 'team', sel.roundId ?? 0, active.game);
 
   const matchTone: CheckTone = !opened
     ? 'wait'
@@ -140,6 +147,7 @@ export function VerifyTab() {
             </Tag>
           ) : null}
         </div>
+        <RoundHistoryNotice history={sel.history} />
       </div>
 
       {sel.loading || roundQ.isLoading ? (
@@ -149,6 +157,10 @@ export function VerifyTab() {
       ) : roundQ.isError ? (
         <div className="wrap pb-20">
           <ErrorCard error={toUiError(roundQ.error)} onRetry={() => void roundQ.refetch()} />
+        </div>
+      ) : !round && sel.history.error ? (
+        <div className="wrap pb-20">
+          <p className="font-bold">Round discovery is incomplete. Retry the failed reads above.</p>
         </div>
       ) : !round ? (
         <div className="wrap pb-20">
@@ -160,17 +172,24 @@ export function VerifyTab() {
       ) : !round.rule || !round.salt || !round.commit ? (
         <div className="wrap pb-20">
           <EmptyState title="Still sealed" art="stickers/hiding" artWidth={170}>
-            {modeName(mode)} round {round.roundId} is {phaseLabel(round.phase).toLowerCase()}. The rule opens
-            only at the reveal, and this page has nothing to show before that.
+            {modeName(mode)} round {round.roundId}{' '}
+            {clock.stage === 'reveal-ended'
+              ? 'has finished its reveal window and is waiting to be settled'
+              : clock.stage === 'plays-closed'
+                ? 'has closed its plays and is waiting to move on'
+                : `is ${phaseLabel(round.phase).toLowerCase()}`}
+            . The rule opens only once the round is settled, and this page has nothing to show before that.
             {sel.revealed ? (
               <>
                 {' '}
-                The newest opened {modeName(mode)} law is round {sel.revealed.roundId}.
+                The newest opened {modeName(mode)} law found in recent lookups is round {sel.revealed.roundId}
+                .
               </>
             ) : (
-              <> No {modeName(mode)} law has opened yet.</>
+              <> No opened {modeName(mode)} law was found in the bounded lookup window.</>
             )}
           </EmptyState>
+          <KeeperWait round={round} className="mx-auto mt-5 max-w-[62ch] text-center" />
           {sel.revealed && sel.revealed.roundId !== round.roundId ? (
             <div className="mt-5 text-center">
               <Button to={roomPath(mode, 'verify', sel.revealed.roundId)} variant="red">
@@ -190,6 +209,18 @@ export function VerifyTab() {
             ]}
           />
           <LiveRegion message={replaySummary(state)} assertive={state.kind === 'error'} />
+          {state.kind === 'done' ? (
+            <div className="wrap relative mb-10 empty:hidden">
+              <WinnerBanner
+                mode={mode}
+                round={round}
+                account={accountId}
+                verified={state.result.pass}
+                matched={state.result.matched}
+                total={state.result.total}
+              />
+            </div>
+          ) : null}
           <div className="wrap relative grid items-start gap-10 lg:grid-cols-[1.15fr_0.85fr]">
             <InkBox className="p-6 text-ink md:p-9" tilt={-1.6} fill="var(--color-paper)">
               <h2 className="display text-[clamp(44px,6vw,64px)] leading-[0.9]">The rule was…</h2>

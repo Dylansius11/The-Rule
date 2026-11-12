@@ -3,14 +3,18 @@ import { useLog, usePlayer, useWallet } from '@/game';
 import { Art } from '@/art/Art';
 import { PageHead } from '@/screens/shared/PageHead';
 import { pct } from '@/screens/shared/format';
-import { isActive, isPlayable } from '@/screens/shared/round';
+import { isActive } from '@/screens/shared/round';
+import { usePlaysOpen } from '@/screens/shared/useRoundClock';
 import { Band } from '@/ui/Band';
 import { StarField } from '@/ui/Doodle';
 import { ErrorCard } from '@/ui/ErrorCard';
+import { Term } from '@/ui/Term';
+import { CostPayout } from './CostPayout';
 import { MiniLog } from './MiniLog';
 import { NoRoundOpen } from './NoRoundOpen';
 import { PlayDesk } from './PlayDesk';
 import { RoundStrip } from '@/screens/shared/RoundStrip';
+import { SetupChecklist } from '@/screens/shared/SetupChecklist';
 import { TeamSetup } from './crew/TeamSetup';
 import { useRoom } from './room';
 
@@ -21,6 +25,7 @@ export function StampTab() {
   const { status, accountId } = useWallet();
   const player = usePlayer(accountId);
   const log = useLog(mode, round?.roundId ?? null, { follow: isActive(round) });
+  const playing = usePlaysOpen(round);
   const needsTeam =
     mode === 1 && status === 'connected' && player.isSuccess && (player.data?.teamId ?? null) === null;
   const yes = log.rows.filter(r => r.verdict).length;
@@ -43,13 +48,20 @@ export function StampTab() {
           art="stickers/stamping"
           artWidth={120}
         />
-        <div className="mt-6">
-          <RoundStrip
-            mode={mode}
-            round={round}
-            loading={q.isLoading}
-            acceptRate={log.complete ? pct(yes, log.rows.length) : '…'}
-          />
+        <div className="mt-4 xl:flex xl:items-start xl:justify-between xl:gap-12">
+          <p className="max-w-[62ch] text-[16px] font-semibold">
+            Every paid play uses one <Term term="attempt" /> and adds a row to the public{' '}
+            <Term term="ledger" />. Each unique play also counts as one <Term term="contributor share" /> of
+            the final pot.
+          </p>
+          <div className="mt-6 xl:mt-0 xl:min-w-0 xl:flex-1 xl:[&_dl]:justify-end">
+            <RoundStrip
+              mode={mode}
+              round={round}
+              loading={q.isLoading}
+              acceptRate={log.complete ? pct(yes, log.rows.length) : '…'}
+            />
+          </div>
         </div>
       </div>
 
@@ -69,28 +81,47 @@ export function StampTab() {
             { x: 97, y: 66, s: 40, r: -14, n: 'doodles/star-outline' },
           ]}
         />
+        <div className="wrap mb-8 empty:hidden">
+          <SetupChecklist />
+        </div>
         {q.isError ? (
           <div className="wrap">
             <ErrorCard error={toUiError(q.error)} onRetry={() => void q.refetch()} />
           </div>
         ) : q.isLoading ? (
-          <div className="wrap flex flex-col items-center text-center" aria-busy="true">
+          <div
+            className="wrap flex min-h-[820px] flex-col items-center text-center md:min-h-[600px]"
+            aria-busy="true"
+          >
             <Art name="scenes/desk" width={200} eager />
             <p className="display text-[40px]">Asking the chain…</p>
           </div>
         ) : needsTeam ? (
           <TeamSetup />
-        ) : round && isPlayable(round) ? (
-          <PlayDesk mode={mode} round={round} />
         ) : (
-          <div className="wrap">
-            <NoRoundOpen mode={mode} round={round} />
+          <div className="wrap grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(380px,31%)] xl:gap-x-10">
+            <div className="min-w-0 xl:col-start-1 xl:row-start-1">
+              {round && playing ? (
+                <PlayDesk mode={mode} round={round} />
+              ) : (
+                <NoRoundOpen mode={mode} round={round} />
+              )}
+            </div>
+            <MiniLog mode={mode} round={round} log={log} />
+            <CostPayout
+              mode={mode}
+              round={round}
+              className={`w-full xl:col-start-1 xl:row-start-2 ${
+                round && playing ? 'max-w-[920px]' : 'mx-auto max-w-[760px]'
+              }`}
+            />
           </div>
         )}
-      </Band>
-
-      <Band tone="paper" id="ledger" label="Newest plays" seed={3} amp={10} className="pb-24 pt-24 md:pb-28">
-        <MiniLog mode={mode} round={round} log={log} />
+        {q.isError || q.isLoading || needsTeam ? (
+          <div className="wrap mt-8">
+            <CostPayout mode={mode} round={round} className="mx-auto max-w-[920px]" />
+          </div>
+        ) : null}
       </Band>
     </>
   );

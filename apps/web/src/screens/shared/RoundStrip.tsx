@@ -1,9 +1,10 @@
 import { Art } from '@/art/Art';
-import { formatNear, shortHash } from '@/chain/format';
+import { shortHash } from '@/chain/format';
 import type { Mode, Round } from '@/game/types';
-import { isActive, modeName, phaseLabel } from '@/screens/shared/round';
+import { modeName } from '@/screens/shared/round';
+import { RoundStatusTag } from '@/screens/shared/RoundTimer';
+import { CountedNear } from '@/ui/Amount';
 import { StatSticker } from '@/ui/Sticker';
-import { Tag } from '@/ui/Tag';
 
 interface RoundStripProps {
   mode: Mode;
@@ -20,7 +21,7 @@ export function RoundStrip({ mode, round, loading, acceptRate }: RoundStripProps
       {round ? (
         <>
           <StatSticker label={`${modeName(mode)} · round ${round.roundId}`} tilt={-2.5}>
-            <Tag tone={isActive(round) ? 'sun' : 'soft'}>{phaseLabel(round.phase)}</Tag>
+            <RoundStatusTag round={round} />
           </StatSticker>
           <StatSticker label="commitment" tilt={0} mono>
             <span title={round.commit ?? undefined}>
@@ -30,7 +31,7 @@ export function RoundStrip({ mode, round, loading, acceptRate }: RoundStripProps
           <StatSticker label="pot" tone="sun" tilt={2}>
             <span className="inline-flex items-center gap-2">
               <Art name="doodles/jar" width={26} />
-              {formatNear(round.pot, 3)} NEAR
+              <CountedNear value={round.pot} />
             </span>
           </StatSticker>
           <StatSticker label="plays" tone="pink" tilt={1.5}>

@@ -92,7 +92,8 @@ async fn main() -> Res<()> {
         .await?;
     token.call("new").args_json(json!({"minter":game.id(),"cap":(100_000_000u128 * NEAR).to_string(),"metadata":{"spec":"ft-1.0.0","name":"THE RULE","symbol":"RULE","decimals":18}})).transact().await?.into_result()?;
     fund_token_operations(&token).await?;
-    let mut config = sandbox_tests::params(mock.id().as_str());
+    let mut config =
+        sandbox_tests::params(mock.id().as_str(), worker.view_block().await?.timestamp());
     config["token"] = json!(token.id());
     config["storage_charge_account"] = json!((512 * BYTE).to_string());
     config["storage_charge_per_play"] = json!(ACTION.to_string());
@@ -301,7 +302,17 @@ async fn main() -> Res<()> {
     resolve(&mock, 4, json!({"correct":true}), false).await?;
     reveal.await?.into_result()?;
     phase(&game, "Reveal").await?;
-    tokio::time::sleep(Duration::from_secs(2)).await;
+    let deadline = round(&game).await?["reveal_deadline_ns"]
+        .as_u64()
+        .ok_or("missing Team reveal deadline")?;
+    let stop = std::time::Instant::now() + Duration::from_secs(120);
+    while worker.view_block().await?.timestamp() < deadline {
+        if std::time::Instant::now() >= stop {
+            return Err("Team reveal deadline not reached".into());
+        }
+        worker.fast_forward(5).await?;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
     let open = game
         .call("finalize")
         .args_json(json!({"mode":1}))

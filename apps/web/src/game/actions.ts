@@ -6,6 +6,10 @@ import { toUiError } from '@/chain/errors';
 import { getFinalBlock, view } from '@/chain/rpc';
 import * as views from '@/chain/views';
 import { active } from '@/config/env';
+import { sendCall } from '@/chain/wallet';
+import { TEAM_NAME_HINT, validTeamName } from './team-name';
+import type { PayoutItem } from './payouts';
+import { unlockTeam } from './unlock';
 import { commitHash, encodeRuleHex } from '@/verify';
 import type { ActionState, CanonicalRule, Mode, SavedGuess } from './types';
 
@@ -27,7 +31,7 @@ function checked(result: Outcome): { hash: string | null; value: unknown } {
   return { hash: result.transaction?.hash ?? null, value };
 }
 
-function useAction<A>(fn: (arg: A) => Promise<Outcome>) {
+function useAction<A>(fn: (arg: A) => Promise<Outcome>, onDone?: () => void) {
   const [state, setState] = useState<ActionState>({ kind: 'idle' });
   const query = useQueryClient();
 
@@ -37,6 +41,7 @@ function useAction<A>(fn: (arg: A) => Promise<Outcome>) {
       .then(async result => {
         const { hash, value } = checked(result);
         setState({ kind: 'pending', txHash: hash });
+        onDone?.();
         await query.invalidateQueries();
         setState({ kind: 'done', txHash: hash, value });
       })
@@ -61,15 +66,75 @@ export function useClaimActions(mode: Mode, roundId: number) {
   };
 }
 
-export function useTeamActions() {
+/**
+ * "Claim all": sends the planned unlock and claims one after another and stops at the first failure, so the
+ * rest stay listed (the plan is recomputed from the chain). Each step is its own transaction: with a session
+ * key they sign silently, otherwise the wallet asks once per step.
+ */
+export function useClaimAll() {
+  const [state, setState] = useState<ActionState>({ kind: 'idle' });
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const query = useQueryClient();
+
+  function run(items: readonly PayoutItem[]) {
+    if (items.length === 0) return;
+    setState({ kind: 'signing' });
+    setProgress({ done: 0, total: items.length });
+    void (async () => {
+      let last: string | null = null;
+      for (const [index, item] of items.entries()) {
+        last = (await runPayout(item)) ?? last;
+        setProgress({ done: index + 1, total: items.length });
+      }
+      setState({ kind: 'pending', txHash: last });
+      await query.invalidateQueries();
+      setState({ kind: 'done', txHash: last, value: null });
+    })().catch(error => setState({ kind: 'error', error: toUiError(error) }));
+  }
+
+  function reset() {
+    setState({ kind: 'idle' });
+    setProgress(null);
+  }
+
+  return { state, progress, run, reset };
+}
+
+/** One planned step. An unlock treats "already unlocked" as done; it has no transaction of its own to report. */
+async function runPayout(item: PayoutItem): Promise<string | null> {
+  if (item.kind === 'unlock') {
+    await unlockTeam(item.teamId);
+    return null;
+  }
+  const sent =
+    item.mode === 1 && item.teamId !== null
+      ? calls.claimTeam(1, item.roundId, item.teamId)
+      : calls.claim(item.mode, item.roundId);
+  return checked(await sent).hash;
+}
+
+/** `onLeft` fires once a leave is confirmed, before the screen swaps to the no-team desk and drops its own slip. */
+export function useTeamActions(onLeft?: () => void) {
   return {
-    create: useAction(calls.createTeam),
+    create: useAction<string>(async name => {
+      if (!validTeamName(name)) throw new Error(TEAM_NAME_HINT);
+      return calls.createTeam(name);
+    }),
     invite: useAction(calls.invite),
     join: useAction(calls.joinTeam),
-    leave: useAction<void>(() => calls.leaveTeam()),
+    leave: useAction<readonly PayoutItem[]>(async before => {
+      for (const item of before) await runPayout(item);
+      return calls.leaveTeam();
+    }, onLeft),
     remove: useAction(calls.removeMember),
-    deposit: useAction<{ teamId: number; amount: bigint }>(arg => calls.teamDeposit(arg.teamId, arg.amount)),
-    withdraw: useAction(calls.teamWithdraw),
+    deposit: useAction<{ teamId: number; amount: bigint; unlockFirst: boolean }>(async arg => {
+      if (arg.unlockFirst) await unlockTeam(arg.teamId);
+      return calls.teamDeposit(arg.teamId, arg.amount);
+    }),
+    withdraw: useAction<{ teamId: number; unlockFirst: boolean }>(async arg => {
+      if (arg.unlockFirst) await unlockTeam(arg.teamId);
+      return calls.teamWithdraw(arg.teamId);
+    }),
     settle: useAction(calls.settleTeam),
   };
 }
@@ -80,6 +145,9 @@ export function useLockActions(mode: Mode, roundId: number) {
     unlock: useAction<void>(() => calls.unlock(mode, roundId)),
     retry: useAction(calls.retryTokenOperation),
     register: useAction<void>(() => calls.registerToken()),
+    storage: useAction<bigint>(minimum =>
+      sendCall(active.token, 'storage_deposit', { registration_only: true }, minimum),
+    ),
   };
 }
 

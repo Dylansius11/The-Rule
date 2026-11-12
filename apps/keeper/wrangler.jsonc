@@ -3,5 +3,57 @@
   "main": "src/worker.ts",
   "compatibility_date": "2026-11-04",
   "compatibility_flags": ["nodejs_compat"],
-  "triggers": { "crons": ["*/2 * * * *"] }
+  "account_id": "ec31758cbebe819f854974885edf5379",
+  "workers_dev": false,
+  "preview_urls": false,
+  "triggers": { "crons": ["* * * * *"] },
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "vars": {
+    "NEAR_NETWORK": "testnet",
+    "NEAR_RPC_URL": "https://test.rpc.fastnear.com",
+    "GAME_ACCOUNT": "game.therule.testnet",
+    "KEEPER_ACCOUNT": "keeper.therule.testnet",
+    "KEEPER_MODES": "0,1",
+    "FIRST_ROUND_ID": "0",
+    "LAST_ROUND_ID": "3",
+    "MAINTAIN_SEASONS": "false",
+    "HEARTBEAT": "off"
+  },
+  "env": {
+    "qualification": {
+      "account_id": "ec31758cbebe819f854974885edf5379",
+      "workers_dev": false,
+      "preview_urls": false,
+      "triggers": { "crons": [] },
+      "observability": { "enabled": true, "head_sampling_rate": 1 },
+      "vars": {
+        "NEAR_NETWORK": "testnet",
+        "NEAR_RPC_URL": "https://test.rpc.fastnear.com",
+        "GAME_ACCOUNT": "game-r3.therule.testnet",
+        "KEEPER_ACCOUNT": "keeper-p6.therule.testnet",
+        "KEEPER_MODES": "0",
+        "FIRST_ROUND_ID": "12",
+        "LAST_ROUND_ID": "12",
+        "MAINTAIN_SEASONS": "false"
+      }
+    },
+    "demo": {
+      "account_id": "ec31758cbebe819f854974885edf5379",
+      "workers_dev": false,
+      "preview_urls": false,
+      "triggers": { "crons": ["* * * * *"] },
+      "observability": { "enabled": true, "head_sampling_rate": 1 },
+      "vars": {
+        "NEAR_NETWORK": "testnet",
+        "NEAR_RPC_URL": "https://test.rpc.fastnear.com",
+        "GAME_ACCOUNT": "demo-game.therule.testnet",
+        "KEEPER_ACCOUNT": "keeper.therule.testnet",
+        "KEEPER_MODES": "1",
+        "FIRST_ROUND_ID": "338",
+        "LAST_ROUND_ID": "347",
+        "MAINTAIN_SEASONS": "false",
+        "HEARTBEAT": "off"
+      }
+    }
+  }
 }

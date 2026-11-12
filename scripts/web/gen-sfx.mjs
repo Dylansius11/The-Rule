@@ -1,309 +1,158 @@
-import { readFile, writeFile, mkdir, copyFile } from "node:fs/promises";
-import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
+// THE RULE sound upgrade, 2026-11-12: 25 mono 64-kbps MP3s.
+// Run: node scripts/web/gen-sfx.mjs (cached raw candidates are reused, never regenerated).
+// Run --offline to reprocess/select cached candidates without any API calls.
+// Run --measure to ffprobe/decode every shipped asset and refresh the review/report.
+// Prompts, processing, candidate selection and limitations are recorded in the review manifest.
+// Change a chosen id in scratch/audio-review/manifest.json to audition/ship an alternate.
+// Keep the original scratch/sfx/manifest.json and its three candidates per retained sound.
+// No seed exists in sound-generation: exact reproduction uses cached raw candidates.
+import { readFile, writeFile, mkdir, copyFile, unlink } from 'node:fs/promises';
+import path from 'node:path';
+import { root, review, state, save, quota, generate, ff, pcm, inspect, rate, music } from './gen-music.mjs';
 
-const root = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../..",
-);
-const scratch = path.join(root, "scratch/sfx");
-const candidatesDir = path.join(scratch, "candidates");
-const outputDir = path.join(root, "apps/web/public/sfx");
-const brief =
-  "Warm tactile hand-inked paper world, playful and understated, close and dry, no music, no voices, no reverb, never harsh, no arcade or casino sounds. ";
+const out = path.join(root, 'apps/web/public/sfx');
+const brief = 'Single game sound in a joyful hand-inked paper cartoon world. Close, tactile and dry, rounded warm tone, no harsh treble, no background ambience, no speech, no casino or slot machine sounds. ';
+// Ordered by founder priority. Each has three fresh candidates, 33 requests total.
 const sounds = {
-  tap: [0.5, "One very short soft fingertip tick on thick paper."],
-  toggle: [0.5, "One small soft wooden toggle click with a touch of paper."],
-  open: [0.7, "A small paper envelope opening with a gentle rustle."],
-  close: [0.6, "A small paper envelope closing with a soft papery tap."],
-  whoosh: [0.7, "A quick soft swish of a paper sheet moving past."],
-  page: [0.7, "One quick turn of a thick paper notebook page."],
-  stamp: [
-    0.7,
-    "One heavy rubber stamp thunk on thick paper atop a wooden desk.",
-  ],
-  yes: [
-    0.9,
-    "A bright gentle two-note wooden marimba-like ding followed by a tiny paper flutter.",
-  ],
-  no: [
-    0.7,
-    "One dull soft felt thud on paper, sympathetic and quiet, not a buzzer.",
-  ],
-  duplicate: [
-    0.7,
-    "Two lightly muted taps of a wooden clerk stamp on paper, matter-of-fact.",
-  ],
-  pending: [
-    0.7,
-    "A soft single ink bottle cork plop and a tiny paper rustle, anticipatory.",
-  ],
-  refund: [
-    0.8,
-    "A soft paper slip sliding back across a wooden desk and a muted tick.",
-  ],
-  error: [
-    0.7,
-    "A gentle low wooden knock and soft paper rustle, not an alarm.",
-  ],
-  seal: [
-    1.0,
-    "Brittle wax seal cracking once, followed by a soft paper unfold.",
-  ],
-  "replay-pass": [
-    0.9,
-    "Two warm wooden chime notes and a quiet paper tick, reassuring.",
-  ],
-  "replay-fail": [
-    0.8,
-    "A muted low wooden chime and a soft paper tap, restrained.",
-  ],
-  mint: [
-    0.6,
-    "One small bright delicate coin-like clink on a wooden desk, not a jackpot.",
-  ],
-  blot: [0.6, "A tiny cute squishy rubber squeak, like a small wax mascot."],
-  success: [
-    0.8,
-    "A cheerful soft wooden two-note chime and a paper slip landing.",
-  ],
+  win: [3, 2.7, 'A big joyful victory fanfare: punchy warm toy brass, rising marimba and glockenspiel flourish, handclaps and a burst of paper confetti, a triumphant resolved final chord. Exciting and celebratory, not a jackpot, no coins, no voice.'],
+  'stamp-roll': [2.3, 2.1, 'A suspenseful dry snare and wooden desk fingertip drumroll that starts immediately, accelerates and swells, with a tight papery little stop at the end. One anticipatory roll, no resolution chime, no verdict, no music and no voice.'],
+  correct: [1.5, 1.25, 'An instantly rewarding you-got-it musical sting: three bright rising marimba and rounded glockenspiel notes resolving in a warm major chord, with a little playful paper star pop. Clear happy achievement, no voice.'],
+  yes: [1.0, 0.85, 'A punchy joyful YES reward: strong wooden marimba attack, three quick rising bright warm chime notes, a small springy pop and papery star flutter. Clear uplifting major harmony, immediate rewarding response, no voice.'],
+  stamp: [0.7, 0.45, 'One powerful heavy rubber stamp slamming thick paper on a solid wooden desk: deep rounded woody THUNK with a crisp paper crack and a short rubber compression squeak. Physical weight, immediate attack, dry short decay, not a gunshot, no music and no voice.'],
+  blot: [0.8, 0.65, 'One very quick low-pitched male cartoon creature vocalization, a mischievous baritone little hup-grr-chuckle with a smile, like a playful rubbery wax blob being poked. Chesty, fast, bouncy, nonverbal; no female voice, child or music.'],
+  sign: [0.6, 0.48, 'A quick confident fountain pen signature scratching across textured paper, ending in a tiny airy paper whoosh and a satisfyingly precise ink tick. Immediately audible, one compact gesture, no music and no voice.'],
+  nav: [0.5, 0.19, 'One ultra-short crisp light tactile navigation click: tiny wooden bead tick and dry paper snap together, satisfying and clean, very fast attack, no tail, no music and no voice.'],
+  no: [0.7, 0.5, 'One sympathetic but clearly distinct soft NO response: rounded low wooden tok and a little descending rubbery plop on felt and paper. Gentle disappointment, not punishing, not a buzzer or alarm, immediate attack, no voice.'],
+  mint: [0.7, 0.58, 'A satisfying little token creation sound: crisp bright wooden clink, a quick ascending two-note glassy plink and a soft wax pop. Small lively rewarding accent, not a shower of coins, not a casino jackpot, no voice.'],
+  success: [1.0, 0.8, 'A cheerful punchy task-complete flourish: bright staccato marimba rising into two warm bell notes and a satisfying paper sticker slap. Friendly sunny major harmony, compact and resolved, no voice.'],
 };
-const outputFormat = "mp3_44100_64";
-const influence = 0.55;
-const manifestPath = path.join(scratch, "manifest.json");
-let manifest;
-try {
-  manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-} catch (error) {
-  if (error.code !== "ENOENT") throw error;
-  manifest = {
-    outputFormat,
-    promptInfluence: influence,
-    loop: false,
-    requests: 0,
-    ffmpeg: false,
-    sounds: {},
-  };
-}
-if (
-  manifest.outputFormat !== outputFormat ||
-  manifest.promptInfluence !== influence
-)
-  throw new Error(
-    "Existing manifest parameters differ; archive it before starting a new run",
-  );
-const ffmpeg =
-  spawnSync("ffmpeg", ["-version"], { stdio: "ignore" }).status === 0;
-manifest.ffmpeg = ffmpeg;
-await mkdir(candidatesDir, { recursive: true });
-await mkdir(outputDir, { recursive: true });
-const env = await readFile(path.join(root, ".env"), "utf8");
-const match = env.match(
-  /^\s*(?:export\s+)?ELEVEN_LABS_API_KEY\s*=\s*(?:"([^"\r\n]*)"|'([^'\r\n]*)'|([^\s#]+))/m,
-);
-const key = match?.[1] ?? match?.[2] ?? match?.[3];
-if (!key) throw new Error("ELEVEN_LABS_API_KEY is missing from the root .env");
+const all = ['tap','toggle','open','close','whoosh','page','stamp','yes','no','duplicate','pending','refund','error','seal','replay-pass','replay-fail','mint','blot','jump','success','nav','sign','stamp-roll','win','correct'];
 
-function runFfmpeg(args) {
-  const result = spawnSync(
-    "ffmpeg",
-    ["-hide_banner", "-loglevel", "error", ...args],
-    { maxBuffer: 16 * 1024 * 1024 },
-  );
-  if (result.status !== 0)
-    throw new Error("ffmpeg failed while processing audio");
-  return result.stdout;
-}
-function inspect(file) {
-  const bytes = runFfmpeg([
-    "-i",
-    file,
-    "-ac",
-    "1",
-    "-ar",
-    "44100",
-    "-f",
-    "f32le",
-    "-",
-  ]);
-  const count = bytes.length / 4;
-  let peak = 0,
-    first = count,
-    last = 0,
-    clipped = 0,
-    previous = 0;
-  for (let i = 0; i < count; i++) {
-    const sample = bytes.readFloatLE(i * 4);
-    const amplitude = Math.abs(sample);
-    peak = Math.max(peak, amplitude);
-    if (amplitude >= 0.005) {
-      first = Math.min(first, i);
-      last = i;
-    }
-    // MP3 decoding can overshoot full scale without clipping; repeated full-scale
-    // samples are evidence of a flattened waveform, not merely codec overshoot.
-    if (amplitude >= 0.999 && sample === previous) clipped++;
-    previous = sample;
+async function processEffect(source, destination, name, maxDuration) {
+  const raw = await inspect(source);
+  if (!Number.isFinite(raw.integrated) || raw.end <= raw.onsetMs / 1000) throw new Error(`Silent source: ${name}`);
+  const start = Math.max(0, raw.onsetMs / 1000 - 0.001);
+  const active = Math.min(raw.duration - start, raw.end + 0.025 - start);
+  // Pitch estimates of the first processed Blot set were 300–470 Hz, still too
+  // high for the requested chesty character. Lower one octave, then speed up
+  // with pitch-preserving tempo stages. Net speed is 1.2x, not a slow monster.
+  const pitch = name === 'blot' ? `asetrate=${rate * 0.5},aresample=${rate},atempo=2,atempo=1.2,` : '';
+  const characterSpeed = name === 'blot' ? 1.2 : 1;
+  const speed = name === 'nav' ? 1 : Math.max(1, active / maxDuration / characterSpeed);
+  const length = Math.min(maxDuration, active / speed / characterSpeed);
+  const temp = destination + '.wav';
+  ff(['-y','-i',source,'-af',`atrim=start=${start}:duration=${active},asetpts=PTS-STARTPTS,${pitch}atempo=${speed},atrim=duration=${length},highpass=f=65,lowpass=f=10500,acompressor=threshold=0.18:ratio=3:attack=1:release=60,afade=t=in:d=0.001,afade=t=out:st=${Math.max(0,length-0.025)}:d=0.025`,'-ar',String(rate),'-ac','1','-c:a','pcm_f32le',temp]);
+  let m = await inspect(temp);
+  const target = name === 'no' ? -20 : -18;
+  if (target - m.integrated > -2.5 - m.peakDb + 1.5) {
+    // A peak-only normaliser made old paper clicks 7–9 LU quieter than verdicts.
+    // Reduce excessive crest factor before normalising, never hard-clip a peak.
+    const compressed = destination + '.compressed.wav';
+    ff(['-y','-i',temp,'-af',`volume=${-6-m.peakDb}dB,acompressor=threshold=0.025:ratio=12:attack=0.1:release=15`,'-c:a','pcm_f32le',compressed]);
+    await copyFile(compressed,temp);
+    await unlink(compressed);
+    m = await inspect(temp);
   }
-  return {
-    duration: count / 44100,
-    onset: first / 44100,
-    end: last / 44100,
-    peak,
-    clipped,
-  };
+  const gain = Math.min(target - m.integrated, -2.5 - m.peakDb);
+  ff(['-y','-i',temp,'-af',`volume=${gain}dB`,'-ac','1','-ar',String(rate),'-c:a','libmp3lame','-b:a','64k',destination]);
+  // Measure the final decoder, not the source: normalisation and MP3 framing can
+  // move the threshold. Correct only real leading silence, never mute an attack.
+  let shipped = await inspect(destination);
+  if (shipped.onsetMs >= 10) {
+    ff(['-y','-i',temp,'-af',`volume=${gain}dB,atrim=start=${Math.max(0,shipped.onsetMs/1000-0.001)},asetpts=PTS-STARTPTS`,'-ac','1','-ar',String(rate),'-c:a','libmp3lame','-b:a','64k',destination]);
+    shipped = await inspect(destination);
+  }
+  await unlink(temp);
+  if (shipped.clippedSamples || shipped.peakDb >= -0.5 || shipped.onsetMs >= 10) throw new Error(`Processed ${name} failed headroom/onset checks`);
+  return shipped;
 }
-function escapeHtml(text) {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+function transientScore(c, name) {
+  const m = c.measurements;
+  // Do not confuse earliest raw onset with the best sound: all final onsets are
+  // trimmed. Prefer a full usable gesture, consistent LUFS, and headroom.
+  const duration = sounds[name]?.[1] ?? m.duration;
+  return Math.abs(m.integrated - (name === 'no' ? -20 : -18)) * 0.7
+    + Math.abs(m.duration - duration) * 4 + Math.max(0,m.peakDb + 2) * 2;
 }
-async function save() {
-  await writeFile(
-    path.join(scratch, "manifest.json"),
-    JSON.stringify(manifest, null, 2) + "\n",
-  );
-  const sections = Object.entries(manifest.sounds)
-    .map(
-      ([name, sound]) =>
-        `<section><h2>${escapeHtml(name)}</h2><p>${escapeHtml(sound.prompt)}</p><p>Target: ${sound.durationSeconds}s; chosen: ${sound.chosen ?? "not selected"}</p>${sound.candidates.map((c) => `<div><strong>Candidate ${c.number}${c.number === sound.chosen ? " — CHOSEN" : ""}</strong><br><audio controls preload="none" src="candidates/${name}-${c.number}.mp3"></audio></div>`).join("")}</section>`,
-    )
-    .join("\n");
-  await writeFile(
-    path.join(scratch, "audition.html"),
-    `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>THE RULE sound audition</title><style>body{font:16px system-ui;background:#fffbea;color:#141210;max-width:850px;margin:2rem auto;padding:0 1rem}section{border-top:2px solid;padding:1rem 0}audio{max-width:100%}section div{margin:1rem 0}</style><h1>THE RULE sound audition</h1><p>Generated candidates. CHOSEN marks the objective selection; listen and request swaps.</p>${sections}</html>`,
-  );
+async function effects(s, offline) {
+  await mkdir(out, {recursive:true});
+  const old = JSON.parse(await readFile(path.join(root,'scratch/sfx/manifest.json'),'utf8'));
+  for (const [name,[seconds,maxDuration,detail]] of Object.entries(sounds)) {
+    s.sounds[name] ??= {prompt:brief+detail,chosen:null,candidates:[]};
+    const sound = s.sounds[name];
+    if (sound.prompt !== brief + detail) {
+      if (sound.candidates.length) throw new Error(`Cached ${name} prompt differs`);
+      sound.prompt = brief + detail;
+    }
+    for (let id=1;id<=3;id++) {
+      const existing = sound.candidates.find(c=>c.id===id);
+      let raw;
+      if (offline) {
+        raw = `candidates/${name}-${id}-raw.mp3`;
+        await readFile(path.join(review,raw));
+      } else raw = await generate(s,name,id,sound.prompt,seconds);
+      const file = `candidates/${name}-${id}.mp3`;
+      const measurements = await processEffect(path.join(review,raw),path.join(review,file),name,maxDuration);
+      if (existing) Object.assign(existing,{raw,file,measurements});
+      else sound.candidates.push({id,raw,file,measurements});
+      await save(s);
+    }
+    const ranked = [...sound.candidates].sort((a,b)=>transientScore(a,name)-transientScore(b,name));
+    sound.chosen ??= ranked[0].id;
+    const chosen = sound.candidates.find(c=>c.id===sound.chosen);
+    if (!chosen) throw new Error(`Invalid chosen candidate: ${name}`);
+    sound.reason = 'Measured full compact gesture, immediate attack, best duration/target-LUFS balance with unclipped headroom. Three alternatives retained. Semantics, character and timbre require founder audition; not listened to by agent.';
+    if (name === 'blot') sound.reason = 'Candidate 3 had the lowest measured voiced pitch before the octave-down/1.2x-speed processing. Chosen for a deeper, quick cartoon character; perceived masculinity still requires founder audition.';
+    await copyFile(path.join(review,chosen.file),path.join(out,`${name}.mp3`));
+    sound.shipped = chosen.measurements;
+    await save(s);
+  }
+  for (const name of all.filter(n=>!sounds[n])) {
+    const prior = old.sounds[name];
+    const sound = {prompt:prior.prompt,chosen:s.sounds[name]?.chosen ?? prior.chosen,candidates:[],reason:'Original selected gesture retained; level/trim/codec standardised, excessive crest factor compressed where needed for consistent effect loudness. All three original candidates kept for audition.'};
+    for (const c of prior.candidates) {
+      const raw = `candidates/${name}-${c.number}-original.mp3`;
+      await copyFile(path.join(root,'scratch/sfx',c.file),path.join(review,raw));
+      sound.candidates.push({id:c.number,file:raw,measurements:await inspect(path.join(review,raw))});
+    }
+    const chosen=sound.candidates.find(c=>c.id===sound.chosen);
+    if (!chosen) throw new Error(`Invalid chosen candidate: ${name}`);
+    const processed=`candidates/${name}-${sound.chosen}.mp3`;
+    sound.shipped=await processEffect(path.join(review,chosen.file),path.join(review,processed),name,prior.durationSeconds);
+    chosen.raw=chosen.file;chosen.file=processed;chosen.measurements=sound.shipped;
+    await copyFile(path.join(review,processed),path.join(out,`${name}.mp3`));
+    s.sounds[name]=sound;
+    await save(s);
+  }
 }
+async function report(s) {
+  let bytes=0;
+  const lines=['name,duration_s,onset_ms,peak_dbfs,integrated_lufs,true_peak_dbtp,size_bytes,channels,bitrate'];
+  for(const name of all) {
+    const m=await inspect(path.join(out,`${name}.mp3`));
+    if(m.streams[0].channels!==1||m.streams[0].bit_rate!=='64000'||m.clippedSamples||m.onsetMs>=10)throw new Error(`Delivery validation failed: ${name}`);
+    s.sounds[name].shipped=m;bytes+=m.size;
+    lines.push([name,m.duration.toFixed(3),m.onsetMs.toFixed(2),m.peakDb.toFixed(2),m.integrated.toFixed(2),m.truePeak.toFixed(2),m.size,1,64000].join(','));
+  }
+  const m=await inspect(path.join(root,'apps/web/public/music/ambient.mp3'));
+  s.music.shipped=m;
+  lines.push(['ambient',m.duration.toFixed(3),m.onsetMs.toFixed(2),m.peakDb.toFixed(2),m.integrated.toFixed(2),m.truePeak.toFixed(2),m.size,m.streams[0].channels,m.streams[0].bit_rate].join(','));
+  s.totals={sfxBytes:bytes,sfxCount:all.length,musicBytes:m.size,generationRequests:s.requests.length};
+  if(bytes>=900000||m.size>=700000||m.integrated < -18||m.integrated > -16||m.clippedSamples)throw new Error('Delivery budget/loudness/clipping failed');
+  await writeFile(path.join(review,'measurements.csv'),lines.join('\n')+'\n');
+  await save(s);
+  console.log(lines.join('\n'));console.log(JSON.stringify(s.totals));
+}
+const s=await state();
+const offline=process.argv.includes('--offline');
 try {
-  for (const [name, [duration, detail]] of Object.entries(sounds)) {
-    const sound = manifest.sounds[name] ?? {
-      prompt: brief + detail,
-      durationSeconds: duration,
-      candidates: [],
-      chosen: null,
-    };
-    if (sound.prompt !== brief + detail || sound.durationSeconds !== duration)
-      throw new Error(
-        `Existing ${name} prompt differs; archive the manifest before starting a new run`,
-      );
-    manifest.sounds[name] = sound;
-    if (sound.chosen) continue;
-    for (let number = sound.candidates.length + 1; number <= 3; number++) {
-      if (manifest.requests >= 70) throw new Error("Request cap reached");
-      manifest.requests++;
-      const response = await fetch(
-        `https://api.elevenlabs.io/v1/sound-generation?output_format=${outputFormat}`,
-        {
-          method: "POST",
-          headers: { "xi-api-key": key, "content-type": "application/json" },
-          body: JSON.stringify({
-            text: sound.prompt,
-            duration_seconds: duration,
-            prompt_influence: influence,
-            loop: false,
-          }),
-        },
-      );
-      if (!response.ok)
-        throw new Error(
-          `Sound generation stopped at ${name} candidate ${number}: HTTP ${response.status}`,
-        );
-      const file = path.join(candidatesDir, `${name}-${number}.mp3`);
-      await writeFile(file, Buffer.from(await response.arrayBuffer()));
-      const candidate = { number, file: `candidates/${name}-${number}.mp3` };
-      if (ffmpeg) candidate.measurements = inspect(file);
-      sound.candidates.push(candidate);
-      await save();
-    }
-    if (ffmpeg) {
-      for (const candidate of sound.candidates)
-        candidate.measurements = inspect(path.join(scratch, candidate.file));
-      const valid = sound.candidates.filter(
-        (c) =>
-          c.measurements.peak > 0.005 &&
-          c.measurements.clipped === 0 &&
-          c.measurements.end > c.measurements.onset &&
-          c.measurements.duration <= duration + 0.15,
-      );
-      if (!valid.length)
-        throw new Error(
-          `No usable candidates for ${name}; inspect audition files`,
-        );
-      valid.sort(
-        (a, b) =>
-          a.measurements.onset - b.measurements.onset ||
-          b.measurements.peak - a.measurements.peak,
-      );
-      const chosen = valid[0];
-      const m = chosen.measurements;
-      const start = Math.max(0, m.onset - 0.002);
-      const end = Math.min(m.duration, m.end + 0.02);
-      const length = end - start;
-      const gain = Math.min(8, 0.75 / m.peak);
-      runFfmpeg([
-        "-y",
-        "-i",
-        path.join(candidatesDir, `${name}-${chosen.number}.mp3`),
-        "-af",
-        `atrim=start=${start}:end=${end},asetpts=PTS-STARTPTS,volume=${gain},afade=t=out:st=${Math.max(0, length - 0.04)}:d=${Math.min(0.04, length)}`,
-        "-ac",
-        "1",
-        "-ar",
-        "44100",
-        "-codec:a",
-        "libmp3lame",
-        "-b:a",
-        "64k",
-        path.join(outputDir, `${name}.mp3`),
-      ]);
-      sound.shippedMeasurements = inspect(path.join(outputDir, `${name}.mp3`));
-      if (
-        sound.shippedMeasurements.onset >= 0.01 ||
-        sound.shippedMeasurements.clipped ||
-        sound.shippedMeasurements.peak >= 0.999
-      )
-        throw new Error(`Processed ${name} failed onset or clipping checks`);
-      sound.chosen = chosen.number;
-      sound.selectionReason =
-        "Non-silent, unclipped, within target duration; earliest measured onset among valid candidates. Trimmed, peak-normalised and faded.";
-    } else {
-      const sizes = await Promise.all(
-        sound.candidates.map(async (c) => ({
-          candidate: c,
-          size: (await readFile(path.join(scratch, c.file))).length,
-        })),
-      );
-      sizes.sort((a, b) => a.size - b.size);
-      const chosen = sizes[0].candidate;
-      sound.chosen = chosen.number;
-      sound.selectionReason =
-        "Smallest raw candidate; ffmpeg unavailable, so duration, clipping and onset are unverified and require audition.";
-      await copyFile(
-        path.join(scratch, chosen.file),
-        path.join(outputDir, `${name}.mp3`),
-      );
-      console.warn(
-        `ffmpeg unavailable: ${name} shipped raw; audio checks unverified`,
-      );
-    }
-    await save();
-    console.log(`Generated ${name}: candidate ${sound.chosen}`);
+  if(process.argv.includes('--measure')) await report(s);
+  else {
+    if(!offline) await quota(s,'before');
+    await music(s);
+    await effects(s,offline);
+    await report(s);
   }
-  let total = 0;
-  for (const name of Object.keys(sounds))
-    total += (await readFile(path.join(outputDir, `${name}.mp3`))).length;
-  manifest.shippedBytes = total;
-  if (total > 600 * 1024)
-    throw new Error(`Shipped sound budget exceeded: ${total} bytes`);
-  await save();
-  console.log(`Done: ${manifest.requests} requests, ${total} bytes total`);
-} catch (error) {
-  await save();
-  console.error(
-    error instanceof Error ? error.message : "Sound generation failed",
-  );
-  process.exitCode = 1;
+} finally {
+  if(!offline&&!process.argv.includes('--measure')) await quota(s,'after');
 }

@@ -2,6 +2,109 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-12: a read-only review of the Team flow found the price gate, the unlock race and closed deposits
+
+- **What happened:** a code review of the Team screens found: the Stamp gate and label used the play fee (0.01 NEAR) while a play costs the fee plus the storage charge (0.03048 NEAR on Demo); two teammates unlocking the same team made the loser fail with E56; a Team stamp that unlocked first was labelled "nothing was sent" if the following play failed; Deposit stayed enabled although `team_deposit` panics with E30 once a play has spent the vault; a locked team's join card said "come back when the round ends" although it stays locked until `settle_team`.
+- **Root cause:** each screen re-derived a contract rule (cost, deposit window, lock) from memory instead of from one shared helper, and E56 was treated as a failure although it means the goal is already reached. A new unit test also failed for an unrelated reason: a `beforeEach(() => mock.mockReset())` returns the mock, and vitest runs a returned function as teardown.
+- **Rule:** every screen reads cost from `game/cost`, and every unlock goes through `unlockTeam` (E56 is success). A disabled action always says why. Locally tested only (types, unit tests); none of it was exercised with a wallet.
+
+### 2026-11-12: two Team plays of the same number and word both counted, and the page gave no reason
+
+- **What happened:** the founder saw Team rows 0 and 2 of Demo round 345 both showing 417 and black, both YES, both minting RULE, and expected the second to be refused. The log shows minute digit 4 on the first and 8 on the second, and the second carried the previous play 427 hydra.
+- **Root cause:** the contract keys a play on the number, the word, the minute digit and the player's previous play and gap, because a rule may read the minute or the previous play. Only the exact same key is free (`PlayAck::Known`: no fee, pot, share or RULE). The page never said that a same-looking pair in a new context is a new paid probe.
+- **Rule:** no contract change. The stamp desk lists earlier plays of the same pair and states that a repeat in a different context is a new paid play. Locally tested only (a unit test for the match); not exercised with a wallet.
+
+### 2026-11-12: a team that played one round could not play the next until someone unlocked it
+
+- **What happened:** the founder's Team #1 stamped in round 340 and got "THE TEAM IS LOCKED E30" in round 341. Live chain state: `get_team(1).active_round = 340` with round 340 already Settled; the team's only way out was `settle_team`, a button hidden in the Crew tab under "After the round".
+- **Root cause:** the contract ties a team to its last round until `settle_team` returns the stakes to the vault (a deliberate accounting step), and nothing in the app or the keeper called it. The error text said only "check the round".
+- **Rule:** every contract step a player must take between rounds needs a visible, single action where they get stuck. `Claim all` now plans unlock plus claims from chain state and sends them in order; the planner is pure and tested (`game/payouts.ts`).
+
+### 2026-11-12: a team invite link opened the wrong game in the friend's browser
+
+- **What happened:** the founder opened the Demo team's invite link and the page said "No team #1 exists on this deployment". Team #1 existed on demo-game with the captain as its only member.
+- **Root cause:** the Live / Demo choice lives in the browser's localStorage and the link carried only the team id, so a browser that remembered Live looked up team #1 on the real game. Team ids are per-deployment counters.
+- **Rule:** any shared link that carries a per-deployment id must also carry the deployment (`&deployment=demo|main`); the app applies it once and strips it so the Live / Demo switch is not overridden later.
+
+### 2026-11-12: the machine's default wrangler login pointed at a different Cloudflare account than the keeper's
+
+- **What happened:** `wrangler whoami` showed an OAuth login for another Google account (`63acf966…`), while `wrangler.jsonc` pins the THE RULE keeper and referee to `ec31758c…` (the founder's `royalecardarena` account). A deploy would have failed or, without the pinned `account_id`, landed in the wrong account. A new Cron trigger also took about seven minutes to fire its first invocation.
+- **Root cause:** wrangler keeps one global login in the user's config directory, shared by every project on the machine.
+- **Rule:** run wrangler for this repo with `XDG_CONFIG_HOME` set to the gitignored `scratch/wrangler-home` and confirm `whoami` shows account `ec31758c…` before any deploy; the other project's login is left untouched. After deploying a Cron Worker, allow several minutes before the first slot it must serve.
+
+### 2026-11-12: a warning phrased as an instruction read like a block on committing
+
+- **What happened:** the founder believed Seal & commit was blocked when the free ledger check disagreed. The screenshot shows the real cause: Solo 334 was in `Reveal`, so the button was disabled by "Commits are closed". The check never touched `disabled`, and the contract cannot check a sealed hash against the ledger. The red "Go back to change it" text made a warning read like a gate.
+- **Root cause:** a local, free, optional check had its own step and wording that implied authority it did not have, while sitting in front of a decision the game deliberately lets players get wrong (a wrong stake is half lost, which is the game).
+- **Rule:** the founder decided (2026-11-12) that Guess has three steps (Write, Commit, Reveal) and that any guess may be sealed. The Test step, the "Free check" panel row, the Blot "disagrees" pose in that panel and `checkConsistent` in `apps/web/src/verify` are removed. No contract, token or referee change. Ledger replay after the rule opens is unchanged. Locally tested only (typecheck, vitest, docs lint); the sandbox e2e specs were updated but not run.
+
+### 2026-11-12: with no keeper running, a finished round stays sealed and the page said nothing useful
+
+- **What happened:** Demo Solo 334 ended its reveal window at 07:49:33 UTC and was still `Reveal` at 08:09 with `rule: null`, so Verify said "Still sealed". Nothing was broken on chain: `finalize` is permissionless and nobody had sent it. D42 leaves the keeper stopped for Demo, and the web had no way to send `advance` or `finalize`.
+- **Root cause:** the UI treated the keeper as the only lifecycle actor and described an overdue round as an ordinary wait.
+- **Rule:** an overdue deadline says what is missing, the page says what is being waited for. A first version offered the permissionless `advance`/`finalize` through the player's wallet after a 90 s keeper grace; the founder removed it the same day, so the page now only says "Waiting for the keeper" and the calls stay a manual lead or founder action. Locally tested only.
+
+### 2026-11-12: the Stamp button waited on the send path while the ledger already held the verdict
+
+- **What happened:** on the Demo Stamp tab the button and Blot stayed on "Signing with your session key" while the Ledger already listed the play as YES. On-chain, the 517 play was included at 07:45:24 UTC and its verdict callback landed 6.6 s later (receipt timeline from `demo-game` and `outlayer.testnet`), but the screenshot was taken about 33 s after inclusion. The page leaves `signing` only when `sendWithKey` returns, which also waits for the root receipt to be final.
+- **Root cause:** the UI state followed one source (the send path) when the chain already had the answer. The exact stall was not reproduced. What is verified: `near-api-js` retries every failing node 12 times with 500 ms growing by 1.5 before `FailoverRpcProvider` tries the next node (`lib/index.js`, `REQUEST_RETRY_*`), and the session signer used those defaults. [I] A slow or erroring public RPC would then hold the state for minutes.
+- **Rule:** a result the player is waiting for is read from the ledger as well as from the transaction path, and a recorded row wins over a late send error. Session-key RPC providers fail over after about a second, not two minutes. Locally tested only (reducer tests, typecheck); the timing stall is not reproduced.
+
+### 2026-11-11: a verifier must be run against a live deployment before the ceremony trusts it
+
+- **What happened:** the first ceremony `verify` compared the live game's `get_params` to the planned init params for equality. A read-only call against `demo-game.therule.testnet` showed it returns three extra fields (`demo`, `user_referee_request_limit`, `max_pending_referee_requests`), so the check would have refused the real key deletion. The same smoke showed `drpc` answers 403 to Python's default user agent.
+- **Root cause:** the check was written from the init schema, not from a real view response. The fake chain in the first tests used the same dict as the plan, so a test that changed the chain also changed the plan and passed for the wrong reason.
+- **Rule:** run every verifier read-only against a real deployment before relying on it; compare the planned keys, not whole objects; give each fake chain its own copy of the data it is meant to differ on.
+
+### 2026-11-11: a rate-limited public RPC looked like a transaction failure in the browser
+
+- **What happened:** a connected player on the Demo Stamp tab saw the setup checklist stuck on "checking…" and a card saying "Could not complete the request … the transaction outcome may be unknown", though nothing had been sent.
+- **Root cause:** the Stamp tab polled about eight views every 4 s, and FastNear's anonymous limit allowed 20 parallel reads but returned HTTP 429 for a burst of 60. Its 429 carries no `Access-Control-Allow-Origin` header (checked with curl), so the browser hides the reply and `fetch` rejects with a bare `TypeError`, not a readable 429. The configured fallback `rpc.testnet.near.org` also answers 429 "endpoint is deprecated", so every read failed. The `TypeError` fell into the generic transaction-error copy.
+- **Follow-up, same day:** the Meteor Wallet approval popup then failed with the same FastNear `-429`. Meteor's bundled SDK (`meteor-near-connect-latest.js`) hard-codes `https://test.rpc.fastnear.com` as its testnet node and never reads the `providers` that `NearConnector` hands it, so the page cannot redirect the wallet's RPC. The wallet's calls and the page's polling share FastNear's anonymous per-IP quota, and this machine's own load tests (bursts of 20, 60 and 40) also counted against it.
+- **Rule:** never trust an RPC default without calling it from a browser origin and from a burst, and never burst a public RPC from the machine you are testing on. Poll per-account state slowly (actions already invalidate queries), skip a limiting endpoint for a cooldown, treat a bare `fetch` rejection as unreachable, and word read failures as reads. The page's primary is now `near-testnet.drpc.org` (CORS allows the origin; a burst of 50 passed on 2026-11-11) with FastNear as the fallback, so the page leaves FastNear's quota to the wallet.
+
+### 2026-11-10: sandbox block counts are not elapsed seconds
+
+- **What happened:** two fixture controls advanced a block count derived from seconds and failed with E50 or a control timeout; an assertion also searched receipt outcomes for a method name they never contain.
+- **Root cause:** fast-forwarding blocks does not map to the contract's nanosecond deadlines, and a receipt outcome carries executor, gas and status, not the called method.
+- **Rule:** advance to an observed `block_timestamp` target with a bounded loop, step adaptively, and abort when the control channel closes. Assert the observed failure cause such as `MethodNotFound`, never a method name. Check a collapsed `<details>` is open before filling its fields.
+
+### 2026-11-10: append-only season enrollment must not discard indexing progress
+
+- **What happened:** the focused audit found that every new season candidate reset `indexed` to zero. The added regression failed on the old code at 0 versus 2, then all 14 season cases passed after removing only that reset.
+- **Root cause:** candidate-list growth and terminal score changes shared invalidation semantics despite different effects. Appending a previously unseen entity cannot change cached Settled scores; settlement can. Actual local WASM with MOCK OutLayer interleaved four paid verdicts and one-row index batches, preserved progress and exposed exactly the observed players' completed rows.
+- **Rule:** preserve append progress, still increment revision/total, and reset for genuine score changes. Keep dirty boards hidden until complete. This prevents unnecessary rework, not arrivals faster than indexing or continuous settlement invalidation. Runtime checks must observe detached callbacks and derive player IDs from views, not fixture conventions.
+
+### 2026-11-10: a scheduled slot id is not a count of retained rounds
+
+- **What happened:** read-only Phase 6 integration found Demo's latest actual Solo round 0 but next slot 138; R3's latest was 12, next slot 34, and round 11 was absent at final block 277031784. The existing FE builds dense picker/history ids from that next slot; its Demo history window therefore excludes the round that actually exists.
+- **Root cause:** skipped scheduled slots intentionally create no round record. A next-slot view describes time-based scheduling, not historical enumeration. R2's earlier dense sample did not expose this assumption.
+- **Rule:** keep deployment, mode and actual round id together; never use a next-slot number as an existing-record count. Exercise sparse histories before switching FE targets, preserve the existing UI, and distinguish missing rounds from RPC errors. Read-only adapter success alone does not accept the signed/browser integration.
+
+### 2026-11-09: a successful deployed Cron is not proof that it fits Workers Free
+
+- **What happened:** D37's keeper started r3 Solo 0 on time and finalized it to Settled, with FINAL successful receipts and real heartbeat arrivals. Its signed finalize consumed 82 ms CPU against the documented 10-ms Free budget. D38's native signer then completed Solo 12 with signed CPU 31/28/25 ms and idle 9/12/10 ms; the dashboard independently confirmed finalize at 25 ms. The round succeeded but Free qualification still failed.
+- **Root cause:** execution outcome and plan-budget compliance are separate checks; `outcome:ok` did not establish sustainable CPU headroom. [I] Completion above the published budget is consistent with the documented isolate burst flexibility, not proof that enforcement will continue allowing it. A separate start invocation threw after its successful on-chain action; its exact exception cause was not captured.
+- **Rule:** record deployed signed-path CPU and receipt/state evidence before accepting a runtime. Log the public hash before the single send, reconcile unknown outcomes without resending, and keep acceptance open when the budget fails. Native crypto alone did not establish Free headroom; profile the actual engine before another authorized sample. Idle-only measurements, local profiles or startup time cannot replace deployed signing evidence. Remove Cron, pause the dedicated check and restore its normal monitoring cadence after qualification.
+
+### 2026-11-09: a keeper ceiling does not authorize exactly one future round
+
+- **What happened:** preparing authorized Solo 12 while the next chain slot was still 11 exposed a scope gap before enabling Cron. Both new native regressions failed: the lower bound was ignored and an older out-of-scope pending round suppressed the authorized idle heartbeat.
+- **Root cause:** `LAST_ROUND_ID` is inclusive and admits every earlier id; a future ceiling cannot represent an exact-round decision. The final health check also applied only the old upper bound.
+- **Rule:** apply the same inclusive lower/upper range before signing and when evaluating pending health. Reject reversed ranges before RPC. Whole-season indexing remains broader than a partially authorized round range and stays off for this qualification. All 33 local tests, actual workerd smoke and D38's exact `{mode:0,round_id:12}` transaction arguments passed afterward.
+
+### 2026-11-09: a read-only browser suite passed while the signed paths had real bugs
+
+- **What happened:** the v2 web app passed 39 Playwright tests against live r2 reads, yet the first wallet-signed run against a local sandbox found seven defects: `get_season` still sent the old argument shape, a disabled log query showed "Loading plays" forever, the team form suggested a name the contract rejects (E11), claim copy promised a wallet transfer while the contract credits play credit, locks were only offered for rounds the contract does not require, a fresh player could not register token storage, and a play refund could be inferred from views that had not moved yet (inferred, not reproduced).
+- **Root cause:** no live round existed and no signing was authorized, so every test exercised read paths only; a green read suite says nothing about calls, finality or argument shapes. The sandbox fixture also had no token storage for the game account, so RULE locks failed until it was registered: a deployment prerequisite, not just a test detail.
+- **Rule:** a feature that signs is not tested until a signer drives it against real contract code at HEAD. Run `pnpm --dir apps/web e2e:sandbox` before calling any signed web flow done, label it sandbox, never call it testnet evidence, and register the game account's storage on the token before any lock is expected to work.
+
+### 2026-11-08: cross-platform package execution must not reconcile a shared workspace
+
+- **What happened:** P6's Linux `pnpm exec wrangler` entered a four-package workspace dependency reconciliation instead of starting the local Worker promptly. After the stopped command, the real keeper smoke reported a missing `@noble/curves`. Offline frozen restoration repopulated 96 packages; the separate workerd build-script approval stayed unapproved. No frontend source, dependency versions or build permission was changed.
+- **Root cause:** WSL resolved the Windows Corepack/pnpm shim against a shared Windows workspace and a different package-store path. A package-manager wrapper is not an isolated binary invocation.
+- **Rule:** launch the installed Wrangler binary with its matching Node platform; keep temporary private config inside ignored project scratch and remove it. The actual Windows Node/workerd scheduled smoke then passed against the genuine WSL sandbox without cloud auth or a fake chain ID. Do not change workspace trust policy merely to make installation quiet.
+
 ### 2026-11-08: removing a worktree followed a node_modules junction into the real tree
 
 - **What happened:** to typecheck each web commit, `scratch/wt-check/apps/web/node_modules` was a junction to the main `apps/web/node_modules`. `cmd //c rmdir` from Git Bash did not run (it opened a shell and exited), so `git worktree remove --force` deleted through the junction. Tracked `verifier/wasm/*` files (reached through the `@the-rule/verifier-wasm` workspace link), the web packages in the pnpm store and `verifier/wasm/pkg` were emptied. `git restore`, `pnpm install --force --frozen-lockfile` and a wasm-bindgen 0.2.130 rebuild recovered everything; the web suite (27) and keeper suite (12) passed again.

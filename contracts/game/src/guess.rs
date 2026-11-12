@@ -104,6 +104,10 @@ impl Game {
                 .get(&(m, id))
                 .unwrap_or_else(|| env::panic_str("E10"));
             near_sdk::require!(round.phase == Phase::Investigation, "E10");
+            near_sdk::require!(
+                env::block_timestamp() < round.investigation_end_ns.unwrap_or(0),
+                "E10"
+            );
             round.pot
         };
         let actor = env::predecessor_account_id();
@@ -133,6 +137,7 @@ impl Game {
         self.debit_payer(entity, &actor, charge);
         self.total_stakes += stake;
         self.storage_reserve += storage;
+        self.season_candidate(m, id, entity);
         let round = self.rounds.get_mut(&(m, id)).expect("round vanished");
         let commit_seq = round.commit_count;
         round.commit_count = commit_seq
@@ -188,7 +193,13 @@ impl Game {
                 .get(&(m, id))
                 .unwrap_or_else(|| env::panic_str("E10"));
             match round.phase {
-                Phase::Investigation => {}
+                Phase::Investigation => near_sdk::require!(
+                    now < round
+                        .investigation_end_ns
+                        .unwrap_or(0)
+                        .saturating_add(p.reveal_window_ns),
+                    "E16"
+                ),
                 Phase::Reveal => near_sdk::require!(now < round.reveal_deadline_ns, "E16"),
                 _ => env::panic_str("E10"),
             }
@@ -336,10 +347,11 @@ impl Game {
                         r.best = Some((commit.seq, commit_seq));
                     }
                     if r.freeze_ns.is_none() {
-                        r.freeze_ns = Some(now);
+                        let freeze = now.min(r.investigation_end_ns.unwrap_or(now));
+                        r.freeze_ns = Some(freeze);
                         if r.phase == Phase::Investigation {
                             r.phase = Phase::Reveal;
-                            r.reveal_deadline_ns = now.saturating_add(p.reveal_window_ns);
+                            r.reveal_deadline_ns = freeze.saturating_add(p.reveal_window_ns);
                         }
                     }
                 }

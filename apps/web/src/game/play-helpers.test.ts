@@ -54,12 +54,13 @@ describe('play context', () => {
     expect(findPlayRow([row], { status: 'Known', logIdx: 3 })).toEqual(row);
   });
 
-  it('requires cleared pending flags and restored balance before a refund', () => {
+  it('never calls pre-receipt unchanged views a refund; requires observed pending or debit and reversal', () => {
     const ack = { status: 'Pending' as const, seq: 9 };
-    expect(detectRefund(ack, false, false, 10n, 10n)).toBe(true);
-    expect(detectRefund(ack, true, false, 10n, 10n)).toBe(false);
-    expect(detectRefund(ack, false, undefined, 10n, 10n)).toBe(false);
-    expect(detectRefund(ack, false, false, 10n, 9n)).toBe(false);
-    expect(detectRefund({ status: 'Known', logIdx: 3 }, false, false, 10n, 10n)).toBe(false);
+    expect(detectRefund(ack, false, false, 10n, 10n, false)).toBe(false);
+    expect(detectRefund(ack, false, false, 10n, 10n, true)).toBe(true);
+    expect(detectRefund(ack, true, false, 10n, 10n, true)).toBe(false);
+    expect(detectRefund(ack, false, undefined, 10n, 10n, true)).toBe(false);
+    expect(detectRefund(ack, false, false, 10n, 9n, true)).toBe(false);
+    expect(detectRefund({ status: 'Known', logIdx: 3 }, false, false, 10n, 10n, true)).toBe(false);
   });
 });

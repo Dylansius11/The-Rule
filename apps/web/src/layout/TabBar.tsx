@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router';
-import { roomPath, useNavMode } from '@/app/paths';
+import { DOCS_PATH, roomPath, useNavMode } from '@/app/paths';
+import { useSound } from '@/audio';
 import { Button } from '@/ui/Button';
 import { Dialog } from '@/ui/Dialog';
 import { useDeploymentChoice } from './demo';
@@ -8,6 +9,7 @@ import { useGuide } from './guide';
 import { MoreIcon, ROOM_TABS } from './nav';
 import { SettingsPanel } from './SettingsPanel';
 import { active, config } from '@/config/env';
+import { useWallet } from '@/game';
 
 /** Mobile bottom bar for the game: the four room tabs and More (Season, Account, Team crew, guide, settings, Demo). */
 export function TabBar() {
@@ -16,11 +18,16 @@ export function TabBar() {
   const mode = useNavMode();
   const { show } = useGuide();
   const { choose, dialog } = useDeploymentChoice();
+  const wallet = useWallet();
+  const { play } = useSound();
 
   useEffect(() => setMoreOpen(false), [pathname]);
 
   const moreActive =
-    pathname.startsWith('/season') || pathname.startsWith('/account') || pathname.endsWith('/crew');
+    pathname.startsWith('/season') ||
+    pathname.startsWith('/account') ||
+    pathname.startsWith(DOCS_PATH) ||
+    pathname.endsWith('/crew');
   return (
     <>
       <nav
@@ -29,7 +36,13 @@ export function TabBar() {
         style={{ paddingBottom: 'env(safe-area-inset-bottom)', minHeight: 'var(--tabbar-h)' }}
       >
         {ROOM_TABS.map(t => (
-          <NavLink key={t.tab} to={roomPath(mode, t.tab)} end={t.tab === 'stamp'} className="tab-link">
+          <NavLink
+            key={t.tab}
+            to={roomPath(mode, t.tab)}
+            end={t.tab === 'stamp'}
+            className="tab-link"
+            onClick={() => play('nav')}
+          >
             {t.icon}
             {t.label}
           </NavLink>
@@ -75,6 +88,14 @@ export function TabBar() {
               </NavLink>
             </li>
             <li>
+              <NavLink to={DOCS_PATH} className="more-link">
+                <span className="display text-[26px] leading-none">Docs</span>
+                <span className="text-[15px] font-semibold">
+                  Guides, costs, trust and a file for your agent.
+                </span>
+              </NavLink>
+            </li>
+            <li>
               <NavLink to={roomPath(1, 'crew')} className="more-link">
                 <span className="display text-[26px] leading-none">Team crew</span>
                 <span className="text-[15px] font-semibold">Roster, vault and settle for your team.</span>
@@ -97,7 +118,7 @@ export function TabBar() {
               <p className="mt-1 text-[15px] font-semibold">
                 {config.demo
                   ? 'A separate demo instance: preselected rule, its own pot and token.'
-                  : 'Not deployed yet. You stay on the real game.'}
+                  : 'Not configured in this build. You stay on the current deployment.'}
               </p>
               <div className="mt-2">
                 <Button
@@ -109,6 +130,26 @@ export function TabBar() {
                 </Button>
               </div>
             </li>
+            {wallet.status === 'connected' && wallet.accountId ? (
+              <li className="rounded-lg border-[3px] border-ink bg-white px-4 py-3">
+                <p className="font-mono text-[12px] font-bold uppercase tracking-wide text-ink-soft">
+                  Connected · testnet
+                </p>
+                <p className="mt-1 break-all text-[17px] font-extrabold">{wallet.accountId}</p>
+                <div className="mt-2">
+                  <Button
+                    variant="red"
+                    size="sm"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      void wallet.disconnect();
+                    }}
+                  >
+                    Disconnect
+                  </Button>
+                </div>
+              </li>
+            ) : null}
             <li className="rounded-lg border-[3px] border-ink bg-white px-4 py-3">
               <h3 className="display mb-1 text-[26px] leading-none">Settings</h3>
               <SettingsPanel onNavigate={() => setMoreOpen(false)} />

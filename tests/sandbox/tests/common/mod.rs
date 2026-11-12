@@ -8,6 +8,32 @@ use sandbox_tests::{artifact, params};
 use serde_json::{Value, json};
 
 pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
+/// Key-retaining sandbox instrumentation: rename selected callback exports only.
+/// Restoring the original code does not replay a failed native callback.
+pub fn mask_callback_exports(
+    wasm: &[u8],
+    names: &[&str],
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let mut fault = wasm.to_vec();
+    let mut found = 0;
+    for payload in wasmparser::Parser::new(0).parse_all(wasm) {
+        if let wasmparser::Payload::ExportSection(section) = payload? {
+            for export in section {
+                let export = export?;
+                if names.contains(&export.name) {
+                    let start = export.name.as_ptr() as usize - wasm.as_ptr() as usize;
+                    fault[start..start + export.name.len()].fill(b'x');
+                    found += 1;
+                }
+            }
+        }
+    }
+    if found != names.len() {
+        return Err("fault fixture did not find every requested callback export".into());
+    }
+    wasmparser::Validator::new().validate_all(&fault)?;
+    Ok(fault)
+}
 
 pub async fn fund_token_operations(token: &Contract) -> Res<()> {
     token
@@ -154,7 +180,7 @@ pub async fn start_with_open_timeout(
     window_ns: u64,
     open_timeout_ns: Option<u64>,
 ) -> Res<Env> {
-    start_configured(worker, commit, window_ns, open_timeout_ns, 0).await
+    start_configured(worker, commit, window_ns, open_timeout_ns, 0, None).await
 }
 
 pub async fn start_seeded(
@@ -163,7 +189,16 @@ pub async fn start_seeded(
     window_ns: u64,
     seed: near_workspaces::types::NearToken,
 ) -> Res<Env> {
-    start_configured(worker, commit, window_ns, None, seed.as_yoctonear()).await
+    start_configured(worker, commit, window_ns, None, seed.as_yoctonear(), None).await
+}
+
+pub async fn start_with_period(
+    worker: &Worker<Sandbox>,
+    commit: &str,
+    window_ns: u64,
+    period_ns: u64,
+) -> Res<Env> {
+    start_configured(worker, commit, window_ns, None, 0, Some(period_ns)).await
 }
 
 async fn start_configured(
@@ -172,6 +207,7 @@ async fn start_configured(
     window_ns: u64,
     open_timeout_ns: Option<u64>,
     seed: u128,
+    period_ns: Option<u64>,
 ) -> Res<Env> {
     let mock = worker
         .dev_deploy(&std::fs::read(artifact("mock_outlayer"))?)
@@ -192,10 +228,13 @@ async fn start_configured(
         .await?
         .into_result()?;
     fund_token_operations(&token).await?;
-    let mut config = params(mock.id().as_str());
+    let mut config = params(mock.id().as_str(), worker.view_block().await?.timestamp());
     config["reveal_window_ns"] = json!(window_ns);
     if let Some(timeout) = open_timeout_ns {
         config["open_timeout_ns"] = json!(timeout);
+    }
+    if let Some(period) = period_ns {
+        config["round_period_ns"] = json!(period);
     }
     config["token"] = json!(token.id());
     game.call("new")

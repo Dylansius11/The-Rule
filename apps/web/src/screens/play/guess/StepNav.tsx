@@ -14,11 +14,11 @@ interface StepNavProps {
   onGo: (index: number) => void;
 }
 
-/** The four numbered stops across the top of the guess card. Jumping back is always allowed; forward only when the step's input exists. */
+/** The numbered stops across the top of the guess card. Jumping back is always allowed; forward only when the step's input exists. */
 export function StepNav({ steps, current, reachable, onGo }: StepNavProps) {
   const { play } = useSound();
   return (
-    <ol className="grid grid-cols-4 gap-2 md:gap-4" aria-label="Guess steps">
+    <ol className="grid grid-cols-3 gap-2 md:gap-4" aria-label="Guess steps">
       {steps.map((s, i) => (
         <li key={s.title}>
           <button

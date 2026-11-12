@@ -56,7 +56,7 @@ fn failed_begin_can_be_retried() {
     context.prepaid_gas(near_sdk::Gas::from_tgas(300));
     testing_env!(context.build());
     let mut game = Game::new(params(), true);
-    let request = game.start_round(Mode::Solo);
+    let request = game.start_round(Mode::Solo, None);
     testing_env!(
         context.build(),
         near_sdk::test_vm_config(),
@@ -65,7 +65,7 @@ fn failed_begin_can_be_retried() {
         vec![PromiseResult::Successful(b"null".to_vec())]
     );
     game.on_begin(request);
-    assert_eq!(game.start_round(Mode::Solo), request + 1);
+    assert_eq!(game.start_round(Mode::Solo, None), request + 1);
 }
 
 #[test]
@@ -78,7 +78,7 @@ fn delivered_verdict_splits_fee_and_duplicate_is_free() {
     testing_env!(context.build());
     let mut game = Game::new(params(), true);
     game.deposit_credit();
-    let request = game.start_round(Mode::Solo);
+    let request = game.start_round(Mode::Solo, None);
     let begin = json!({"commit":"1111111111111111111111111111111111111111111111111111111111111111","header":{"tier":"daily","bucket":"rare","grammar":"2222222222222222222222222222222222222222222222222222222222222222"}});
     testing_env!(
         context.build(),
@@ -174,7 +174,7 @@ fn null_verdict_refunds_fee_and_attempt() {
     testing_env!(context.build());
     let mut game = Game::new(params(), true);
     game.deposit_credit();
-    let request = game.start_round(Mode::Solo);
+    let request = game.start_round(Mode::Solo, None);
     let begin = json!({"commit":"1111111111111111111111111111111111111111111111111111111111111111","header":{"tier":"daily","bucket":"rare","grammar":"2222222222222222222222222222222222222222222222222222222222222222"}});
     testing_env!(
         context.build(),
@@ -225,7 +225,7 @@ fn random_verdict_sequences_preserve_credit_and_duplicate_invariants() {
         testing_env!(context.build());
         let mut game = Game::new(params(), true);
         game.deposit_credit();
-        let request = game.start_round(Mode::Solo);
+        let request = game.start_round(Mode::Solo, None);
         let begin = json!({"commit":"1111111111111111111111111111111111111111111111111111111111111111","header":{"tier":"daily","bucket":"rare","grammar":"2222222222222222222222222222222222222222222222222222222222222222"}});
         testing_env!(context.build(), near_sdk::test_vm_config(), RuntimeFeesConfig::test(), Default::default(), vec![PromiseResult::Successful(begin.to_string().into_bytes())]);
         game.on_begin(request);
@@ -245,7 +245,7 @@ fn random_verdict_sequences_preserve_credit_and_duplicate_invariants() {
             } else if operation == 4 {
                 context.block_timestamp(3_600_000_000_000);
                 testing_env!(context.build());
-                game.advance(Mode::Solo);
+                game.advance(Mode::Solo, None);
             } else {
                 let before = ledger_view(&game);
                 match game.play(Mode::Solo, number, "otter".into()) {
@@ -279,7 +279,7 @@ fn late_verdict_and_duplicate_callback_refund_once() {
     testing_env!(context.build());
     let mut game = Game::new(params(), true);
     game.deposit_credit();
-    let begin_request = game.start_round(Mode::Solo);
+    let begin_request = game.start_round(Mode::Solo, None);
     let begin = json!({"commit":"1111111111111111111111111111111111111111111111111111111111111111","header":{"tier":"daily","bucket":"rare","grammar":"2222222222222222222222222222222222222222222222222222222222222222"}});
     testing_env!(
         context.build(),
@@ -296,7 +296,7 @@ fn late_verdict_and_duplicate_callback_refund_once() {
     };
     context.block_timestamp(3_600_000_000_000);
     testing_env!(context.build());
-    game.advance(Mode::Solo);
+    game.advance(Mode::Solo, None);
     testing_env!(
         context.build(),
         near_sdk::test_vm_config(),
@@ -321,7 +321,7 @@ fn promise_failure_refunds_and_restores_attempt() {
     testing_env!(context.build());
     let mut game = Game::new(params(), true);
     game.deposit_credit();
-    let begin_request = game.start_round(Mode::Solo);
+    let begin_request = game.start_round(Mode::Solo, None);
     let begin = json!({"commit":"1111111111111111111111111111111111111111111111111111111111111111","header":{"tier":"daily","bucket":"rare","grammar":"2222222222222222222222222222222222222222222222222222222222222222"}});
     testing_env!(
         context.build(),
@@ -367,7 +367,7 @@ fn distinct_players_settle_out_of_order() {
     testing_env!(context.build());
     let mut game = Game::new(params(), true);
     game.deposit_credit();
-    let begin_request = game.start_round(Mode::Solo);
+    let begin_request = game.start_round(Mode::Solo, None);
     let begin = json!({"commit":"1111111111111111111111111111111111111111111111111111111111111111","header":{"tier":"daily","bucket":"rare","grammar":"2222222222222222222222222222222222222222222222222222222222222222"}});
     testing_env!(
         context.build(),
@@ -434,7 +434,7 @@ fn verdict_requires_funded_compute() {
     p.outlayer_deposit.verdict.0 = 1;
     let mut game = Game::new(p, true);
     game.deposit_credit();
-    let request = game.start_round(Mode::Solo);
+    let request = game.start_round(Mode::Solo, None);
     let begin = json!({"commit":"1111111111111111111111111111111111111111111111111111111111111111","header":{"tier":"daily","bucket":"rare","grammar":"2222222222222222222222222222222222222222222222222222222222222222"}});
     testing_env!(
         context.build(),
@@ -487,7 +487,7 @@ fn team_play_without_team_is_rejected() {
     context.prepaid_gas(near_sdk::Gas::from_tgas(300));
     testing_env!(context.build());
     let mut game = Game::new(params(), true);
-    let request = game.start_round(Mode::Team);
+    let request = game.start_round(Mode::Team, None);
     let begin = json!({"commit":"1111111111111111111111111111111111111111111111111111111111111111","header":{"tier":"daily","bucket":"rare","grammar":"2222222222222222222222222222222222222222222222222222222222222222"}});
     testing_env!(
         context.build(),
@@ -510,7 +510,7 @@ fn begin_failure_past_timeout_cancels_and_restores_carry() {
     testing_env!(context.build());
     let mut game = Game::new(params(), true);
     game.seed_pot(Mode::Solo);
-    let request = game.start_round(Mode::Solo);
+    let request = game.start_round(Mode::Solo, None);
     context.block_timestamp(3_600_000_000_000);
     testing_env!(
         context.build(),
@@ -536,7 +536,7 @@ fn malformed_verdict_refunds_without_log() {
     testing_env!(context.build());
     let mut game = Game::new(params(), true);
     game.deposit_credit();
-    let begin_request = game.start_round(Mode::Solo);
+    let begin_request = game.start_round(Mode::Solo, None);
     let begin = json!({"commit":"1111111111111111111111111111111111111111111111111111111111111111","header":{"tier":"daily","bucket":"rare","grammar":"2222222222222222222222222222222222222222222222222222222222222222"}});
     testing_env!(
         context.build(),

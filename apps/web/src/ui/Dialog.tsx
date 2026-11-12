@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { useSound } from '@/audio';
+import { useSound, type SoundName } from '@/audio';
 
 interface DialogProps {
   open: boolean;
@@ -10,6 +10,8 @@ interface DialogProps {
   /** `sheet` sits at the bottom edge on small screens. */
   kind?: 'center' | 'sheet';
   className?: string;
+  /** The sound when it opens. `open` by default. */
+  openSound?: SoundName;
   children: ReactNode;
 }
 
@@ -24,6 +26,7 @@ export function Dialog({
   labelledBy,
   kind = 'center',
   className = '',
+  openSound = 'open',
   children,
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -35,11 +38,11 @@ export function Dialog({
     if (open && !el.open) {
       el.showModal();
       el.querySelector<HTMLElement>('[data-autofocus]')?.focus();
-      play('open');
+      play(openSound);
     } else if (!open && el.open) {
       el.close();
     }
-  }, [open, play]);
+  }, [open, play, openSound]);
 
   return (
     <dialog

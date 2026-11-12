@@ -1,6 +1,7 @@
-import { useRef, type KeyboardEvent } from 'react';
+import { useRef, type ClipboardEvent, type KeyboardEvent } from 'react';
 import { useReduced } from '@/motion/prefs';
 import { InkBox } from './InkBox';
+import { digitsToNumber, pasteDigits, reelAction, SLOTS } from './reelInput';
 
 const TRI = 'M5 27 L22 5 L39 27 Z';
 
@@ -9,10 +10,29 @@ interface ReelProps {
   label: string;
   onChange: (digit: number) => void;
   disabled?: boolean;
+  /** Which slot this wheel is, for typing across the three wheels. Omit for a lone wheel. */
+  slot?: number;
+  /** Move focus to another wheel (typing, Space, Enter, arrows, Backspace). */
+  onFocusSlot?: (slot: number) => void;
+  /** Digits pasted into this wheel. */
+  onPasteText?: (text: string, slot: number) => void;
+  inputRef?: (el: HTMLInputElement | null) => void;
 }
 
-/** One digit wheel: up/down buttons, typed digit, arrow keys. The digit rolls in from above or below. */
-export function Reel({ digit, label, onChange, disabled }: ReelProps) {
+/**
+ * One digit wheel: up/down buttons, typed digit, arrow keys. The digit rolls in from above or below. Typing a
+ * digit, Space, Enter or ArrowRight moves on to the next wheel; Backspace and ArrowLeft go back.
+ */
+export function Reel({
+  digit,
+  label,
+  onChange,
+  disabled,
+  slot,
+  onFocusSlot,
+  onPasteText,
+  inputRef,
+}: ReelProps) {
   const box = useRef<HTMLElement>(null);
   const reduced = useReduced();
 
@@ -29,12 +49,24 @@ export function Reel({ digit, label, onChange, disabled }: ReelProps) {
   }
 
   function onKey(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      set(digit + 1, 1);
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      set(digit - 1, -1);
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const action = reelAction(e.key, slot ?? 0, slot === undefined ? 1 : SLOTS);
+    if (!action) return;
+    e.preventDefault();
+    if (action.type === 'step') set(digit + action.by, action.by);
+    else if (action.type === 'set') {
+      set(action.digit, 1);
+      if (slot !== undefined) onFocusSlot?.(action.focus);
+    } else if (slot !== undefined) onFocusSlot?.(action.slot);
+  }
+
+  function onPaste(e: ClipboardEvent<HTMLInputElement>) {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text');
+    if (slot !== undefined && onPasteText) onPasteText(text, slot);
+    else {
+      const ch = text.replace(/\D/g, '')[0];
+      if (ch !== undefined) set(Number(ch), 1);
     }
   }
 
@@ -53,6 +85,7 @@ export function Reel({ digit, label, onChange, disabled }: ReelProps) {
       </button>
       <InkBox ref={box} fill="#fff" className="reel-digit">
         <input
+          ref={inputRef}
           inputMode="numeric"
           pattern="[0-9]"
           autoComplete="off"
@@ -61,9 +94,13 @@ export function Reel({ digit, label, onChange, disabled }: ReelProps) {
           disabled={disabled}
           onFocus={e => e.currentTarget.select()}
           onKeyDown={onKey}
+          onPaste={onPaste}
           onChange={e => {
+            // Soft keyboards report no key; their digit arrives here.
             const ch = e.target.value.replace(/\D/g, '').slice(-1);
-            if (ch !== '') set(Number(ch), 1);
+            if (ch === '') return;
+            set(Number(ch), 1);
+            if (slot !== undefined) onFocusSlot?.(Math.min(slot + 1, SLOTS - 1));
           }}
         />
       </InkBox>
@@ -88,13 +125,16 @@ interface ReelNumberProps {
   disabled?: boolean;
 }
 
-/** Three reels for 000 to 999. Hundreds, tens, units. */
+/** Three reels for 000 to 999. Hundreds, tens, units. Type 516, or paste it, or use the triangles. */
 export function ReelNumber({ value, onChange, disabled }: ReelNumberProps) {
   const digits = String(Math.min(999, Math.max(0, value)))
     .padStart(3, '0')
     .split('')
-    .map(Number) as [number, number, number];
+    .map(Number);
   const labels = ['hundreds', 'tens', 'units'] as const;
+  const inputs = useRef<(HTMLInputElement | null)[]>([]);
+  const focusSlot = (slot: number) => inputs.current[slot]?.focus();
+
   return (
     <div role="group" aria-label="Number, 000 to 999" className="flex items-center gap-2.5 xs:gap-4">
       {digits.map((d, i) => (
@@ -103,10 +143,21 @@ export function ReelNumber({ value, onChange, disabled }: ReelNumberProps) {
           digit={d}
           label={labels[i] ?? ''}
           disabled={disabled}
+          slot={i}
+          inputRef={el => {
+            inputs.current[i] = el;
+          }}
+          onFocusSlot={focusSlot}
+          onPasteText={(text, at) => {
+            const pasted = pasteDigits(text, at, digits);
+            if (!pasted) return;
+            onChange(digitsToNumber(pasted.digits));
+            focusSlot(pasted.focus);
+          }}
           onChange={next => {
             const copy = [...digits];
             copy[i] = next;
-            onChange(copy[0]! * 100 + copy[1]! * 10 + copy[2]!);
+            onChange(digitsToNumber(copy));
           }}
         />
       ))}

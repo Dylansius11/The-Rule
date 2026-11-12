@@ -42,13 +42,13 @@ for (const [source, destination] of [
   ['/team?mode=1&round=0', '/play/team/crew'],
   ['/wallet?mode=1&round=0', '/account'],
 ] as const) {
-  test(`legacy redirect ${source}`, async ({ page }) => {
+  test(`legacy redirect ${source}`, async ({ page, baseURL }) => {
     await guideSeen(page);
     await page.goto(source);
     if (source.startsWith('/team?') || source.startsWith('/wallet?')) {
       await expect(page).toHaveURL(url => url.pathname === destination);
     } else {
-      await expect(page).toHaveURL(new URL(destination, 'http://127.0.0.1:5173').href);
+      await expect(page).toHaveURL(new URL(destination, baseURL).href);
     }
   });
 }
@@ -106,7 +106,7 @@ test('unavailable demo leaves the rehearsal deployment active', async ({ page })
   const strip = page.getByRole('note');
   await expect(strip).toContainText('Testnet rehearsal · keys retained · no preselected rule');
   await strip.getByRole('radio', { name: 'Demo' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Demo Mode is not deployed yet' });
+  const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Stay on the real game' }).click();
   await expect(dialog).not.toBeVisible();
@@ -114,6 +114,15 @@ test('unavailable demo leaves the rehearsal deployment active', async ({ page })
   await expect(strip).toContainText('Testnet rehearsal · keys retained · no preselected rule');
   await expect(strip).not.toContainText('Demo Mode - preselected rule');
   await expect(strip.getByRole('radio', { name: 'Live' })).toHaveAttribute('aria-checked', 'true');
+});
+
+test('live r2 season reports that this deployment has no season board', async ({ page }) => {
+  await guideSeen(page);
+  await page.goto('/season');
+  await expect(
+    page.getByRole('heading', { name: 'This deployment keeps no season board', exact: true }),
+  ).toBeVisible({ timeout: 100_000 });
+  await expect(page.getByRole('table', { name: 'Season board', exact: true })).not.toBeVisible();
 });
 
 test('live solo round 0 replay matches its commitment and all 52 verdicts', async ({ page }) => {

@@ -178,7 +178,7 @@ fn platform_failure_merges_new_accrual_once() {
 }
 
 #[test]
-fn unlock_failure_merges_maximum_supply_replacement_once() {
+fn unlock_failure_restores_maximum_principal_without_touching_next_slot() {
     let mut fx = fixture(params());
     let actor = "c".repeat(64);
     fx.actor(&actor);
@@ -190,7 +190,7 @@ fn unlock_failure_merges_maximum_supply_replacement_once() {
     testing_env!(fx.ctx.build());
     assert_eq!(
         fx.game
-            .ft_on_transfer(actor.parse().unwrap(), U128(old), msg.clone())
+            .ft_on_transfer(actor.parse().unwrap(), U128(old), msg)
             .0,
         0
     );
@@ -206,19 +206,27 @@ fn unlock_failure_merges_maximum_supply_replacement_once() {
     testing_env!(fx.ctx.build());
     assert_eq!(
         fx.game
-            .ft_on_transfer(actor.parse().unwrap(), U128(replacement), msg)
+            .ft_on_transfer(
+                actor.parse().unwrap(),
+                U128(replacement),
+                json!({"lock":{"mode":0,"round_id":2}}).to_string()
+            )
             .0,
         0
     );
     deliver(&mut fx, id, false, game::Game::on_unlock);
     assert_eq!(
         fx.game.get_lock(Mode::Solo, 1, actor.parse().unwrap()).0,
-        u128::MAX
+        old
+    );
+    assert_eq!(
+        fx.game.get_lock(Mode::Solo, 2, actor.parse().unwrap()).0,
+        replacement
     );
     deliver(&mut fx, id, true, game::Game::on_unlock);
     assert_eq!(
         fx.game.get_lock(Mode::Solo, 1, actor.parse().unwrap()).0,
-        u128::MAX
+        old
     );
 }
 

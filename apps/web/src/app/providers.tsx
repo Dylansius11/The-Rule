@@ -1,21 +1,29 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getConnector } from '@/chain/wallet';
+import { getConnector } from '@/chain/connector';
+import { connectWallet } from '@/chain/session/connect';
+import { attach, detach } from '@/chain/session/state';
 import { SoundProvider } from '@/audio';
 import type { WalletState } from '@/game/types';
 
 type WalletContextValue = WalletState & { connect(): Promise<void>; disconnect(): Promise<void> };
 const WalletContext = createContext<WalletContextValue | null>(null);
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 10_000, retry: 1, refetchOnWindowFocus: true } },
+  defaultOptions: { queries: { staleTime: 10_000, retry: 2, refetchOnWindowFocus: true } },
 });
 function WalletProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<WalletState>({ status: 'loading', accountId: null });
   useEffect(() => {
     const connector = getConnector();
-    const signedIn = (event: { accounts: { accountId: string }[] }) =>
-      setState({ status: 'connected', accountId: event.accounts[0]?.accountId ?? null });
-    const signedOut = () => setState({ status: 'disconnected', accountId: null });
+    const signedIn = (event: { accounts: { accountId: string }[] }) => {
+      const accountId = event.accounts[0]?.accountId ?? null;
+      setState({ status: 'connected', accountId });
+      if (accountId) void attach(accountId);
+    };
+    const signedOut = () => {
+      setState({ status: 'disconnected', accountId: null });
+      void detach();
+    };
     connector.on('wallet:signIn', signedIn);
     connector.on('wallet:signOut', signedOut);
     connector.whenManifestLoaded
@@ -32,7 +40,7 @@ function WalletProvider({ children }: { children: ReactNode }) {
     try {
       const connector = getConnector();
       await connector.whenManifestLoaded;
-      const wallet = await connector.connect();
+      const wallet = await connectWallet(connector);
       const accounts = await wallet.getAccounts();
       setState({
         status: accounts.length ? 'connected' : 'disconnected',

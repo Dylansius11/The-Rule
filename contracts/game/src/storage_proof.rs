@@ -151,13 +151,19 @@ fn maximum_retained_records_and_callback_headroom() {
         },
     );
     let platform = record(b"p", &u64::MAX, &Request::Platform { amount: u128::MAX });
-    let commit_lifetime_peak = entity_bytes + commit + check + platform;
+    // Candidate lookup, entity-to-rank lookup, one AVL node and its value.
+    // Includes 40 bytes per trie record, 32-byte hashed keys and the maximum
+    // fixed-width rank key plus SDK AVL links/free-list tag. The season header
+    // is funded by the operator's retained-round allowance, not this action.
+    const SEASON_INDEX_BYTES: usize = 400;
+    let commit_lifetime_peak = entity_bytes + commit + check + platform + SEASON_INDEX_BYTES;
     println!(
         "MAX COMMIT: entity={entity_bytes}, commit={commit}, check={check}, platform={platform}, lifetime_bound={commit_lifetime_peak}"
     );
     // Conservatively retain both request records and the final records. In an
     // actual transition the consumed request is removed before its replacement.
-    let play_lifetime_peak = entity_bytes + log_bytes + seen_bytes + verdict + mint + platform;
+    let play_lifetime_peak =
+        entity_bytes + log_bytes + seen_bytes + verdict + mint + platform + SEASON_INDEX_BYTES;
     let player_lifetime_peak = player_bytes + withdrawal + registration;
     let team_lifetime_peak = team_bytes + 5 * membership;
     println!(
@@ -258,7 +264,13 @@ fn maximum_round_and_active_index_budget() {
     println!(
         "MAX ROUND: retained_record={bytes}; operator ceiling=1024 bytes per retained round; root active index <= {active_index} bytes at ten rounds"
     );
-    assert!(bytes <= 1024, "operator per-round storage ceiling exceeded");
+    // At most one season header is created per retained round. Allow a
+    // 32-byte hashed key and the fixed-width total/indexed/revision payload.
+    const SEASON_HEADER_BYTES: usize = 2 + 32 + 4 + 4 + 8 + 40;
+    assert!(
+        bytes + SEASON_HEADER_BYTES <= 1024,
+        "operator per-round storage ceiling exceeded"
+    );
     // Neither the user charges nor the admission cap pay for historical rounds.
     // A deployment quote must include N * 1024 * byte_cost for N retained rounds,
     // plus its actual code/root state and concurrent refundable storage exposure.

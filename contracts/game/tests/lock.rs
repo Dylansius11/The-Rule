@@ -271,7 +271,7 @@ fn a_round_that_never_started_releases_its_locks_one_period_after_its_slot() {
 }
 
 #[test]
-fn failed_unlock_restores_tokens_into_a_paid_replacement_lock() {
+fn failed_unlock_restores_old_slot_without_touching_new_slot_lock() {
     let mut fx = fixture(params());
     assert_eq!(lock_for(&mut fx, 500, 1), 0);
     fx.ctx.attached_deposit(NearToken::from_yoctonear(1));
@@ -279,14 +279,18 @@ fn failed_unlock_restores_tokens_into_a_paid_replacement_lock() {
     fx.game.unlock(Mode::Solo, 1);
     let credit = fx.credit();
     let reserve = fx.term("storage_reserve");
-    // The old transfer is still in flight; a new key must pay for its own storage.
-    assert_eq!(lock_for(&mut fx, 7, 1), 0);
+    // Old skipped slots reject new deposits; the current slot is independently funded.
+    assert_eq!(lock_for(&mut fx, 7, 1), 7);
+    assert_eq!(fx.credit(), credit);
+    assert_eq!(fx.term("storage_reserve"), reserve);
+    assert_eq!(lock_for(&mut fx, 7, 2), 0);
     let fee = params().storage_charge_per_play.0;
     assert_eq!(fx.credit(), credit - fee);
     assert_eq!(fx.term("storage_reserve"), reserve + fee);
     deliver_env(&fx.ctx, token_ack(&fx.game, 1, "insufficient_balance"));
     fx.game.on_unlock(1);
-    assert_eq!(locked(&fx, 1), 507);
+    assert_eq!(locked(&fx, 1), 500);
+    assert_eq!(locked(&fx, 2), 7);
     assert_eq!(
         fx.credit(),
         credit - fee,
@@ -297,7 +301,7 @@ fn failed_unlock_restores_tokens_into_a_paid_replacement_lock() {
     fx.game.on_unlock(1);
     assert_eq!(
         locked(&fx, 1),
-        507,
+        500,
         "duplicate callbacks cannot restore twice"
     );
 }

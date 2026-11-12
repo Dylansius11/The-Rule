@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LocalPlayError, toUiError, UnknownPlayAcknowledgement } from './errors';
+import { RpcError } from './rpc';
 
 describe('contract errors', () => {
   it('maps every documented panic code', () => {
@@ -65,5 +66,30 @@ describe('contract errors', () => {
     expect(error.next).toContain('tx123');
     expect(error.next).toContain('round log');
     expect(error.retryable).toBe(false);
+  });
+
+  it('explains a rate-limited read as a busy node, not an unknown transaction outcome', () => {
+    const error = toUiError(new RpcError('RPC rate limited', { status: 429 }));
+    expect(error.title).toBe('The chain data service is busy');
+    expect(error.funds).not.toContain('outcome may be unknown');
+    expect(error.retryable).toBe(true);
+  });
+
+  it('explains any other failed read without blaming a transaction', () => {
+    const error = toUiError(new RpcError('RPC HTTP 502', { status: 502 }));
+    expect(error.title).toBe('Could not read the chain');
+    expect(error.funds).not.toContain('outcome may be unknown');
+  });
+
+  it('still maps a contract panic code carried by a failed view', () => {
+    const error = toUiError(new RpcError('Contract view failed', { error: 'E50' }));
+    expect(error.code).toBe('E50');
+  });
+
+  it('says the node is unreachable, or busy, when the browser could not read any reply', () => {
+    const error = toUiError(new RpcError('RPC unreachable', { network: true }));
+    expect(error.title).toBe('Could not reach the chain');
+    expect(error.next).toContain('busy');
+    expect(error.funds).not.toContain('outcome may be unknown');
   });
 });

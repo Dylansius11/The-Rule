@@ -42,4 +42,12 @@ describe('play state', () => {
       }).kind,
     ).toBe('error');
   });
+  it('shows the recorded verdict when the ledger beats the send path, and keeps it over a late error', () => {
+    const signing = playReducer(start(), { type: 'sign' });
+    expect(playReducer(start(), { type: 'row', row }).kind).toBe('prechecking');
+    const shown = playReducer(signing, { type: 'row', row });
+    expect(shown).toMatchObject({ kind: 'accepted', txHash: null });
+    const error = { code: 'X', title: 'late', funds: 'No charge', next: 'Wait', retryable: true };
+    expect(playReducer(shown, { type: 'error', error })).toEqual(shown);
+  });
 });

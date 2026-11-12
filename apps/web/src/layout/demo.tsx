@@ -30,15 +30,15 @@ export function useDeploymentChoice(): {
       <div className="p-6 text-center md:p-8">
         <Art name="stickers/asleep" width={150} />
         <h2 id="demo-title" className="display mt-2 text-[clamp(34px,6vw,48px)]">
-          Demo Mode is not deployed yet
+          Demo Mode is not configured in this build
         </h2>
         <p className="mx-auto mt-3 max-w-[44ch] text-[17px] font-semibold">
           Demo Mode runs a separate copy of the game with a preselected rule, its own pot and token, on a
           compressed clock. It is always labeled “Demo Mode - preselected rule”.
         </p>
         <p className="mx-auto mt-2 max-w-[44ch] text-[17px] font-semibold">
-          That copy is not deployed to testnet yet, so there is nothing to switch to. You stay on the real
-          game.
+          This build has no Demo contract pair configured, so it cannot switch instances. You stay on the
+          current deployment.
         </p>
         <div className="mt-5 flex justify-center">
           <Button variant="red" size="lg" onClick={() => setExplain(false)} sound={false}>

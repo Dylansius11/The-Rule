@@ -25,12 +25,13 @@ export function playReducer(state: PlayState, event: PlayEvent): PlayState {
         ? { kind: 'pending', input: state.input, txHash: event.txHash, sinceMs: event.sinceMs }
         : state;
     case 'row':
-      return state.kind === 'pending'
+      // From `signing` the row came from following the ledger before the send path reported back.
+      return state.kind === 'pending' || state.kind === 'signing'
         ? {
             kind: event.row.verdict ? 'accepted' : 'rejected',
             input: state.input,
             row: event.row,
-            txHash: state.txHash,
+            txHash: state.kind === 'pending' ? state.txHash : null,
           }
         : state;
     case 'refund':
@@ -38,6 +39,8 @@ export function playReducer(state: PlayState, event: PlayEvent): PlayState {
         ? { kind: 'refunded', input: state.input, txHash: state.txHash }
         : state;
     case 'error':
+      // A recorded result is the truth about the play; a late send-path error must not overwrite it.
+      if (['accepted', 'rejected', 'known', 'refunded'].includes(state.kind)) return state;
       return { kind: 'error', input: 'input' in state ? state.input : null, error: event.error };
   }
 }

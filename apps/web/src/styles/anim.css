@@ -316,3 +316,99 @@
   margin-left: 1px;
   animation: caret 1s steps(1) infinite;
 }
+
+/* The stamp moment: the button slams down and springs back, and a verdict throws ink across the card. */
+@keyframes stamp-press {
+  0% {
+    transform: scale(1) rotate(0);
+  }
+  30% {
+    transform: scale(0.93) rotate(-1.6deg);
+  }
+  65% {
+    transform: scale(1.05) rotate(0.8deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+@keyframes splash {
+  0% {
+    transform: scale(0.15) rotate(-14deg);
+    opacity: 0;
+  }
+  16% {
+    opacity: 1;
+  }
+  36% {
+    transform: scale(1.1) rotate(2deg);
+  }
+  58% {
+    transform: scale(1) rotate(0);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(1.03);
+    opacity: 0;
+  }
+}
+.btn[data-pressed='true'] {
+  animation: stamp-press 0.34s var(--ease-out);
+}
+.ink-splash {
+  animation: splash 1.15s var(--ease-out) both;
+}
+.feed-row.fresh-row {
+  animation: fresh 1.6s ease-out;
+}
+@keyframes splash-soft {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  25% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1.02);
+    opacity: 0;
+  }
+}
+.ink-splash.ink-splash-soft {
+  animation: splash-soft 0.9s var(--ease-out) both;
+}
+
+/* Hover and press wiggles are motion: with reduced motion the state changes colour or underline only. */
+@media (prefers-reduced-motion: reduce) {
+  .nav-link:hover,
+  .nav-link:active,
+  .room-tab:hover,
+  .room-tab:active,
+  .tab-link:active svg,
+  .tab-link[aria-current='page'] svg {
+    transform: none;
+  }
+  .btn:hover:not([aria-disabled='true']) .btn-face {
+    transform: translateY(-2px);
+  }
+  .btn:active:not([aria-disabled='true']) .btn-face,
+  .btn[data-pressed='true'] .btn-face {
+    transform: translateY(7px);
+  }
+}
+html[data-motion='reduced'] .nav-link:hover,
+html[data-motion='reduced'] .nav-link:active,
+html[data-motion='reduced'] .room-tab:hover,
+html[data-motion='reduced'] .room-tab:active,
+html[data-motion='reduced'] .tab-link:active svg,
+html[data-motion='reduced'] .tab-link[aria-current='page'] svg {
+  transform: none;
+}
+html[data-motion='reduced'] .btn:hover:not([aria-disabled='true']) .btn-face {
+  transform: translateY(-2px);
+}
+html[data-motion='reduced'] .btn:active:not([aria-disabled='true']) .btn-face,
+html[data-motion='reduced'] .btn[data-pressed='true'] .btn-face {
+  transform: translateY(7px);
+}

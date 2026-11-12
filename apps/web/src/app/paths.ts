@@ -46,3 +46,6 @@ export function useNavMode(): Mode {
   const match = useMatch('/play/:mode/*');
   return modeOf(match?.params.mode) ?? recalledMode();
 }
+
+/** The docs home. Pages live at `/docs/<section>/<slug>`. */
+export const DOCS_PATH = '/docs';

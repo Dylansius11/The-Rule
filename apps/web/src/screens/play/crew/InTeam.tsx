@@ -1,26 +1,50 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { roomPath } from '@/app/paths';
-import { formatNear } from '@/chain/format';
-import { useEntity, useLatestRound, useTeamActions } from '@/game';
+import { formatNear, formatRule } from '@/chain/format';
+import { active } from '@/config/env';
+import { useEntity, useLatestRound, useLog, usePayouts, useTeamActions } from '@/game';
 import type { Team } from '@/game/types';
 import { ActionSlip } from '@/ui/ActionSlip';
+import { Amount } from '@/ui/Amount';
 import { AmountField, readNear } from '@/ui/AmountField';
 import { Button } from '@/ui/Button';
 import { InkBox } from '@/ui/InkBox';
 import { isActive, phaseLabel, pad3 } from '@/screens/shared/round';
 import { Roster } from './Roster';
-import { TextField, busy } from './parts';
+import { CopyField, TextField, busy } from './parts';
+import { inviteAccountFromSearch, inviteLink } from './invite';
+import { depositShares, exitShare, teamMinted } from './vault';
 
-export function InTeam({ team, me }: { team: Team; me: string }) {
-  const actions = useTeamActions();
-  const [inv, setInv] = useState('');
+export function InTeam({ team, me, onLeft }: { team: Team; me: string; onLeft?: () => void }) {
+  const actions = useTeamActions(onLeft);
+  const [search] = useSearchParams();
+  const requested = team.captain === me ? inviteAccountFromSearch(search.toString()) : null;
+  const [inv, setInv] = useState(requested ?? '');
   const [dep, setDep] = useState('');
   const d = readNear(dep);
   const round = useLatestRound(1);
   const entity = useEntity(1, round.data?.roundId ?? null, me);
   const live = round.data && isActive(round.data) ? round.data : null;
   const captain = team.captain === me;
+  const payouts = usePayouts(me);
+  const settleFirst = payouts.items.some(item => item.kind === 'unlock');
+  const canExit = !payouts.loading && payouts.error === null && (team.activeRound === null || settleFirst);
+  const depositsOpen = team.vault === team.weight;
+  const hasDeposit = team.deposits.some(x => x.account === me);
+  const beforeLeave = payouts.items.filter(item => item.kind === 'unlock' || item.mode === 1);
+  const share = formatNear(exitShare(team, me), 3);
+  const exitNote = payouts.error
+    ? 'Could not read your finished rounds, so leaving is paused. Reload the page and try again.'
+    : payouts.loading
+      ? 'Checking your finished rounds before it is safe to leave…'
+      : team.activeRound === null
+        ? `Leaving returns about ${share} NEAR, your share of the vault, to your game credit and removes you from the team. Withdraw credit to your wallet on the Account page.`
+        : settleFirst
+          ? `Round ${team.activeRound} has ended, so leaving first unlocks the team and claims your finished team rounds, then returns about ${share} NEAR, your share of the vault, to your game credit.`
+          : `The team is locked to round ${team.activeRound} until it ends. Leaving and withdrawing open after that.`;
+  const log = useLog(1, round.data?.roundId);
+  const minted = teamMinted(log.rows, team.teamId, me);
 
   return (
     <div className="grid gap-6">
@@ -34,11 +58,85 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
           <h2 className="display text-[44px] leading-none">{team.name}</h2>
         </div>
         <div className="mono text-[14px] font-bold">
-          vault <b>{formatNear(team.vault, 3)} NEAR</b>
+          {team.members.length} {team.members.length === 1 ? 'member' : 'members'}
         </div>
       </InkBox>
 
+      <InkBox className="grid gap-3 p-4 sm:grid-cols-3" fill="var(--color-paper)" tilt={-0.2}>
+        <div>
+          <div className="mono text-[12px] font-bold uppercase tracking-widest">In the vault</div>
+          <div className="text-[22px]">
+            <Amount kind="near" value={team.vault} digits={3} />
+          </div>
+          <p className="text-[13px] font-semibold">
+            {team.activeRound !== null
+              ? `Round ${team.activeRound} is using part of it until it settles.`
+              : team.weight > 0n
+                ? `${formatNear(team.weight, 3)} NEAR put in by the crew.`
+                : 'Nothing deposited yet.'}
+          </p>
+        </div>
+        <div>
+          <div className="mono text-[12px] font-bold uppercase tracking-widest">Round pot</div>
+          <div className="text-[22px]">
+            <Amount kind="near" value={round.data?.pot ?? 0n} digits={3} />
+          </div>
+          <p className="text-[13px] font-semibold">
+            {round.data
+              ? `Team round ${round.data.roundId}, shared by the whole team.`
+              : 'No team round yet.'}
+          </p>
+        </div>
+        <div>
+          <div className="mono text-[12px] font-bold uppercase tracking-widest">RULE earned</div>
+          <div className="text-[22px]">
+            <Amount kind="rule" value={minted.mine} />
+          </div>
+          <p className="text-[13px] font-semibold">
+            You, this round
+            {team.members.length > 1 ? `. The team minted ${formatRule(minted.total)} RULE.` : '.'}
+          </p>
+        </div>
+      </InkBox>
+
+      <InkBox className="p-4" fill="#fff" tilt={-0.3}>
+        <CopyField
+          label="Invite link"
+          value={inviteLink(window.location.origin, team.teamId, active.kind === 'demo' ? 'demo' : 'main')}
+        />
+        <p className="mt-1 text-[14px] font-semibold">
+          Send this to a friend, then add their account name under “Invite a member”. The link opens the right
+          game (Demo or real) with your team id filled in; it does not let anyone in without your invite.
+          {captain ? '' : ' Only the captain can send invites.'}
+        </p>
+      </InkBox>
+
       <Roster team={team} me={me} />
+
+      <InkBox
+        className="flex flex-wrap items-center justify-between gap-4 p-4"
+        fill="#fff"
+        tilt={0.2}
+        aria-label="Leave the team"
+      >
+        <div className="min-w-0 max-w-[60ch]">
+          <h3 className="display text-[28px] leading-none">Leave the team</h3>
+          <p className="mt-1 text-[14px] font-semibold">{exitNote}</p>
+        </div>
+        <Button
+          variant="red"
+          disabled={!canExit}
+          busy={busy(actions.leave.state)}
+          onClick={() => actions.leave.run(beforeLeave)}
+        >
+          Leave team
+        </Button>
+      </InkBox>
+      <ActionSlip
+        state={actions.leave.state}
+        onReset={actions.leave.reset}
+        doneText="Left the team. Your share is in your game credit; withdraw it to your wallet from the Account page."
+      />
 
       <div className="grid gap-6 md:grid-cols-2">
         <InkBox className="p-5" fill="#fff" tilt={0.6}>
@@ -47,6 +145,16 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
             Team plays and stakes are paid from the vault. Each deposit is recorded by depositor. Unused
             principal comes back pro rata between rounds; round rewards are split equally.
           </p>
+          {!team.deposits.some(x => x.account === me) ? (
+            <p
+              className="mb-3 rounded-2xl border-[3px] border-ink bg-sun px-3 py-2 font-extrabold"
+              role="status"
+            >
+              {team.members.length > 1
+                ? 'You are in the crew. Put your share in the vault so the team can play.'
+                : 'Put some NEAR in the vault so your team can play.'}
+            </p>
+          ) : null}
           <AmountField
             label="Deposit to vault"
             value={dep}
@@ -57,10 +165,11 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
           <div className="mt-3 flex flex-wrap gap-3">
             <Button
               variant="red"
-              disabled={d.amount === null}
+              disabled={d.amount === null || !depositsOpen || !canExit}
               busy={busy(actions.deposit.state)}
               onClick={() =>
-                d.amount !== null && actions.deposit.run({ teamId: team.teamId, amount: d.amount })
+                d.amount !== null &&
+                actions.deposit.run({ teamId: team.teamId, amount: d.amount, unlockFirst: settleFirst })
               }
             >
               Deposit
@@ -68,14 +177,26 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
             <Button
               variant="paper"
               busy={busy(actions.withdraw.state)}
-              disabled={team.activeRound !== null}
-              onClick={() => actions.withdraw.run(team.teamId)}
+              disabled={!canExit || !hasDeposit}
+              onClick={() => actions.withdraw.run({ teamId: team.teamId, unlockFirst: settleFirst })}
             >
               Withdraw my share
             </Button>
           </div>
-          {team.activeRound !== null ? (
-            <p className="mt-2 text-[14px] font-bold">Withdrawals open between rounds.</p>
+          {!depositsOpen ? (
+            <p className="mt-2 text-[14px] font-bold">
+              Deposits are closed while the vault ({formatNear(team.vault, 3)} NEAR) is below what was put in
+              ({formatNear(team.weight, 3)} NEAR), because plays spent some. They reopen once every depositor
+              has withdrawn their share; then everyone can deposit again.
+            </p>
+          ) : null}
+          {!hasDeposit && team.deposits.length > 0 ? (
+            <p className="mt-2 text-[14px] font-bold">You have no deposit in this vault to withdraw.</p>
+          ) : null}
+          {team.activeRound !== null && !settleFirst ? (
+            <p className="mt-2 text-[14px] font-bold">
+              Deposits and withdrawals open once round {team.activeRound} has ended and the team is unlocked.
+            </p>
           ) : null}
           <div className="mt-3 grid gap-3">
             <ActionSlip
@@ -86,27 +207,31 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
             <ActionSlip
               state={actions.withdraw.state}
               onReset={actions.withdraw.reset}
-              doneText="Withdrawal sent, waiting for the transfer. Do not retry; the vault updates when it settles."
+              doneText="Withdrawal sent. Do not retry; confirmation is pending and the vault updates once it is confirmed."
             />
           </div>
           <table className="data-table mt-4">
-            <caption className="sr-only">Depositor weights</caption>
+            <caption className="sr-only">Deposits by member</caption>
             <thead>
               <tr>
-                <th scope="col">Depositor</th>
-                <th scope="col">Weight</th>
+                <th scope="col">Member</th>
+                <th scope="col">Put in</th>
+                <th scope="col">Share of vault</th>
               </tr>
             </thead>
             <tbody>
               {team.deposits.length === 0 ? (
                 <tr>
-                  <td colSpan={2}>No deposits yet.</td>
+                  <td colSpan={3}>No deposits yet.</td>
                 </tr>
               ) : (
-                team.deposits.map(x => (
+                depositShares(team).map(x => (
                   <tr key={x.account}>
                     <td className="break-all">{x.account}</td>
-                    <td>{x.weight.toString()}</td>
+                    <td>
+                      <Amount kind="near" value={x.amount} digits={3} />
+                    </td>
+                    <td>{x.percent}%</td>
                   </tr>
                 ))
               )}
@@ -162,9 +287,13 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
               onChange={setInv}
               placeholder="friend.testnet"
               hint={
-                captain
-                  ? 'Only the captain can invite. Max team size applies.'
-                  : 'Only the captain can invite.'
+                team.activeRound !== null
+                  ? `The team is locked to round ${team.activeRound}. Invites open once it is unlocked.`
+                  : requested !== null && inv === requested
+                    ? 'Filled in from a join request. Check the name, then press Send invite.'
+                    : captain
+                      ? 'Only the captain can invite. Max team size applies.'
+                      : 'Only the captain can invite.'
               }
             />
             <div>
@@ -181,26 +310,7 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
             <ActionSlip
               state={actions.invite.state}
               onReset={actions.invite.reset}
-              doneText="Invite sent. They can join with this team id."
-            />
-            <div>
-              <Button
-                variant="paper"
-                size="sm"
-                disabled={team.activeRound !== null}
-                busy={busy(actions.leave.state)}
-                onClick={() => actions.leave.run()}
-              >
-                Leave team
-              </Button>
-              <p className="mt-1 text-[14px] font-semibold">
-                After leaving you can still claim and settle past rounds with the original team id.
-              </p>
-            </div>
-            <ActionSlip
-              state={actions.leave.state}
-              onReset={actions.leave.reset}
-              doneText="Leave sent. This page updates when the chain shows it."
+              doneText="Invite sent. They can now join from your invite link or with this team id."
             />
           </div>
         </InkBox>

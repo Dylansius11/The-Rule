@@ -4,7 +4,7 @@ import { getLog, getWords } from '@/chain/views';
 import type { CanonicalRule, LogRow, Mode, ReplayResult, ReplayState, Round, RuleText } from '@/game/types';
 import { loadWasm } from './wasm';
 import { verifierRow } from './types';
-import type { AtomCatalog, ReplayInput, Verification } from './types';
+import type { AtomCatalog, ReplayInput } from './types';
 
 export type { AtomCatalog } from './types';
 
@@ -24,25 +24,6 @@ export function useAtomCatalog(): AtomCatalog {
     queryFn: async () => JSON.parse((await loadWasm()).atom_catalog()) as AtomCatalog,
   });
   return query.data ?? { atoms: [], forms: [] };
-}
-
-export async function checkConsistent(
-  rule: CanonicalRule,
-  rows: LogRow[],
-): Promise<{ consistent: boolean; mismatches: number[] }> {
-  const wasm = await loadWasm();
-  const ruleJson = JSON.stringify(rule);
-  const mismatches: number[] = [];
-  for (const row of rows) {
-    const result = JSON.parse(wasm.consistent(ruleJson, JSON.stringify([verifierRow(row)]))) as Verification;
-    if (result.status === 'fail') {
-      if (!result.reason.startsWith('verdict mismatch at index ')) {
-        throw new Error(result.reason);
-      }
-      mismatches.push(row.logIdx);
-    }
-  }
-  return { consistent: mismatches.length === 0, mismatches };
 }
 
 export async function commitHash(input: {

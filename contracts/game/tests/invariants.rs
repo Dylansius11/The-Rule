@@ -310,13 +310,13 @@ fn run_case(bits: u32, ending: u8, seed: u128, topup: u128, withdrawal_amount: u
 
     if fx.round()["phase"] == "Investigation" {
         fx.at(20, INVESTIGATION_END);
-        fx.game.advance(Mode::Solo);
+        fx.game.advance(Mode::Solo, None);
         cash.check(&fx);
     }
     let deadline = fx.round()["reveal_deadline_ns"].as_u64().unwrap();
     fx.at(21, deadline);
     reset(&fx);
-    let open = fx.game.finalize(Mode::Solo).unwrap();
+    let open = fx.game.finalize(Mode::Solo, None).unwrap();
     cash.outbound();
     assert_eq!(cash.compute_spent, 31 + extra_count * 3);
     cash.check(&fx);

@@ -1,11 +1,11 @@
 # Project settings for THE RULE only. Arrays replace inherited values.
-# Lead: Opus 5.5. Workers: GPT 6.1 Terra for contracts, enclave, systems, backend and all research
-# (frontend stack research included). Sonnet 5.5 only for visual UI design and page build, later.
-# Founder cap (2026-11-04): at most 4 workers at once, at most 3 of them GPT.
+# Lead: Opus 5.5 (orchestrates, verifies, commits). Workers: GPT 6.1 Sol for contracts, enclave, systems,
+# backend and research (founder, 2026-11-12); Sonnet 5.5 for visual UI and frontend.
+# Founder cap: at most 4 workers at once, at most 3 of them GPT, one Sonnet at a time.
 modelRoles:
   default: anthropic/claude-opus-5-5:high
   plan: anthropic/claude-opus-5-5:high
-  task: openai-codex/gpt-6.1-terra:high
+  task: openai-codex/gpt-6.1-sol:high
   secondary: anthropic/claude-sonnet-5-5:high
 task:
   maxConcurrency: 4

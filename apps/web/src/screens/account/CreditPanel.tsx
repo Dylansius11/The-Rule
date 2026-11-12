@@ -83,13 +83,14 @@ export function CreditPanel() {
           <ActionSlip
             state={withdraw.state}
             onReset={withdraw.reset}
-            doneText="Withdrawal sent, waiting for the transfer. The withdrawn amount stays reserved and is not available credit until it settles."
+            doneText="Withdrawal sent. Confirmation is pending; the withdrawn amount stays reserved and is not available credit until it is confirmed."
           />
         </div>
         {wdPending ? (
           <p className="mt-3 flex items-start gap-3 font-extrabold" role="status">
             <span className="spinner mt-0.5" aria-hidden="true" />
-            Withdrawal sent, waiting for the transfer. Do not retry. This clears on its own.
+            Withdrawal confirmation is pending. Do not retry. Check the transfer and callback receipts; a
+            failed callback can leave this pending even when the NEAR already reached your wallet.
           </p>
         ) : withdraw.state.kind === 'done' ? (
           <p className="mt-3 font-bold" role="status">

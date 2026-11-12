@@ -102,7 +102,7 @@ fn terminal_mint_rejection_after_settlement_and_next_round_restores_old_round_on
     let result = fx.open_ok();
     fx.on_open(open, result);
     fx.at(50, 86_400_000_000_000);
-    fx.game.start_round(Mode::Solo);
+    fx.game.start_round(Mode::Solo, None);
     deliver_mint(&mut fx, id, PromiseResult::Successful(response.clone()));
     let old = serde_json::to_value(fx.game.get_round(Mode::Solo, Some(0)).unwrap()).unwrap();
     assert_eq!(old["allowance_left"], "500000");

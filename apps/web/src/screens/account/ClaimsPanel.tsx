@@ -1,9 +1,12 @@
+import { toUiError } from '@/chain/errors';
 import { formatNear } from '@/chain/format';
-import { useClaimActions, useClaimable, useNextSlot, useWallet } from '@/game';
+import { useClaimActions, useClaimable, useWallet } from '@/game';
+import { useRoundHistory } from '@/game/reads';
 import type { Mode } from '@/game/types';
 import { ActionSlip } from '@/ui/ActionSlip';
 import { Amount } from '@/ui/Amount';
 import { Button } from '@/ui/Button';
+import { ErrorCard } from '@/ui/ErrorCard';
 import { InkBox } from '@/ui/InkBox';
 import { modeName } from '../shared/round';
 
@@ -41,7 +44,11 @@ function ClaimRow({ mode, roundId }: { mode: Mode; roundId: number }) {
           <ActionSlip
             state={claim.state}
             onReset={claim.reset}
-            doneText={`Claim sent for ${formatNear(amount, 4)} NEAR. The payout transfer is a separate step: check your wallet NEAR in a moment.`}
+            doneText={
+              claim.state.kind === 'done' && typeof claim.state.value === 'string'
+                ? `${formatNear(BigInt(claim.state.value), 4)} NEAR added to your play credit. Withdraw credit separately to move it to your wallet.`
+                : 'Claim submitted. Check your play credit; withdrawal is a separate action.'
+            }
           />
         </div>
       ) : null}
@@ -49,36 +56,61 @@ function ClaimRow({ mode, roundId }: { mode: Mode; roundId: number }) {
   );
 }
 
-/** Pull-based payouts per finished round. Team rewards are claimed on the Team desk with the team id. */
+/** Pull-based payouts for observed rounds. Team rewards are claimed on the Team desk with the team id. */
 export function ClaimsPanel() {
-  const solo = useNextSlot(0);
-  const team = useNextSlot(1);
-  const ids = (n: number | undefined) =>
-    Array.from({ length: Math.min(6, n ?? 0) }, (_, i) => (n ?? 0) - 1 - i);
+  const solo = useRoundHistory(0);
+  const team = useRoundHistory(1);
   const rows = [
-    ...ids(solo.data?.roundId).map(id => ({ mode: 0 as Mode, id })),
-    ...ids(team.data?.roundId).map(id => ({ mode: 1 as Mode, id })),
+    ...solo.rounds.slice(0, 6).map(round => ({ mode: 0 as Mode, id: round.roundId })),
+    ...team.rounds.slice(0, 6).map(round => ({ mode: 1 as Mode, id: round.roundId })),
   ];
   return (
     <InkBox className="p-5 md:p-6" fill="var(--color-paper)" tilt={0.5}>
       <h3 className="display text-[34px] leading-none">Claims</h3>
       <p className="mt-2 text-[16px] font-semibold">
-        Payouts are pulled, never pushed. Each row reads the contract for your claimable amount. Team rewards
-        are claimed on the Team desk.
+        When a round settles, what you are owed (the winning prize or your contributor share of the pot) waits
+        in the contract until you pull it. Claim moves it into your play credit; moving credit to your wallet
+        is a separate step. Team rewards are claimed on the Team desk.
       </p>
-      {solo.isLoading || team.isLoading ? (
+      <p className="mt-2 text-[15px] font-semibold">
+        Showing up to six observed rounds per mode from a window of at most 30 IDs ending at the latest round.
+        The contract only supports lookup by ID; older rounds may exist outside the window.
+      </p>
+      {(
+        [
+          ['Solo', solo],
+          ['Team', team],
+        ] as const
+      ).map(([name, history]) =>
+        history.error != null ? (
+          <ErrorCard
+            key={name}
+            className="mt-3"
+            error={{
+              ...toUiError(history.error),
+              title: `Could not read all ${name} rounds`,
+              funds: 'No transaction was sent.',
+              retryable: true,
+            }}
+            onRetry={history.retry}
+          />
+        ) : null,
+      )}
+      {solo.loading || team.loading ? (
         <p className="mt-3 font-bold" aria-busy="true">
           Reading rounds…
         </p>
-      ) : rows.length === 0 ? (
-        <p className="mt-3 font-bold">No finished rounds yet.</p>
-      ) : (
+      ) : null}
+      {!solo.loading && !team.loading && solo.error == null && team.error == null && rows.length === 0 ? (
+        <p className="mt-3 font-bold">No rounds found.</p>
+      ) : null}
+      {rows.length > 0 ? (
         <ul className="mt-3 grid gap-3">
           {rows.map(r => (
             <ClaimRow key={`${r.mode}-${r.id}`} mode={r.mode} roundId={r.id} />
           ))}
         </ul>
-      )}
+      ) : null}
     </InkBox>
   );
 }

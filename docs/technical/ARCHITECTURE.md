@@ -84,7 +84,7 @@ sequenceDiagram
 
 1. `commit_guess(hash)`: the stake is locked at the current pot percentage, and the commit gets `seq`.
 2. At least 2 blocks later, `reveal_guess(guess, salt)`: the contract checks the preimage and tier, then sends referee `guess`, which runs the exact equivalence check over the full legal domain and returns `{correct}`.
-3. The first `correct:true` applied freezes the round. New plays and commits are rejected; in-flight plays refund. Earlier commits may still reveal until `freeze + 30 min`.
+3. The first `correct:true` applied freezes the round at the earlier of that callback timestamp and its original Investigation end. New plays and commits reject at the logical cutoff even if the keeper is offline; in-flight plays refund. Existing commits can reveal strictly before the original freeze/end plus `reveal_window_ns`, without depending on `advance`.
 4. `finalize`: unrevealed commits are settled as wrong; the outcome is chosen by minimum `seq`; referee `open` returns `{rule, salt}`; the contract checks `sha256(rule||salt) == commit` and moves to Settled (or Void).
 5. Clients run `verify_round` in the browser worker and `make verify` in the terminal: commitment check plus N of N verdict replay.
 
@@ -92,7 +92,7 @@ sequenceDiagram
 
 - OutLayer returns JSON `null` on guest failure or missing output, and a promise error on yield timeout (200 blocks on testnet, [V] protocol config 2026-11-04). The game treats both as **system failure**: full refund of the fee or stake, attempt restored, and no verdict.
 - `begin` failure: retry until `begin_timeout`, then Cancelled (no plays happened). `open` failure: `retry_open` until `open_timeout`, then Cancelled with exact refunds. Hash mismatch: Void.
-- A keeper outage delays transitions only. Anyone can call them.
+- A keeper outage delays permissionless transitions, not logical gameplay deadlines. Anyone can call the same transitions; the keeper includes an expected round id checked atomically on chain. Missed empty slot ids are skipped instead of backfilled. Settlement still waits for authenticated pending checks/open results and is not a promise of wallet delivery by the gameplay deadline.
 
 For a begin/verdict/guess/open callback or read-only registration check that never completes, permissionless `expire_request(request_id)` applies its failure handler after ten minutes. Consumed ids fence late responses and replacements; registration changes no money/referee slot. Round retry/cancel deadlines remain independent. RULE mint/unlock instead retain terminal outcomes in the token: anyone can call game `retry_token_operation` with the original id, and only an exact authenticated acknowledgement settles its reservation. Each O(1) token record is permanently funded by a separate nonrefundable contribution; exhausted funding leaves a replayable pending operation until replenished. No balance guess, timeout refund or cleanup can erase a replay fence. Native NEAR withdraw/platform payments retain conservative pending principal and remain outside authenticated recovery (D31/B6).
 

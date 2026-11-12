@@ -72,8 +72,8 @@ impl Game {
 
     pub(crate) fn get_next_slot_inner(&self, mode: Mode) -> Value {
         let i = mode as usize;
-        let id = self.current[i].map_or(0, |id| id.saturating_add(1));
         let p = self.params();
+        let id = self.next_round_id(mode as u8, &p);
         let slot = p
             .genesis_ns
             .saturating_add(u64::from(id).saturating_mul(p.round_period_ns))

@@ -81,9 +81,15 @@ export function Hero() {
           <div className="relative px-[8%] pt-[4%]">
             <HeroBlot />
           </div>
-          <div className="absolute -bottom-3 -left-10 z-[2] w-[118px] -rotate-6 md:bottom-[8%] md:left-[-6%] md:w-[190px]">
+          <div
+            className="absolute -bottom-3 -left-10 z-[2] w-[128px] -rotate-6 md:bottom-[8%] md:left-[-6%] md:w-[190px]"
+            style={{ containerType: 'inline-size' }}
+          >
             <Art name="doodles/bubble" width={190} />
-            <p className="hand absolute inset-0 grid place-items-center pb-3 text-center text-[13px] leading-[1.05] md:text-[21px]">
+            <p
+              className="hand absolute left-[9%] right-[7%] top-[13%] grid h-[60%] place-items-center text-center leading-[1.05]"
+              style={{ fontSize: '9.8cqw' }}
+            >
               <span>
                 that&apos;s Blot.
                 <br />

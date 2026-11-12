@@ -1,7 +1,9 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatNear, formatRule } from '@/chain/format';
-import { useLog, useRound } from '@/game';
+import { useMedia } from '@/layout/useMedia';
+import { toUiError } from '@/chain/errors';
+import { useLog, usePlayer, useRound, useTeamNames, useWallet } from '@/game';
 import { Drip } from '@/mascot/Drip';
 import { Button } from '@/ui/Button';
 import { Chip, RadioChips } from '@/ui/Chip';
@@ -9,21 +11,23 @@ import { ErrorCard } from '@/ui/ErrorCard';
 import { HashText } from '@/ui/HashText';
 import { InkBox } from '@/ui/InkBox';
 import { ProgressMeter } from '@/ui/ProgressMeter';
-import { Tag, VerdictTag } from '@/ui/Tag';
+import { VerdictTag } from '@/ui/Tag';
 import { RoundPicker } from '@/screens/shared/RoundPicker';
 import { PageHead } from '@/screens/shared/PageHead';
 import { pct } from '@/screens/shared/format';
 import { downloadLog } from '@/screens/shared/exportLog';
-import { isActive, modeName, pad3, phaseLabel } from '@/screens/shared/round';
+import { isActive, modeName, pad3 } from '@/screens/shared/round';
+import { RoundStatusTag } from '@/screens/shared/RoundTimer';
 import { useRoundSelection } from '@/screens/shared/useRoundSelection';
+import { RoundHistoryNotice } from '@/screens/shared/RoundHistoryNotice';
 import { useRoom } from './room';
+import { matchesTeam, teamIdsIn, teamLabel, type TeamFilter } from './ledgerTeams';
 
 type Verdict = 'all' | 'yes' | 'no';
 type Parity = 'all' | 'even' | 'odd';
 type Sort = 'new' | 'old';
 
-const GRID =
-  'grid grid-cols-[52px_minmax(0,1fr)_96px] items-center gap-x-2 md:grid-cols-[64px_minmax(0,1.5fr)_84px_minmax(0,1fr)_64px_104px_150px]';
+const COLS = 'md:grid-cols-[64px_minmax(0,1.5fr)_84px_minmax(0,1fr)_64px_104px_150px] md:gap-x-2';
 
 /** S2: the heron's ledger. Search and filter, virtualized crisp rows, completeness meter, export of exactly the filtered rows. */
 export function LedgerTab() {
@@ -36,6 +40,12 @@ export function LedgerTab() {
   const [parity, setParity] = useState<Parity>('all');
   const [sort, setSort] = useState<Sort>('new');
   const [open, setOpen] = useState<number | null>(null);
+  const [teamFilter, setTeamFilter] = useState<TeamFilter>('all');
+  const { accountId } = useWallet();
+  const player = usePlayer(accountId);
+  const myTeamId = player.data?.teamId ?? null;
+  const teamIds = useMemo(() => teamIdsIn(log.rows), [log.rows]);
+  const names = useTeamNames(teamIds);
   const scroller = useRef<HTMLDivElement>(null);
 
   const rows = useMemo(() => {
@@ -43,26 +53,30 @@ export function LedgerTab() {
     const out = log.rows.filter(r => {
       if (verdict !== 'all' && r.verdict !== (verdict === 'yes')) return false;
       if (parity !== 'all' && r.number % 2 !== (parity === 'even' ? 0 : 1)) return false;
+      if (!matchesTeam(r, teamFilter, myTeamId)) return false;
       if (!needle) return true;
       return (
         r.word.toLowerCase().includes(needle) ||
         r.account.toLowerCase().includes(needle) ||
+        (r.entityTag === 1 && teamLabel(r.entityId, names.get(r.entityId)).toLowerCase().includes(needle)) ||
         pad3(r.number).includes(needle) ||
         String(r.number) === needle
       );
     });
     return sort === 'new' ? out.reverse() : out;
-  }, [log.rows, q, verdict, parity, sort]);
+  }, [log.rows, q, verdict, parity, sort, teamFilter, myTeamId, names]);
 
+  const mobile = useMedia('(max-width: 767px)');
   const virt = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scroller.current,
-    estimateSize: () => 46,
+    estimateSize: () => (mobile ? 68 : 46),
     overscan: 14,
   });
+  useEffect(() => virt.measure(), [mobile, virt]);
   const yes = rows.filter(r => r.verdict).length;
   const chosen = open === null ? null : (log.rows.find(r => r.logIdx === open) ?? null);
-  const filtered = verdict !== 'all' || parity !== 'all' || q.trim() !== '';
+  const filtered = verdict !== 'all' || parity !== 'all' || q.trim() !== '' || teamFilter !== 'all';
   const base = `rule-${modeName(mode).toLowerCase()}-round-${sel.roundId ?? 'x'}-log${filtered ? '-filtered' : ''}`;
 
   return (
@@ -84,17 +98,38 @@ export function LedgerTab() {
         <RoundPicker rounds={sel.rounds} value={sel.roundId} onChange={sel.setRound} />
         {round.data ? (
           <span className="flex flex-wrap items-center gap-3 text-[15px] font-bold">
-            <Tag tone={isActive(round.data) ? 'sun' : 'soft'}>{phaseLabel(round.data.phase)}</Tag>
+            <RoundStatusTag round={round.data} />
             <span className="mono">pot {formatNear(round.data.pot, 3)} NEAR</span>
           </span>
         ) : null}
       </div>
+      <RoundHistoryNotice history={sel.history} />
 
-      {sel.roundId === null && !sel.loading ? (
+      {sel.loading || round.isLoading ? (
+        <p className="mt-8 font-bold" aria-busy="true">
+          Reading the round…
+        </p>
+      ) : round.isError ? (
+        <div className="mt-8">
+          <ErrorCard error={toUiError(round.error)} onRetry={() => void round.refetch()} />
+        </div>
+      ) : !round.data ? (
         <div className="mt-8">
           <InkBox className="p-8 text-center">
-            <h2 className="display text-[40px]">No rounds yet</h2>
-            <p className="mt-2 font-bold">The ledger fills once the first round starts.</p>
+            <h2 className="display text-[40px]">
+              {sel.roundId !== null
+                ? 'No such round'
+                : sel.history.error
+                  ? 'Round history unavailable'
+                  : 'No rounds yet'}
+            </h2>
+            <p className="mt-2 font-bold">
+              {sel.roundId !== null
+                ? `No record exists for round ${sel.roundId} on this deployment.`
+                : sel.history.error
+                  ? 'Retry the failed reads above; a failed request does not mean no rounds exist.'
+                  : 'The ledger fills once the first round starts.'}
+            </p>
           </InkBox>
         </div>
       ) : (
@@ -155,6 +190,18 @@ export function LedgerTab() {
                 { value: 'odd', label: 'odd' },
               ]}
             />
+            {mode === 1 && myTeamId !== null ? (
+              <RadioChips
+                label="Teams"
+                value={teamFilter}
+                onChange={setTeamFilter}
+                small
+                options={[
+                  { value: 'all', label: 'all teams' },
+                  { value: 'mine', label: 'my team' },
+                ]}
+              />
+            ) : null}
             <Chip pressed={sort === 'old'} small onClick={() => setSort(s => (s === 'new' ? 'old' : 'new'))}>
               oldest first
             </Chip>
@@ -241,11 +288,11 @@ export function LedgerTab() {
           ) : (
             <InkBox className="mt-5 p-2.5 md:p-4" fill="#fff" tilt={-0.3}>
               <div
-                className={`${GRID} border-b-4 border-ink px-2 pb-2 pt-2 font-display text-[18px] font-black uppercase tracking-wider`}
+                className={`hidden ${COLS} border-b-4 border-ink px-2 pb-2 pt-2 font-display text-[18px] font-black uppercase tracking-wider md:grid`}
                 aria-hidden="true"
               >
                 <span>#</span>
-                <span className="max-md:hidden">Player</span>
+                <span className="max-md:hidden">{mode === 1 ? 'Team · player' : 'Player'}</span>
                 <span className="max-md:hidden">Number</span>
                 <span className="md:hidden">Play</span>
                 <span className="max-md:hidden">Word</span>
@@ -293,14 +340,35 @@ export function LedgerTab() {
                             onClick={() => setOpen(r.logIdx)}
                             aria-label={`Play ${r.logIdx}: ${r.account}, ${pad3(r.number)} ${r.word}, ${r.verdict ? 'YES' : 'NO'}. Open details.`}
                             aria-pressed={open === r.logIdx}
-                            className={`${GRID} mono h-full w-full border-b-2 border-dashed border-ink/30 px-2 text-left text-[14px] font-semibold hover:bg-sun/40 ${open === r.logIdx ? 'bg-sun/60' : ''}`}
+                            className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 ${COLS} mono h-full w-full border-b-2 border-dashed border-ink/30 px-2 text-left text-[14px] font-semibold hover:bg-sun/40 ${open === r.logIdx ? 'bg-sun/60' : ''}`}
                           >
-                            <span>{r.logIdx}</span>
-                            <span className="truncate max-md:hidden">{r.account}</span>
-                            <span className="max-md:hidden">{pad3(r.number)}</span>
-                            <span className="md:hidden">
-                              {pad3(r.number)} {r.word}
+                            <span className="min-w-0 md:hidden">
+                              <span className="block truncate font-sans text-[20px] font-extrabold leading-tight">
+                                {pad3(r.number)} <span className="font-semibold">{r.word}</span>
+                              </span>
+                              <span className="block truncate text-[12px] font-bold text-ink-soft">
+                                #{r.logIdx} ·{' '}
+                                {mode === 1 ? `${teamLabel(r.entityId, names.get(r.entityId))} · ` : ''}
+                                {r.account}
+                                {r.minted > 0n ? ' · minted RULE' : ''}
+                              </span>
                             </span>
+                            <span className="max-md:hidden">{r.logIdx}</span>
+                            <span className="truncate max-md:hidden">
+                              {mode === 1 ? (
+                                <>
+                                  <span className="block truncate font-sans text-[15px] font-extrabold leading-tight">
+                                    {teamLabel(r.entityId, names.get(r.entityId))}
+                                  </span>
+                                  <span className="block truncate text-[12px] font-bold text-ink-soft">
+                                    {r.account}
+                                  </span>
+                                </>
+                              ) : (
+                                r.account
+                              )}
+                            </span>
+                            <span className="max-md:hidden">{pad3(r.number)}</span>
                             <span className="truncate max-md:hidden">{r.word}</span>
                             <span className="max-md:hidden">{r.minuteDigit}</span>
                             <span>

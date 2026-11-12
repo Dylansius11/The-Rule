@@ -1,10 +1,59 @@
+# Cloudflare Pages `_headers`. Rules whose patterns all match a URL are merged, and a header named twice is joined
+# with a comma, so each header below is set by exactly one rule per URL (the HTML rule and the /assets/* rule
+# never overlap). Not set on purpose: Content-Security-Policy, Cross-Origin-Opener-Policy and
+# Cross-Origin-Embedder-Policy. The wallet connector loads wallet scripts from remote manifests and talks to
+# popup and iframe wallets, which a strict CSP or COOP/COEP would block.
 /*
   X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+# The app shell: always revalidate, so a new deploy is picked up on the next visit.
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Vite output carries a content hash in every file name, so a changed file is a new URL.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
 
 /*.wasm
   Content-Type: application/wasm
 
 /art/*
   Cache-Control: public, max-age=86400
+
+# Sounds and music keep their names across edits, so they revalidate hourly.
+/sfx/*
+  Cache-Control: public, max-age=3600
+
+/music/*
+  Cache-Control: public, max-age=3600
+
+/CONTEXT.md
+  Content-Type: text/plain; charset=utf-8
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300
+
+/llms.txt
+  Content-Type: text/plain; charset=utf-8
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300
+
+/grammar.json
+  Content-Type: application/json; charset=utf-8
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300
+
+/docs/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300
+
+/docs/*.md
+  Content-Type: text/plain; charset=utf-8
+
+/docs/index.json
+  Content-Type: application/json; charset=utf-8

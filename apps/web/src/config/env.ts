@@ -1,9 +1,11 @@
+import type { NearConnector } from '@hot-labs/near-connect';
+
 /**
  * Public, build-time configuration. Every value is a public account id or URL, never a secret.
  * Defaults point at the key-retaining testnet rehearsal deployment (r2).
  */
 
-export type NetworkId = 'testnet';
+export type NetworkId = 'testnet' | 'sandbox';
 
 /** What a deployment honestly is. The UI label comes from this, never from guesswork. */
 export type DeploymentKind =
@@ -22,6 +24,23 @@ export interface Deployment {
 
 const env = import.meta.env;
 
+/** Dedicated e2e mode only. Playwright injects public config and a keyless wallet bridge. */
+export const e2e =
+  import.meta.env.MODE === 'e2e'
+    ? (
+        globalThis as typeof globalThis & {
+          __THE_RULE_E2E__?: {
+            rpcUrl: string;
+            game: string;
+            token: string;
+            connector: NearConnector;
+          };
+        }
+      ).__THE_RULE_E2E__
+    : undefined;
+if (import.meta.env.MODE === 'e2e' && !e2e)
+  throw new Error('E2E mode requires the injected local chain configuration');
+
 function read(name: string, fallback: string): string {
   const value = env[name] as string | undefined;
   return value && value.trim() !== '' ? value.trim() : fallback;
@@ -34,20 +53,22 @@ function kind(name: string, fallback: DeploymentKind): DeploymentKind {
 }
 
 export const config = {
-  network: 'testnet' as NetworkId,
-  rpcUrls: [
-    read('VITE_RPC_URL', 'https://test.rpc.fastnear.com'),
-    read('VITE_RPC_FALLBACK_URL', 'https://rpc.testnet.near.org'),
-  ],
+  network: (e2e ? 'sandbox' : 'testnet') as NetworkId,
+  rpcUrls: e2e
+    ? [e2e.rpcUrl]
+    : [
+        read('VITE_RPC_URL', 'https://near-testnet.drpc.org'),
+        read('VITE_RPC_FALLBACK_URL', 'https://test.rpc.fastnear.com'),
+      ],
   explorerTx: (hash: string) => `https://testnet.nearblocks.io/txns/${hash}`,
   explorerAccount: (account: string) => `https://testnet.nearblocks.io/address/${account}`,
   explorerBlock: (height: number | string) => `https://testnet.nearblocks.io/blocks/${height}`,
   main: {
     kind: kind('VITE_GAME_KIND', 'rehearsal'),
-    game: read('VITE_GAME_ACCOUNT', 'game-r2.therule.testnet'),
-    token: read('VITE_TOKEN_ACCOUNT', 'token-r2.therule.testnet'),
+    game: e2e?.game ?? read('VITE_GAME_ACCOUNT', 'game-r2.therule.testnet'),
+    token: e2e?.token ?? read('VITE_TOKEN_ACCOUNT', 'token-r2.therule.testnet'),
   } satisfies Deployment,
-  /** Absent until the separate preselected-rule demo instance is deployed. */
+  /** Unavailable to this build unless both separate Demo contract accounts are explicitly configured. */
   demo: ((): Deployment | null => {
     const game = read('VITE_DEMO_GAME_ACCOUNT', '');
     const token = read('VITE_DEMO_TOKEN_ACCOUNT', '');
@@ -59,8 +80,29 @@ export type DeploymentChoice = 'main' | 'demo';
 
 const CHOICE_KEY = 'the-rule:deployment';
 
+/** The `deployment` query value of a shared link, only when it is exactly `main` or `demo`. */
+export function choiceFromSearch(search: string): DeploymentChoice | null {
+  const value = new URLSearchParams(search).get('deployment');
+  return value === 'main' || value === 'demo' ? value : null;
+}
+
+/**
+ * A shared link names the deployment its ids belong to, so a friend's browser, which may remember the other
+ * one, opens the right game. The link wins once: it is saved as the choice and removed from the address bar,
+ * so the Live / Demo switch is not overridden on the next load.
+ */
 function readChoice(): DeploymentChoice {
   try {
+    if (typeof location !== 'undefined') {
+      const linked = choiceFromSearch(location.search);
+      if (linked) {
+        localStorage.setItem(CHOICE_KEY, linked);
+        const url = new URL(location.href);
+        url.searchParams.delete('deployment');
+        history.replaceState(history.state, '', url);
+        return linked;
+      }
+    }
     return typeof localStorage !== 'undefined' && localStorage.getItem(CHOICE_KEY) === 'demo'
       ? 'demo'
       : 'main';
@@ -84,6 +126,7 @@ export function chooseDeployment(choice: DeploymentChoice): void {
 
 /** The exact public label for each deployment kind. Copy is fixed by CLAUDE.md honesty rules. */
 export function deploymentLabel(kind: DeploymentKind): string {
+  if (e2e) return 'Sandbox with mock OutLayer, not testnet evidence';
   switch (kind) {
     case 'demo':
       return 'Demo Mode - preselected rule';

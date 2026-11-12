@@ -1,14 +1,16 @@
 import { useTeamActions } from '@/game';
 import type { Team } from '@/game/types';
 import { ActionSlip } from '@/ui/ActionSlip';
+import { Amount } from '@/ui/Amount';
 import { InkBox } from '@/ui/InkBox';
 import { Tag } from '@/ui/Tag';
 import { busy } from './parts';
+import { depositShares, showCaptainBadge } from './vault';
 
 export function Roster({ team, me }: { team: Team; me: string }) {
   const { remove } = useTeamActions();
   const captain = team.captain === me;
-  const weight = (acct: string) => team.deposits.find(d => d.account === acct)?.weight ?? 0n;
+  const shares = new Map(depositShares(team).map(s => [s.account, s]));
   return (
     <InkBox className="p-5" fill="#fff" tilt={-0.6}>
       <h3 className="display text-[34px] leading-none">Roster</h3>
@@ -24,9 +26,16 @@ export function Roster({ team, me }: { team: Team; me: string }) {
             >
               <div className="mono break-all text-[14px] font-bold">{m}</div>
               <div className="mt-1 flex flex-wrap items-center gap-2">
-                {m === team.captain ? <Tag tone="grape">captain</Tag> : null}
+                {m === team.captain && showCaptainBadge(team) ? <Tag tone="grape">captain</Tag> : null}
                 {m === me ? <Tag tone="soft">you</Tag> : null}
-                <span className="mono text-[12px] font-bold">weight {weight(m).toString()}</span>
+                {shares.get(m) ? (
+                  <span className="text-[13px] font-bold">
+                    put in <Amount kind="near" value={shares.get(m)!.amount} digits={3} />
+                    {team.members.length > 1 ? ` · ${shares.get(m)!.percent}%` : ''}
+                  </span>
+                ) : (
+                  <span className="text-[13px] font-bold">no deposit yet</span>
+                )}
               </div>
               {captain && m !== me ? (
                 <button
@@ -46,7 +55,10 @@ export function Roster({ team, me }: { team: Team; me: string }) {
         <p className="mono mt-3 text-[13px] font-bold">Invited, not yet joined: {team.invites.join(', ')}</p>
       ) : null}
       {team.activeRound !== null ? (
-        <p className="mt-3 font-bold">The roster is locked until round {team.activeRound} ends.</p>
+        <p className="mt-3 font-bold">
+          The roster is locked to round {team.activeRound}. It opens once that round has ended and the team is
+          unlocked (Claim all does it).
+        </p>
       ) : null}
       <div className="mt-3">
         <ActionSlip

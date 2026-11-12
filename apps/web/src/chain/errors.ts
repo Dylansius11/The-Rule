@@ -1,10 +1,15 @@
 import type { UiError } from '@/game/types';
+import { isRateLimited, isUnreachable, RpcError } from './rpc';
 
 const noCharge = 'No game charge was applied; transaction gas may apply.';
 const retry = 'Check the round and try again when the action is available.';
 const messages: Record<string, Pick<UiError, 'title' | 'funds' | 'next'>> = {
   E10: { title: 'The round is not in the right phase', funds: noCharge, next: retry },
-  E11: { title: 'The input is invalid', funds: noCharge, next: retry },
+  E11: {
+    title: 'The input is invalid',
+    funds: noCharge,
+    next: 'Check the field constraints. Team names need 3–24 ASCII lowercase letters, digits or hyphens.',
+  },
   E12: { title: 'That play is already pending', funds: noCharge, next: retry },
   E13: { title: 'A play is already pending', funds: noCharge, next: retry },
   E14: { title: 'The attempt limit was reached', funds: noCharge, next: retry },
@@ -22,7 +27,11 @@ const messages: Record<string, Pick<UiError, 'title' | 'funds' | 'next'>> = {
   E22: { title: 'The referee compute balance is insufficient', funds: noCharge, next: retry },
   E23: { title: 'The referee is at capacity', funds: noCharge, next: retry },
   E24: { title: 'The operator storage reserve is insufficient', funds: noCharge, next: retry },
-  E30: { title: 'The team is locked', funds: noCharge, next: retry },
+  E30: {
+    title: 'The team is locked',
+    funds: noCharge,
+    next: 'The team is still tied to an earlier round. Press “Claim all” on the Team desk or the Account page to unlock it, then try again.',
+  },
   E31: { title: 'The team is full', funds: noCharge, next: retry },
   E32: { title: 'You are not in a team', funds: noCharge, next: retry },
   E33: { title: 'This action requires an invitation or captain permission', funds: noCharge, next: retry },
@@ -97,6 +106,25 @@ export function toUiError(error: unknown): UiError {
     };
   }
   if (code && messages[code]) return { code, ...messages[code], retryable: true };
+  if (error instanceof RpcError) {
+    // A failed read, not a failed transaction. The wording stays safe if it lands right after a send.
+    return {
+      code: null,
+      title: isRateLimited(error)
+        ? 'The chain data service is busy'
+        : isUnreachable(error)
+          ? 'Could not reach the chain'
+          : 'Could not read the chain',
+      funds:
+        'Reading the chain never spends anything. If you just sent a transaction, check the ledger before sending it again.',
+      next: isRateLimited(error)
+        ? 'Too many requests reached the public node. Wait a few seconds and try again.'
+        : isUnreachable(error)
+          ? 'The public node may be busy, or your connection is down. Wait a few seconds and try again.'
+          : 'Check your connection and try again.',
+      retryable: true,
+    };
+  }
   return {
     code,
     title: 'Could not complete the request',

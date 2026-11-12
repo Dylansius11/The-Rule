@@ -72,9 +72,44 @@ export function SettingsPanel({ onNavigate }: { onNavigate?: () => void }) {
             aria-valuetext={`${Math.round(sound.volume * 100)} percent`}
           />
         </div>
-        <p className="text-[14px] font-semibold text-ink-soft">
-          Short sounds that answer what you do. Never on page load, never music.
-        </p>
+        <p className="text-[14px] font-semibold text-ink-soft">Short sounds that answer what you do.</p>
+      </div>
+
+      <div>
+        <div className="flex min-h-[44px] items-center justify-between gap-3">
+          <label htmlFor={`${uid}-music`} className="font-extrabold">
+            Music
+          </label>
+          <Switch
+            id={`${uid}-music`}
+            label="Music"
+            checked={sound.music.enabled}
+            onChange={on => {
+              sound.setMusicEnabled(on);
+              sound.play('toggle');
+            }}
+          />
+        </div>
+        <div className="flex min-h-[44px] items-center gap-3">
+          <label htmlFor={`${uid}-music-vol`} className="mono text-[13px] font-bold uppercase tracking-wider">
+            Volume
+          </label>
+          <input
+            id={`${uid}-music-vol`}
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={sound.music.volume}
+            disabled={!sound.music.enabled}
+            onChange={e => sound.setMusicVolume(Number(e.target.value))}
+            onPointerUp={() => sound.play('tap')}
+            className="range min-w-0 flex-1"
+            aria-label="Music volume"
+            aria-valuetext={`${Math.round(sound.music.volume * 100)} percent`}
+          />
+        </div>
+        <p className="text-[14px] font-semibold text-ink-soft">Music starts after your first tap.</p>
       </div>
 
       <div>

@@ -1,30 +1,37 @@
 import { useState } from 'react';
 import { formatRule } from '@/chain/format';
-import { useLatestRound, useLock, useLockActions, useParams, useWallet } from '@/game';
+import { useLatestRound, useNextSlot, useLock, useLockActions, useParams, useWallet } from '@/game';
+import { nameTiers } from '@/game/tiers';
+import { lockTarget } from '@/game/lock-target';
+import { TokenRegistration } from './TokenRegistration';
 import type { Mode } from '@/game/types';
 import { ActionSlip } from '@/ui/ActionSlip';
 import { Button } from '@/ui/Button';
 import { RadioChips } from '@/ui/Chip';
-import { Doodle } from '@/ui/Doodle';
 import { InkBox } from '@/ui/InkBox';
 import { ModePicker } from '../shared/ModePicker';
 import { modeName, phaseLabel } from '../shared/round';
 
-/** Lock RULE for extra attempts in a scheduled round, and register the account for the token. Done means sent, never "locked". */
+/** Target the Sealing or next round; older materialized rounds remain selectable for unlocking. */
 export function LockPanel() {
   const { accountId } = useWallet();
   const [mode, setMode] = useState<Mode>(0);
   const params = useParams();
   const latest = useLatestRound(mode);
   const round = latest.data ?? null;
-  const lockQ = useLock(mode, round?.roundId ?? null, accountId);
-  const actions = useLockActions(mode, round?.roundId ?? 0);
+  const next = useNextSlot(mode);
+  const target = latest.isSuccess ? lockTarget(round, next.data?.roundId) : null;
+  const [selection, setSelection] = useState<'upcoming' | 'latest'>('upcoming');
+  const selectedId = selection === 'latest' ? (round?.roundId ?? null) : target;
+  const lockQ = useLock(mode, selectedId, accountId);
+  const actions = useLockActions(mode, selectedId ?? 0);
   const [tier, setTier] = useState<number | null>(null);
-  const tiers = params.data?.lockTiers ?? [];
+  const tiers = nameTiers(params.data?.lockTiers ?? []);
   const chosen = tier === null ? null : (tiers[tier] ?? null);
-  const scheduled = round?.phase === 'Scheduled';
+  const lockable = selectedId != null && selectedId === target;
   const locked = lockQ.data ?? 0n;
-  const ended = !!round && ['Settled', 'Cancelled', 'Void'].includes(round.phase);
+  const ended =
+    selectedId === round?.roundId && !!round && ['Settled', 'Cancelled', 'Void'].includes(round.phase);
   const busy = (s: { kind: string }) => s.kind === 'signing' || s.kind === 'pending';
 
   return (
@@ -36,18 +43,50 @@ export function LockPanel() {
           onChange={m => {
             setMode(m);
             setTier(null);
+            setSelection('upcoming');
           }}
           label="Lock mode"
         />
       </div>
       <p className="mt-2 text-[16px] font-semibold">
-        Locking RULE before a round adds attempts (extra attempts still pay the play fee). It comes back after
-        the round and is never forfeited.
+        Optional. Without any RULE you still play with the base attempts (Solo 25, Team 50). Locking RULE
+        before a round adds attempts for that round; extra attempts still pay the play fee. The RULE comes
+        back after the round and is never forfeited. In a Team round every member locks their own RULE, and
+        the team gets the sum.
       </p>
+      <div className="mt-3">
+        <RadioChips
+          label="Lock round"
+          value={selection}
+          onChange={setSelection}
+          small
+          options={[
+            {
+              value: 'upcoming' as const,
+              label:
+                target == null
+                  ? 'Reading next round…'
+                  : `${modeName(mode)} round ${target} · ${round?.phase === 'Sealing' ? 'Sealing' : 'next slot'}`,
+            },
+            ...(round && round.roundId !== target
+              ? [
+                  {
+                    value: 'latest' as const,
+                    label: `Round ${round.roundId} · ${phaseLabel(round.phase)} (unlock)`,
+                  },
+                ]
+              : []),
+          ]}
+        />
+      </div>
       <p className="mono mt-3 text-[14px] font-bold">
-        {round
-          ? `${modeName(mode)} round ${round.roundId} · ${phaseLabel(round.phase)} · your lock ${formatRule(locked)} RULE`
-          : `No ${modeName(mode).toLowerCase()} round to lock for.`}
+        {selectedId == null
+          ? 'Reading the lock target…'
+          : `${modeName(mode)} round ${selectedId} · your lock ${formatRule(locked)} RULE`}
+      </p>
+      <p className="mt-2 font-semibold">
+        A new lock applies only to the selected Sealing round or next slot, never to an investigation already
+        in progress. Each new round lock pays a storage charge from your play credit.
       </p>
       {tiers.length === 0 ? null : (
         <div className="mt-3">
@@ -55,25 +94,24 @@ export function LockPanel() {
             label="Lock tier"
             value={tier}
             onChange={setTier}
-            disabled={!scheduled}
+            disabled={!lockable}
             small
             options={tiers.map((t, i) => ({
               value: i,
-              label: `${formatRule(t.amount)} RULE → +${t.extraAttempts}`,
+              label: `${t.name} · ${formatRule(t.amount)} RULE → +${t.extraAttempts}`,
             }))}
           />
         </div>
       )}
-      {!scheduled ? (
+      {!lockable ? (
         <p className="mt-3 font-bold">
-          Locks are accepted only for a scheduled round.{' '}
-          {round ? `This one is ${phaseLabel(round.phase).toLowerCase()}.` : ''}
+          This round cannot receive new locks. Select the next slot or Sealing round.
         </p>
       ) : null}
       <div className="mt-4 flex flex-wrap gap-3">
         <Button
           variant="grape"
-          disabled={!scheduled || chosen === null}
+          disabled={!lockable || chosen === null}
           busy={busy(actions.lock.state)}
           onClick={() => chosen && actions.lock.run(chosen.amount)}
         >
@@ -100,27 +138,7 @@ export function LockPanel() {
           doneText="Unlock sent. The RULE returns asynchronously: your balance updates when the token confirms."
         />
       </div>
-      <div className="mt-5 flex flex-wrap items-center gap-4 border-t-[3px] border-dashed border-ink/40 pt-4">
-        <Doodle name="doodles/key" size={36} />
-        <p className="min-w-0 flex-1 font-semibold">
-          Minted RULE needs your account registered with the token once.
-        </p>
-        <Button
-          variant="paper"
-          size="sm"
-          busy={busy(actions.register.state)}
-          onClick={() => actions.register.run()}
-        >
-          Register for RULE
-        </Button>
-      </div>
-      <div className="mt-3">
-        <ActionSlip
-          state={actions.register.state}
-          onReset={actions.register.reset}
-          doneText="Registration sent. If you were already registered nothing changes."
-        />
-      </div>
+      <TokenRegistration />
     </InkBox>
   );
 }

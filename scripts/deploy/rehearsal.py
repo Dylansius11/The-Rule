@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare or explicitly execute a testnet-only, key-retaining rehearsal."""
+"""Prepare or explicitly execute a testnet-only, key-retaining deployment."""
 import argparse
 import hashlib
 import json
@@ -99,11 +99,20 @@ def referee_manifest(data):
 
 
 def prepare(config):
-    obj(config, ("network", "game_account", "token_account", "game_wasm", "token_wasm", "referee_wasm", "referee_sha256", "referee_build_log", "token_cap", "token_metadata", "demo", "params", "init_gas", "token_storage_deposit", "registration_payer", "registration_gas", "token_operation_funding", "operation_funding_payer", "operation_funding_gas"), 'config')
+    obj(config, ("deployment_kind", "network", "game_account", "token_account", "game_wasm", "token_wasm", "referee_wasm", "referee_sha256", "referee_build_log", "token_cap", "token_metadata", "demo", "params", "init_gas", "token_storage_deposit", "registration_payer", "registration_gas", "token_operation_funding", "operation_funding_payer", "operation_funding_gas"), 'config')
     require(config['network'] == 'testnet', 'network must be testnet')
+    kind = config['deployment_kind']
+    require(kind in ('rehearsal', 'demo', 'production'), 'deployment_kind must be rehearsal, demo or production')
     game, token = config['game_account'], config['token_account']
     account(game, 'game_account'); account(token, 'token_account')
     require(game != token, 'game and token must be different accounts')
+    if kind == 'rehearsal':
+        require(re.fullmatch(r'game-r[1-9][0-9]*\.therule\.testnet', game) is not None and token == game.replace('game-r', 'token-r', 1), 'rehearsal accounts must be matching game-rN/token-rN.therule.testnet')
+    elif kind == 'production':
+        require(game == 'game.therule.testnet' and token == 'token.therule.testnet', 'production accounts must be game.therule.testnet and token.therule.testnet')
+    else:
+        match = re.fullmatch(r'demo-game(-r[1-9][0-9]*)?\.therule\.testnet', game)
+        require(match is not None and token == 'demo-token' + (match.group(1) or '') + '.therule.testnet', 'demo accounts must be matching demo-game/demo-token, optionally with matching -rN')
     account(config['registration_payer'], 'registration_payer')
     amount(config['token_storage_deposit'], 'token_storage_deposit', True)
     uint(config['registration_gas'], 64, 'registration_gas', True)
@@ -123,16 +132,19 @@ def prepare(config):
     build_log = Path(config['referee_build_log']).read_text(encoding='utf-8')
     callers = re.findall(r'^Caller: ([^\r\n]+)\r?$', build_log, re.MULTILINE)
     hashes = re.findall(r'^([0-9a-f]{64})[ \t]+(?:\*?)[^\r\n]+$', build_log, re.MULTILINE)
+    features = re.findall(r'^Feature: ([^\r\n]+)\r?$', build_log, re.MULTILINE)
     require(callers == [game] and hashes == [digest], 'referee build log must record exactly this caller and sha256')
+    require(features == (['demo'] if kind == 'demo' else ['production']), 'referee build feature does not match deployment kind')
     manifest = template.replace('<GAME_ACCOUNT_PLACEHOLDER>', game).encode()
     require(len(blobs['referee']) < 10 * 1024 * 1024, 'referee exceeds OutLayer size limit')
     require(referee_manifest(blobs['referee']) == manifest, 'referee embedded build manifest does not bind this game')
-    require(b'RULE_DEMO' not in blobs['referee'], 'demo referee bytes are not allowed for this rehearsal')
+    require((b'RULE_DEMO' in blobs['referee']) == (kind == 'demo'), 'referee artifact feature does not match deployment kind')
     amount(config['token_cap'], 'token_cap', True)
-    require(re.fullmatch(r'game-r[1-9][0-9]*\.therule\.testnet', game) is not None and token == game.replace('game-r', 'token-r', 1), 'rehearsal accounts must be matching game-rN/token-rN.therule.testnet')
     metadata = obj(config['token_metadata'], ('spec', 'name', 'symbol', 'decimals'), 'token_metadata')
     require(metadata['spec'] == 'ft-1.0.0' and isinstance(metadata['name'], str) and bool(metadata['name']) and metadata['symbol'] == 'RULE' and metadata['decimals'] == 18, 'invalid token metadata')
     require(type(config['demo']) is bool, 'demo must be boolean')
+    require(kind != 'demo' or config['demo'], 'demo deployment requires demo=true')
+    require(kind != 'production' or not config['demo'], 'production deployment requires demo=false')
     uint(config['init_gas'], 64, 'init_gas', True)
     require(config['init_gas'] <= 300_000_000_000_000, 'init_gas exceeds 300 Tgas')
     p = obj(config['params'], PARAM_KEYS, 'params')
@@ -141,12 +153,13 @@ def prepare(config):
     for key in AMOUNTS:
         amount(p[key], key, key == 'round_allowance')
     for key in U64:
-        uint(p[key], 64, key, key in ('round_period_ns', 'gas_outlayer', 'gas_callback', 'gas_mint'))
+        uint(p[key], 64, key, key in ('round_period_ns', 'investigation_max_ns', 'gas_outlayer', 'gas_callback', 'gas_mint'))
     require(p['gas_callback'] >= 60_000_000_000_000 and p['gas_outlayer'] >= 100_000_000_000_000 and p['gas_mint'] >= 10_000_000_000_000 and p['gas_outlayer'] + p['gas_callback'] <= 250_000_000_000_000 and p['gas_mint'] + p['gas_callback'] <= 250_000_000_000_000, 'invalid game gas limits')
     require(int(p['mint_base']) <= int(p['round_allowance']), 'mint_base exceeds round_allowance')
     for key, (length, bits) in ARRAYS.items():
         require(isinstance(p[key], list) and len(p[key]) == length, f'{key}: invalid array')
         for n in p[key]: uint(n, bits, key)
+    require(all(offset < p['round_period_ns'] for offset in p['mode_offset_ns']), 'mode offsets must be less than the round period')
     uint(p['wrong_return_bps'], 16, 'wrong_return_bps')
     uint(p['max_team_size'], 8, 'max_team_size')
     require(isinstance(p['lock_tiers'], list) and len(p['lock_tiers']) <= 3, 'lock_tiers must contain at most three tiers')
@@ -159,7 +172,18 @@ def prepare(config):
         byte_cost = 10_000_000_000_000_000_000  # Current protocol price; on-chain init rechecks its actual runtime price.
         require(int(p['storage_charge_account']) >= 512 * byte_cost and int(p['storage_charge_per_play']) >= 2048 * byte_cost and int(p['storage_charge_team']) >= 2048 * byte_cost, 'production storage charges below lifetime record budgets')
         require(p['genesis_ns'] >= time.time_ns() + 7_200_000_000_000 and p['round_period_ns'] >= 3_600_000_000_000 and min(p['reveal_window_ns'], p['begin_timeout_ns'], p['open_timeout_ns']) >= 600_000_000_000, 'non-demo schedule violates deployment bounds')
-    ref = obj(p['referee'], ('outlayer', 'urls', 'hash', 'build_target'), 'referee')
+        duration = p['investigation_max_ns'] + p['reveal_window_ns']
+        require(duration < 2**64 and duration <= min(p['round_period_ns'], 86_400_000_000_000), 'production investigation and reveal exceed duration bounds')
+        require(all(p['genesis_ns'] + offset + p['round_period_ns'] < 2**64 for offset in p['mode_offset_ns']), 'production schedule overflows u64')
+    ref = p['referee']
+    require(isinstance(ref, dict) and set(ref) in (set(('outlayer', 'urls', 'hash', 'build_target')), set(('outlayer', 'urls', 'hash', 'build_target', 'demo_secrets_ref'))), 'referee: invalid fields')
+    secret_ref = ref.get('demo_secrets_ref')
+    if kind == 'demo':
+        secret_ref = obj(secret_ref, ('profile', 'account_id'), 'demo_secrets_ref')
+        require(isinstance(secret_ref['profile'], str) and re.fullmatch(r'[A-Za-z0-9_-]{1,64}', secret_ref['profile']) is not None, 'demo secret profile: invalid')
+        account(secret_ref['account_id'], 'demo secret account_id')
+    else:
+        require(secret_ref is None, 'rehearsal must not use demo_secrets_ref')
     require(ref['outlayer'] == 'outlayer.testnet' and ref['hash'] == digest and ref['build_target'] == 'wasm32-wasip2', 'referee configuration mismatch')
     require(isinstance(ref['urls'], list) and 1 <= len(ref['urls']) <= 2, 'one or two referee URLs required')
     for url in ref['urls']:
@@ -180,7 +204,8 @@ def prepare(config):
     registration_args = {'account_id': game, 'registration_only': True}
     registration = ['near-rule', 'contract', 'call-function', 'as-transaction', token, 'storage_deposit', 'json-args', json.dumps(registration_args, separators=(',', ':')), 'prepaid-gas', cli_gas(config['registration_gas']), 'attached-deposit', config['token_storage_deposit'] + ' yoctoNEAR', 'sign-as', config['registration_payer'], 'network-config', 'testnet', 'sign-with-legacy-keychain', 'send']
     funding = ['near-rule', 'contract', 'call-function', 'as-transaction', token, 'fund_operations', 'json-args', '{}', 'prepaid-gas', cli_gas(config['operation_funding_gas']), 'attached-deposit', config['token_operation_funding'] + ' yoctoNEAR', 'sign-as', config['operation_funding_payer'], 'network-config', 'testnet', 'sign-with-legacy-keychain', 'send']
-    return {'label': 'TESTNET REHEARSAL — KEYS RETAINED' + ('; compressed schedule; non-demo referee; no preselected rule' if config['demo'] else '; non-demo schedule'), 'sha256': {name: hashlib.sha256(data).hexdigest() for name, data in blobs.items()}, 'token_init': token_args, 'game_init': game_args, 'game_token_registration': {'args': registration_args, 'deposit': config['token_storage_deposit'], 'payer': config['registration_payer']}, 'token_operation_funding': {'deposit': config['token_operation_funding'], 'payer': config['operation_funding_payer'], 'nonrefundable': True}, 'commands': [command('token', token_args), funding, command('game', game_args), registration]}
+    label = {'demo': 'Demo Mode - preselected rule', 'production': 'PRODUCTION (testnet) - keys deleted only by scripts/ceremony'}.get(kind) or 'TESTNET REHEARSAL — KEYS RETAINED' + ('; compressed schedule; non-demo referee; no preselected rule' if config['demo'] else '; non-demo schedule')
+    return {'label': label, 'deployment_kind': kind, 'sha256': {name: hashlib.sha256(data).hexdigest() for name, data in blobs.items()}, 'token_init': token_args, 'game_init': game_args, 'game_token_registration': {'args': registration_args, 'deposit': config['token_storage_deposit'], 'payer': config['registration_payer']}, 'token_operation_funding': {'deposit': config['token_operation_funding'], 'payer': config['operation_funding_payer'], 'nonrefundable': True}, 'commands': [command('token', token_args), funding, command('game', game_args), registration]}
 
 
 def main():
@@ -199,6 +224,8 @@ def main():
     if not args.execute:
         print('OFFLINE: no network, signature or transaction. Review prerequisites before authorized execution.')
         return
+    if plan['deployment_kind'] == 'production':
+        raise ValueError('production is deployed only through scripts/ceremony/ceremony.py')
     print('Executing token, operation funding, game, then game token registration; stop on failure. Keys are retained.', flush=True)
     for command in plan['commands']:
         subprocess.run(command, check=True)

@@ -27,7 +27,11 @@ const messages: Record<string, Pick<UiError, 'title' | 'funds' | 'next'>> = {
   E22: { title: 'The referee compute balance is insufficient', funds: noCharge, next: retry },
   E23: { title: 'The referee is at capacity', funds: noCharge, next: retry },
   E24: { title: 'The operator storage reserve is insufficient', funds: noCharge, next: retry },
-  E30: { title: 'The team is locked', funds: noCharge, next: retry },
+  E30: {
+    title: 'The team is locked',
+    funds: noCharge,
+    next: 'The team is still tied to an earlier round. Press “Claim all” on the Team desk or the Account page to unlock it, then try again.',
+  },
   E31: { title: 'The team is full', funds: noCharge, next: retry },
   E32: { title: 'You are not in a team', funds: noCharge, next: retry },
   E33: { title: 'This action requires an invitation or captain permission', funds: noCharge, next: retry },

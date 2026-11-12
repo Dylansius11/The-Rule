@@ -11,6 +11,7 @@ import { PageHead } from '@/screens/shared/PageHead';
 import { InTeam } from './crew/InTeam';
 import { NoTeam } from './crew/NoTeam';
 import { PastRounds } from './crew/PastRounds';
+import { ClaimAll } from '@/screens/shared/ClaimAll';
 
 /** The crew desk: roster, vault, locks, settle. Reached from the Team room's Crew tab. */
 export function CrewTab() {
@@ -69,13 +70,23 @@ export function CrewTab() {
           </p>
         ) : teamId !== null && team.data ? (
           <>
+            <ClaimAll />
             <InTeam team={team.data} me={accountId} />
             <HashText value={accountId} kind="account" full label="account" />
           </>
         ) : (
           <NoTeam />
         )}
-        {wallet.status === 'connected' ? <PastRounds teamIdGuess={teamId} /> : null}
+        {wallet.status === 'connected' ? (
+          <details>
+            <summary className="min-h-[44px] cursor-pointer font-extrabold underline decoration-2 underline-offset-2">
+              Unlock or claim one specific round by hand
+            </summary>
+            <div className="mt-3">
+              <PastRounds teamIdGuess={teamId} />
+            </div>
+          </details>
+        ) : null}
       </div>
     </div>
   );

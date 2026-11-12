@@ -1,9 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { toUiError } from '@/chain/errors';
 import { getNearBalance } from '@/chain/rpc';
 import { discoverRoundHistory } from '@/chain/round-history';
 import { active } from '@/config/env';
 import * as v from '@/chain/views';
+import { isTerminalPhase, payoutTotal, planPayouts } from './payouts';
 import type { Mode, Round } from './types';
 
 /**
@@ -223,3 +224,52 @@ export const useTokenState = (account: string | null) =>
     enabled: !!account,
     refetchInterval: query => (query.state.data === 'pending' ? 4000 : ACCOUNT_POLL_MS),
   });
+
+/**
+ * What this account can collect now: unlock its team once that team's round has ended, and every observed ended
+ * round with something owed. Reads only; `useClaimAll` sends it.
+ */
+export function usePayouts(account: string | null) {
+  const player = usePlayer(account);
+  const teamId = player.data?.teamId ?? null;
+  const team = useTeam(teamId);
+  const activeRoundId = team.data?.activeRound ?? null;
+  const activeRound = useRound(1, activeRoundId);
+  const solo = useRoundHistory(0);
+  const teamRounds = useRoundHistory(1);
+  const candidates = [
+    ...solo.rounds.slice(0, 6).map(r => ({ mode: 0 as Mode, round: r })),
+    ...teamRounds.rounds.slice(0, 6).map(r => ({ mode: 1 as Mode, round: r })),
+  ].filter(c => isTerminalPhase(c.round.phase));
+  const owed = useQueries({
+    queries: candidates.map(c => ({
+      queryKey: ['claimable', c.mode, c.round.roundId, account],
+      queryFn: () => v.getClaimable(c.mode, c.round.roundId, account!),
+      enabled: !!account,
+    })),
+  });
+  const loading =
+    player.isLoading ||
+    team.isLoading ||
+    activeRound.isLoading ||
+    solo.loading ||
+    teamRounds.loading ||
+    owed.some(q => q.isLoading);
+  const items = planPayouts({
+    team:
+      team.data != null
+        ? {
+            teamId: team.data.teamId,
+            activeRound: team.data.activeRound,
+            activeRoundPhase: activeRound.data?.phase ?? null,
+          }
+        : null,
+    claims: candidates.map((c, i) => ({
+      mode: c.mode,
+      roundId: c.round.roundId,
+      phase: c.round.phase,
+      claimable: owed[i]?.data ?? 0n,
+    })),
+  });
+  return { items, total: payoutTotal(items), loading, error: solo.error ?? teamRounds.error ?? null };
+}

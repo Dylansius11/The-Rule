@@ -19,6 +19,7 @@ import { PlaySlip } from '@/ui/Slip';
 import { SpeechBubble } from '@/ui/SpeechBubble';
 import { timeAgo } from '@/chain/format';
 import { modeName, pad3 } from '@/screens/shared/round';
+import { ClaimAll } from '@/screens/shared/ClaimAll';
 import { RoundTimer } from '@/screens/shared/RoundTimer';
 import { WordPicker } from './WordPicker';
 
@@ -151,6 +152,7 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
 
   return (
     <div ref={desk} className="wrap grid items-start gap-6 md:grid-cols-[0.9fr_1.1fr] md:gap-11">
+      <ClaimAll className="md:col-span-2" />
       <InkBox
         className="relative px-5 pb-6 pt-7 text-center md:order-1 md:px-6"
         tilt={-1.2}

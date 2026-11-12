@@ -13,6 +13,7 @@ import { InkBox } from '@/ui/InkBox';
 import { Tag } from '@/ui/Tag';
 import { Link } from 'react-router';
 import { roomPath } from '@/app/paths';
+import { ClaimAll } from '../shared/ClaimAll';
 import { ClaimsPanel } from './ClaimsPanel';
 import { CreditPanel } from './CreditPanel';
 import { LockPanel } from './LockPanel';
@@ -262,6 +263,7 @@ export function AccountPage() {
         <LockPanel />
       </section>
       <section aria-label="Claims" className="mt-10">
+        <ClaimAll className="mb-6" />
         <ClaimsPanel />
       </section>
       <section aria-label="Token operation recovery" className="mt-10">

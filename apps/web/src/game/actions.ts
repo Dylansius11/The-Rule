@@ -8,6 +8,7 @@ import * as views from '@/chain/views';
 import { active } from '@/config/env';
 import { sendCall } from '@/chain/wallet';
 import { TEAM_NAME_HINT, validTeamName } from './team-name';
+import type { PayoutItem } from './payouts';
 import { commitHash, encodeRuleHex } from '@/verify';
 import type { ActionState, CanonicalRule, Mode, SavedGuess } from './types';
 
@@ -61,6 +62,48 @@ export function useClaimActions(mode: Mode, roundId: number) {
     claim: useAction<void>(() => calls.claim(mode, roundId)),
     claimTeam: useAction<number>(teamId => calls.claimTeam(mode, roundId, teamId)),
   };
+}
+
+/**
+ * "Claim all": sends the planned unlock and claims one after another and stops at the first failure, so the
+ * rest stay listed (the plan is recomputed from the chain). Each step is its own transaction: with a session
+ * key they sign silently, otherwise the wallet asks once per step.
+ */
+export function useClaimAll() {
+  const [state, setState] = useState<ActionState>({ kind: 'idle' });
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const query = useQueryClient();
+
+  function run(items: readonly PayoutItem[]) {
+    if (items.length === 0) return;
+    setState({ kind: 'signing' });
+    setProgress({ done: 0, total: items.length });
+    void (async () => {
+      let last: string | null = null;
+      for (const [index, item] of items.entries()) {
+        const result = checked(await sendPayout(item));
+        last = result.hash;
+        setProgress({ done: index + 1, total: items.length });
+      }
+      setState({ kind: 'pending', txHash: last });
+      await query.invalidateQueries();
+      setState({ kind: 'done', txHash: last, value: null });
+    })().catch(error => setState({ kind: 'error', error: toUiError(error) }));
+  }
+
+  function reset() {
+    setState({ kind: 'idle' });
+    setProgress(null);
+  }
+
+  return { state, progress, run, reset };
+}
+
+function sendPayout(item: PayoutItem): Promise<Outcome> {
+  if (item.kind === 'unlock') return calls.settleTeam(item.teamId);
+  return item.mode === 1 && item.teamId !== null
+    ? calls.claimTeam(1, item.roundId, item.teamId)
+    : calls.claim(item.mode, item.roundId);
 }
 
 /** The permissionless lifecycle calls the keeper normally sends: `advance` after plays close, `finalize` after the reveal window. */

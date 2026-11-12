@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-12: a team that played one round could not play the next until someone unlocked it
+
+- **What happened:** the founder's Team #1 stamped in round 340 and got "THE TEAM IS LOCKED E30" in round 341. Live chain state: `get_team(1).active_round = 340` with round 340 already Settled; the team's only way out was `settle_team`, a button hidden in the Crew tab under "After the round".
+- **Root cause:** the contract ties a team to its last round until `settle_team` returns the stakes to the vault (a deliberate accounting step), and nothing in the app or the keeper called it. The error text said only "check the round".
+- **Rule:** every contract step a player must take between rounds needs a visible, single action where they get stuck. `Claim all` now plans unlock plus claims from chain state and sends them in order; the planner is pure and tested (`game/payouts.ts`).
+
 ### 2026-11-12: a team invite link opened the wrong game in the friend's browser
 
 - **What happened:** the founder opened the Demo team's invite link and the page said "No team #1 exists on this deployment". Team #1 existed on demo-game with the captain as its only member.

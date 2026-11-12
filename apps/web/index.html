@@ -4,12 +4,25 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <meta name="theme-color" content="#FFFBEA" />
-    <meta name="description" content="THE RULE: a sealed law stamps every play YES or NO. Find the rule, win the pot. NEAR testnet." />
+    <meta
+      name="description"
+      content="THE RULE: a sealed law stamps every play YES or NO. Find the rule, win the pot. NEAR testnet."
+    />
     <title>THE RULE · find the rule</title>
     <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <link rel="apple-touch-icon" href="/icon-180.png" />
-    <link rel="preload" as="image" href="/art/blot/hero.webp" fetchpriority="high" />
+    <!-- The hero art is the landing's largest paint; every other route would only pay 91 kB for it. -->
+    <script>
+      if (location.pathname === '/') {
+        var hero = document.createElement('link');
+        hero.rel = 'preload';
+        hero.as = 'image';
+        hero.href = '/art/blot/hero.webp';
+        hero.setAttribute('fetchpriority', 'high');
+        document.head.appendChild(hero);
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

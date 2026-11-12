@@ -33,9 +33,9 @@
         "NEAR_RPC_URL": "https://test.rpc.fastnear.com",
         "GAME_ACCOUNT": "demo-game.therule.testnet",
         "KEEPER_ACCOUNT": "keeper.therule.testnet",
-        "KEEPER_MODES": "0,1",
+        "KEEPER_MODES": "1",
         "FIRST_ROUND_ID": "338",
-        "LAST_ROUND_ID": "345",
+        "LAST_ROUND_ID": "347",
         "MAINTAIN_SEASONS": "false",
         "HEARTBEAT": "off"
       }

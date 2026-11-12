@@ -47,12 +47,12 @@ class FakeChain:
             keys = [{'public_key': k, 'access_key': {'nonce': 1, 'permission': 'FullAccess'}} for k in self.keys[account]]
             return {'result': {'block_hash': 'H', 'block_height': 7, 'keys': keys}}
         if kind == 'view_account':
-            return {'result': {'amount': '10' * 12, 'code_hash': 'X' * 44}}
+            return {'result': {'block_hash': 'H', 'block_height': 7, 'amount': '10' * 12, 'code_hash': 'X' * 44}}
         if kind == 'view_code':
-            return {'result': {'code_base64': base64.b64encode(self.code[account]).decode()}}
+            return {'result': {'block_hash': 'H', 'block_height': 7, 'code_base64': base64.b64encode(self.code[account]).decode()}}
         if kind == 'call_function':
             value = self.params if params['method_name'] == 'get_params' else ({'total': '1'} if self.registered else None)
-            return {'result': {'result': list(json.dumps(value).encode())}}
+            return {'result': {'block_hash': 'H', 'block_height': 7, 'result': list(json.dumps(value).encode())}}
         raise AssertionError(payload)
 
 
@@ -96,6 +96,13 @@ class CeremonyTests(unittest.TestCase):
             bad.update(change)
             with self.subTest(change=change), self.assertRaises(ValueError):
                 ceremony.build_plan(bad, time.time_ns())
+
+    def test_load_accepts_inline_production_deploy_config(self):
+        path = Path(self.tmp.name) / 'inline.json'
+        path.write_text(json.dumps({'deploy_config': self.deploy, 'rpc_urls': ['https://a.example'],
+                                    'min_balance_yocto': {'game': '1', 'token': '1', 'payer': '1'}}))
+        _, deploy = ceremony.load(path)
+        self.assertEqual(deploy, self.deploy)
 
     def test_deletion_is_one_atomic_transaction_per_account_covering_every_key(self):
         commands = ceremony.deletion_commands({GAME: [KEY_A], TOKEN: [KEY_A, KEY_B], 'empty.testnet': []})
@@ -179,6 +186,89 @@ class CeremonyTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'keys kept'):
                 ceremony.main([str(Path(self.tmp.name) / 'ceremony.json'), 'execute', '--step', 'delete-keys', '--execute', '--confirm', phrase])
             run.assert_not_called()
+
+    def test_reject_late_key_deletion_before_scheduling(self):
+        chain, _ = self.chain()
+        chain.timestamp_ns = self.plan['expected_params']['genesis_ns'] + 1
+        with mock.patch.object(ceremony, 'load', return_value=({'rpc_urls': ['https://a.example']}, self.deploy)), \
+                mock.patch.object(ceremony, 'saved_plan', return_value=self.plan), \
+                mock.patch.object(ceremony.Rpc, '_post', staticmethod(chain.post)), \
+                mock.patch.object(ceremony, 'write_evidence'), \
+                mock.patch.object(ceremony, 'run_commands') as dispatch, \
+                contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(ValueError, 'keys kept'):
+                ceremony.main(['unused.json', 'execute', '--step', 'delete-keys', '--execute',
+                               '--confirm', f'delete-keys {GAME} {TOKEN}'])
+            dispatch.assert_not_called()
+
+    def test_reject_empty_keys_from_unbound_later_block(self):
+        chain, _ = self.chain()
+        chain.keys = {GAME: [], TOKEN: []}
+        chain.timestamp_ns = self.plan['expected_params']['genesis_ns'] - 1
+
+        def post(url, payload):
+            response = chain.post(url, payload)
+            if payload['method'] == 'query' and payload['params']['request_type'] == 'view_access_key_list':
+                response['result'].update(block_hash='LATER', block_height=8)
+            return response
+
+        _, failures = ceremony.verify(ceremony.Rpc(['https://a.example'], post), self.plan)
+        self.assertTrue(failures, 'empty keys from another block cannot establish pre-genesis keylessness')
+
+    def test_same_block_pre_genesis_control(self):
+        chain, _ = self.chain()
+        chain.keys = {GAME: [], TOKEN: []}
+        chain.timestamp_ns = self.plan['expected_params']['genesis_ns'] - 1
+        queries = []
+
+        def post(url, payload):
+            if payload['method'] == 'query':
+                queries.append(payload['params'])
+            return chain.post(url, payload)
+
+        record, failures = ceremony.verify(ceremony.Rpc(['https://a.example'], post), self.plan)
+        self.assertEqual(failures, [])
+        self.assertEqual(record['block'], {'hash': 'H', 'height': 7, 'timestamp_ns': chain.timestamp_ns})
+        self.assertTrue(queries)
+        self.assertTrue(all(q.get('block_id') == 'H' and 'finality' not in q for q in queries))
+
+    def test_deletion_headroom_boundary_and_second_account_recheck(self):
+        chain, rpc = self.chain()
+        deadline = self.plan['expected_params']['genesis_ns'] - 600_000_000_000
+        chain.timestamp_ns = deadline - 1
+        ceremony.require_deletion_window(rpc, self.plan, 600)
+        chain.timestamp_ns = deadline
+        with self.assertRaisesRegex(ValueError, 'keys kept'):
+            ceremony.require_deletion_window(rpc, self.plan, 600)
+        chain.timestamp_ns = deadline - 1
+        commands = ceremony.deletion_commands(chain.keys)
+
+        def first_transaction(*args, **kwargs):
+            chain.timestamp_ns = deadline
+            return mock.Mock(returncode=0, stdout='', stderr='')
+
+        with mock.patch.object(ceremony, 'write_evidence'), \
+                mock.patch.object(ceremony.subprocess, 'run', side_effect=first_transaction) as dispatch, \
+                contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(ValueError, 'keys kept'):
+                ceremony.run_commands(commands, 'delete_key_txs',
+                                      before_each=lambda: ceremony.require_deletion_window(rpc, self.plan, 600))
+            self.assertEqual(dispatch.call_count, 1)
+
+    def test_verify_rejects_every_unbound_deployment_response(self):
+        for kind in ('view_account', 'view_code', 'call_function'):
+            with self.subTest(kind=kind):
+                chain, _ = self.chain()
+                chain.keys = {GAME: [], TOKEN: []}
+
+                def post(url, payload):
+                    response = chain.post(url, payload)
+                    if payload['method'] == 'query' and payload['params']['request_type'] == kind:
+                        response['result'].update(block_hash='LATER', block_height=8)
+                    return response
+
+                _, failures = ceremony.verify(ceremony.Rpc(['https://a.example'], post), self.plan)
+                self.assertTrue(any('BLOCK_MISMATCH' in f for f in failures))
 
     def test_commands_stop_at_the_first_failure_and_record_each_transaction(self):
         tx = 'a' * 44

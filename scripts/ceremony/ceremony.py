@@ -44,9 +44,10 @@ class RpcError(Exception):
 class Rpc:
     """Sequential JSON-RPC client; an unreachable or rate-limited endpoint falls over to the next."""
 
-    def __init__(self, urls, post=None):
+    def __init__(self, urls, post=None, block=None):
         self.urls = urls
         self.post = post or self._post
+        self.block = block
         self.n = 0
 
     @staticmethod
@@ -75,7 +76,13 @@ class Rpc:
         raise RpcError('UNREACHABLE', last or 'no RPC endpoint configured')
 
     def query(self, request_type, **fields):
-        return self.call('query', {'request_type': request_type, 'finality': 'final', **fields})
+        selector = {'block_id': self.block['hash']} if self.block else {'finality': 'final'}
+        result = self.call('query', {'request_type': request_type, **selector, **fields})
+        if self.block and (result.get('block_hash') != self.block['hash']
+                           or result.get('block_height') != self.block['height']):
+            raise RpcError('BLOCK_MISMATCH', f'{request_type} returned a block other than '
+                           f'{self.block["hash"]} at height {self.block["height"]}')
+        return result
 
 
 def account_state(rpc, account_id):
@@ -116,7 +123,8 @@ def load(config_path):
     require(isinstance(balances, dict) and set(balances) == {'game', 'token', 'payer'}, 'min_balance_yocto: expected game, token, payer')
     for name, value in balances.items():
         amount(value, 'min_balance_yocto.' + name, True)
-    deploy = json.loads(Path(config['deploy_config']).read_text(encoding='utf-8'))
+    source = config['deploy_config']
+    deploy = source if isinstance(source, dict) else json.loads(Path(source).read_text(encoding='utf-8'))
     require(deploy.get('deployment_kind') == 'production', 'deploy_config must have deployment_kind production')
     return config, deploy
 
@@ -177,19 +185,33 @@ def saved_plan():
 
 
 def verify(rpc, plan):
-    """Evidence record plus a list of failures; PASS only if every account has an empty key list."""
+    """Bind every observation to one final, pre-genesis block; never combine moving heads."""
     block = final_block(rpc)
-    failures, accounts = [], {}
-    for account_id in plan['accounts'].values():
-        listing = access_keys(rpc, account_id)
-        accounts[account_id] = listing
-        if listing['keys']:
-            failures.append(f'{account_id}: {len(listing["keys"])} access key(s) remain')
-    failures += check_deployed(rpc, plan)
     genesis = plan['expected_params']['genesis_ns']
+    failures, accounts = [], {}
     if block['timestamp_ns'] >= genesis:
         failures.append('first round slot already passed; keys must be empty before it')
+    else:
+        snapshot = Rpc(rpc.urls, rpc.post, block)
+        try:
+            for account_id in plan['accounts'].values():
+                listing = access_keys(snapshot, account_id)
+                accounts[account_id] = listing
+                if listing['keys']:
+                    failures.append(f'{account_id}: {len(listing["keys"])} access key(s) remain')
+            failures += check_deployed(snapshot, plan)
+        except RpcError as error:
+            failures.append(str(error))
     return {'block': block, 'genesis_ns': genesis, 'accounts': accounts, 'failures': failures}, failures
+
+
+def require_deletion_window(rpc, plan, headroom_seconds):
+    block = final_block(rpc)
+    deadline = plan['expected_params']['genesis_ns'] - headroom_seconds * 1_000_000_000
+    require(block['timestamp_ns'] < deadline,
+            f'keys kept: final block time {block["timestamp_ns"]} must be strictly before '
+            f'genesis minus deletion headroom ({headroom_seconds} s), deadline {deadline}')
+    return block
 
 
 def preflight(rpc, plan, deploy, config, fetch):
@@ -235,9 +257,11 @@ def confirm_phrase(step, plan):
     return f'{step} {plan["accounts"]["game"]} {plan["accounts"]["token"]}'
 
 
-def run_commands(commands, evidence_key):
+def run_commands(commands, evidence_key, before_each=None):
     done = []
     for command in commands:
+        if before_each:
+            before_each()
         proc = subprocess.run(command, capture_output=True, text=True)
         found = TX_ID.findall(proc.stdout + proc.stderr)
         done.append({'command': shlex.join(command)[:200], 'returncode': proc.returncode, 'tx': found[-1] if found else None})
@@ -260,7 +284,11 @@ def main(argv=None):
     execute.add_argument('--step', choices=('deploy', 'delete-keys'), required=True)
     execute.add_argument('--execute', action='store_true', help='actually send; without it the step only prints')
     execute.add_argument('--confirm', default='')
+    execute.add_argument('--deletion-headroom-seconds', type=int, default=600,
+                         help='positive safety headroom before genesis for each deletion dispatch (default 600)')
     args = parser.parse_args(argv)
+    if args.command == 'execute':
+        require(args.deletion_headroom_seconds > 0, 'deletion headroom must be positive')
     config, deploy = load(args.config)
     rpc = Rpc(config['rpc_urls'])
     if args.command == 'keys':
@@ -313,7 +341,12 @@ def main(argv=None):
     if not args.execute:
         print(f'DRY RUN: nothing sent. To send, add --execute --confirm "{phrase}"')
         return 0
-    run_commands(commands, 'deploy_txs' if args.step == 'deploy' else 'delete_key_txs')
+    if args.step == 'delete-keys':
+        require_deletion_window(rpc, plan, args.deletion_headroom_seconds)
+        run_commands(commands, 'delete_key_txs',
+                     before_each=lambda: require_deletion_window(rpc, plan, args.deletion_headroom_seconds))
+    else:
+        run_commands(commands, 'deploy_txs')
     return 0
 
 

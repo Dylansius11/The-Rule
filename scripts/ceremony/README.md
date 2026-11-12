@@ -14,6 +14,12 @@
   "min_balance_yocto": {"game": "<yocto>", "token": "<yocto>", "payer": "<yocto>"}
 }
 ```
+`deploy_config` may instead contain the deploy object inline. The committed
+[`production.json`](production.json) uses this form so the exact accounts, economics,
+schedule, artifact paths and funding minima are reviewed together. Its token cap is
+the documented example (one billion RULE), **pending lead/founder confirmation**;
+funding sizes are operational budgets, not a guarantee for unlimited lifetime use.
+
 
 The accounts must already exist and be funded. Creating and funding them is a separate step that needs the founder's authorization.
 
@@ -22,8 +28,8 @@ The accounts must already exist and be funded. Creating and funding them is a se
 1. `ceremony.py CONFIG plan` writes `scratch/ceremony/plan.json`. Offline. Requires the first slot (`genesis_ns`) to be at least 2 h 10 min away.
 2. `ceremony.py CONFIG preflight` is read-only: both accounts exist and hold no code, balances meet the minimums, and every referee URL serves bytes with the planned sha256.
 3. `ceremony.py CONFIG execute --step deploy` prints the four commands. Add `--execute --confirm "deploy game.therule.testnet token.therule.testnet"` to send them: token deploy and init, operation funding, game deploy and init, game registration on the token.
-4. `ceremony.py CONFIG execute --step delete-keys` lists the live keys and prints one atomic delete-keys transaction per account. **Irreversible.** It sends only with `--execute --confirm "delete-keys game.therule.testnet token.therule.testnet"`, and only if the live code hash and `get_params` match the saved plan and the game is registered on the token.
-5. `ceremony.py CONFIG verify` is read-only. PASS needs empty key lists for both accounts, the planned code hashes, the planned params, `demo` false, and the first slot still in the future. It writes the block hash and height to `scratch/ceremony/evidence.json`. This proves empty key lists at that block. It does not prove the rule stayed secret.
+4. `ceremony.py CONFIG execute --step delete-keys` lists the live keys and prints one atomic delete-keys transaction per account. **Irreversible.** It sends only with `--execute --confirm "delete-keys game.therule.testnet token.therule.testnet"`, and only if the live code hash and `get_params` match the saved plan and the game is registered on the token. Before any dispatch, and again before each account transaction, a fresh final block timestamp must be **strictly before genesis minus 600 seconds**. Set a different positive headroom with `--deletion-headroom-seconds SECONDS`; do not use this to bypass an already lost ordering.
+5. `ceremony.py CONFIG verify` selects one final block before genesis and queries both key lists, account/code state, params and token registration with that exact `block_id`. Every response must identify that hash and height. PASS needs empty key lists, planned hashes/params and `demo` false. Evidence records the block hash, height and timestamp in `scratch/ceremony/evidence.json`. This proves the checked facts at that pre-slot block, not that the rule stayed secret. Run after both deletion outcomes are final; a pre-send time check cannot guarantee inclusion.
 
 `keys ACCOUNT` prints one account's current access keys.
 

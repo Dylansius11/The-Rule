@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatNear, formatRule } from '@/chain/format';
 import { useMedia } from '@/layout/useMedia';
 import { toUiError } from '@/chain/errors';
-import { useLog, useRound } from '@/game';
+import { useLog, usePlayer, useRound, useTeamNames, useWallet } from '@/game';
 import { Drip } from '@/mascot/Drip';
 import { Button } from '@/ui/Button';
 import { Chip, RadioChips } from '@/ui/Chip';
@@ -21,6 +21,7 @@ import { RoundStatusTag } from '@/screens/shared/RoundTimer';
 import { useRoundSelection } from '@/screens/shared/useRoundSelection';
 import { RoundHistoryNotice } from '@/screens/shared/RoundHistoryNotice';
 import { useRoom } from './room';
+import { matchesTeam, teamIdsIn, teamLabel, type TeamFilter } from './ledgerTeams';
 
 type Verdict = 'all' | 'yes' | 'no';
 type Parity = 'all' | 'even' | 'odd';
@@ -39,6 +40,12 @@ export function LedgerTab() {
   const [parity, setParity] = useState<Parity>('all');
   const [sort, setSort] = useState<Sort>('new');
   const [open, setOpen] = useState<number | null>(null);
+  const [teamFilter, setTeamFilter] = useState<TeamFilter>('all');
+  const { accountId } = useWallet();
+  const player = usePlayer(accountId);
+  const myTeamId = player.data?.teamId ?? null;
+  const teamIds = useMemo(() => teamIdsIn(log.rows), [log.rows]);
+  const names = useTeamNames(teamIds);
   const scroller = useRef<HTMLDivElement>(null);
 
   const rows = useMemo(() => {
@@ -46,16 +53,18 @@ export function LedgerTab() {
     const out = log.rows.filter(r => {
       if (verdict !== 'all' && r.verdict !== (verdict === 'yes')) return false;
       if (parity !== 'all' && r.number % 2 !== (parity === 'even' ? 0 : 1)) return false;
+      if (!matchesTeam(r, teamFilter, myTeamId)) return false;
       if (!needle) return true;
       return (
         r.word.toLowerCase().includes(needle) ||
         r.account.toLowerCase().includes(needle) ||
+        (r.entityTag === 1 && teamLabel(r.entityId, names.get(r.entityId)).toLowerCase().includes(needle)) ||
         pad3(r.number).includes(needle) ||
         String(r.number) === needle
       );
     });
     return sort === 'new' ? out.reverse() : out;
-  }, [log.rows, q, verdict, parity, sort]);
+  }, [log.rows, q, verdict, parity, sort, teamFilter, myTeamId, names]);
 
   const mobile = useMedia('(max-width: 767px)');
   const virt = useVirtualizer({
@@ -67,7 +76,7 @@ export function LedgerTab() {
   useEffect(() => virt.measure(), [mobile, virt]);
   const yes = rows.filter(r => r.verdict).length;
   const chosen = open === null ? null : (log.rows.find(r => r.logIdx === open) ?? null);
-  const filtered = verdict !== 'all' || parity !== 'all' || q.trim() !== '';
+  const filtered = verdict !== 'all' || parity !== 'all' || q.trim() !== '' || teamFilter !== 'all';
   const base = `rule-${modeName(mode).toLowerCase()}-round-${sel.roundId ?? 'x'}-log${filtered ? '-filtered' : ''}`;
 
   return (
@@ -181,6 +190,18 @@ export function LedgerTab() {
                 { value: 'odd', label: 'odd' },
               ]}
             />
+            {mode === 1 && myTeamId !== null ? (
+              <RadioChips
+                label="Teams"
+                value={teamFilter}
+                onChange={setTeamFilter}
+                small
+                options={[
+                  { value: 'all', label: 'all teams' },
+                  { value: 'mine', label: 'my team' },
+                ]}
+              />
+            ) : null}
             <Chip pressed={sort === 'old'} small onClick={() => setSort(s => (s === 'new' ? 'old' : 'new'))}>
               oldest first
             </Chip>
@@ -271,7 +292,7 @@ export function LedgerTab() {
                 aria-hidden="true"
               >
                 <span>#</span>
-                <span className="max-md:hidden">Player</span>
+                <span className="max-md:hidden">{mode === 1 ? 'Team · player' : 'Player'}</span>
                 <span className="max-md:hidden">Number</span>
                 <span className="md:hidden">Play</span>
                 <span className="max-md:hidden">Word</span>
@@ -326,12 +347,27 @@ export function LedgerTab() {
                                 {pad3(r.number)} <span className="font-semibold">{r.word}</span>
                               </span>
                               <span className="block truncate text-[12px] font-bold text-ink-soft">
-                                #{r.logIdx} · {r.account}
+                                #{r.logIdx} ·{' '}
+                                {mode === 1 ? `${teamLabel(r.entityId, names.get(r.entityId))} · ` : ''}
+                                {r.account}
                                 {r.minted > 0n ? ' · minted RULE' : ''}
                               </span>
                             </span>
                             <span className="max-md:hidden">{r.logIdx}</span>
-                            <span className="truncate max-md:hidden">{r.account}</span>
+                            <span className="truncate max-md:hidden">
+                              {mode === 1 ? (
+                                <>
+                                  <span className="block truncate font-sans text-[15px] font-extrabold leading-tight">
+                                    {teamLabel(r.entityId, names.get(r.entityId))}
+                                  </span>
+                                  <span className="block truncate text-[12px] font-bold text-ink-soft">
+                                    {r.account}
+                                  </span>
+                                </>
+                              ) : (
+                                r.account
+                              )}
+                            </span>
                             <span className="max-md:hidden">{pad3(r.number)}</span>
                             <span className="truncate max-md:hidden">{r.word}</span>
                             <span className="max-md:hidden">{r.minuteDigit}</span>

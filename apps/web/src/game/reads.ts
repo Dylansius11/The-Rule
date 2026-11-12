@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { toUiError } from '@/chain/errors';
 import { getNearBalance } from '@/chain/rpc';
@@ -272,4 +273,18 @@ export function usePayouts(account: string | null) {
     })),
   });
   return { items, total: payoutTotal(items), loading, error: solo.error ?? teamRounds.error ?? null };
+}
+
+/** Names of the teams behind a log, sharing the `team` cache with `useTeam`. A deleted team maps to null. */
+export function useTeamNames(ids: readonly number[]): Map<number, string | null> {
+  const results = useQueries({
+    queries: ids.map(id => ({
+      queryKey: ['team', id],
+      queryFn: () => v.getTeam(id),
+      staleTime: 60_000,
+    })),
+  });
+  const signature = ids.map((id, i) => `${id}:${results[i]?.data?.name ?? ''}`).join('|');
+  // The signature, not the arrays, is the identity of the names, so the map is stable between polls.
+  return useMemo(() => new Map(ids.map((id, i) => [id, results[i]?.data?.name ?? null])), [signature]);
 }

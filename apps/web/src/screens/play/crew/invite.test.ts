@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest';
+import { choiceFromSearch } from '@/config/env';
 import { inviteLink, joinIdFromSearch, joinStatus } from './invite';
 
 describe('inviteLink / joinIdFromSearch', () => {
-  it('round-trips a team id through the link', () => {
-    const link = inviteLink('http://127.0.0.1:5173', 7);
-    expect(link).toBe('http://127.0.0.1:5173/play/team/crew?join=7');
+  it('round-trips a team id through the link and names the deployment', () => {
+    const link = inviteLink('http://127.0.0.1:5173', 7, 'demo');
+    expect(link).toBe('http://127.0.0.1:5173/play/team/crew?join=7&deployment=demo');
     expect(joinIdFromSearch(new URL(link).search)).toBe(7);
+    expect(choiceFromSearch(new URL(link).search)).toBe('demo');
+  });
+
+  it('reads only main or demo as a deployment', () => {
+    expect(choiceFromSearch('?deployment=main')).toBe('main');
+    expect(choiceFromSearch('?deployment=Demo')).toBeNull();
+    expect(choiceFromSearch('?deployment=')).toBeNull();
+    expect(choiceFromSearch('?join=1')).toBeNull();
   });
 
   it('accepts only a plain u32 team id', () => {

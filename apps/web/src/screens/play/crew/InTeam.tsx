@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { roomPath } from '@/app/paths';
 import { formatNear } from '@/chain/format';
+import { active } from '@/config/env';
 import { useEntity, useLatestRound, useTeamActions } from '@/game';
 import type { Team } from '@/game/types';
 import { ActionSlip } from '@/ui/ActionSlip';
@@ -40,10 +41,13 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
       </InkBox>
 
       <InkBox className="p-4" fill="#fff" tilt={-0.3}>
-        <CopyField label="Invite link" value={inviteLink(window.location.origin, team.teamId)} />
+        <CopyField
+          label="Invite link"
+          value={inviteLink(window.location.origin, team.teamId, active.kind === 'demo' ? 'demo' : 'main')}
+        />
         <p className="mt-1 text-[14px] font-semibold">
-          Send this to a friend, then add their account name under “Invite a member”. The link fills in the
-          team id for them; it does not let anyone in without your invite.
+          Send this to a friend, then add their account name under “Invite a member”. The link opens the right
+          game (Demo or real) with your team id filled in; it does not let anyone in without your invite.
           {captain ? '' : ' Only the captain can send invites.'}
         </p>
       </InkBox>

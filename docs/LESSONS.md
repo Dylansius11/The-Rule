@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-12: a team invite link opened the wrong game in the friend's browser
+
+- **What happened:** the founder opened the Demo team's invite link and the page said "No team #1 exists on this deployment". Team #1 existed on demo-game with the captain as its only member.
+- **Root cause:** the Live / Demo choice lives in the browser's localStorage and the link carried only the team id, so a browser that remembered Live looked up team #1 on the real game. Team ids are per-deployment counters.
+- **Rule:** any shared link that carries a per-deployment id must also carry the deployment (`&deployment=demo|main`); the app applies it once and strips it so the Live / Demo switch is not overridden later.
+
 ### 2026-11-12: the machine's default wrangler login pointed at a different Cloudflare account than the keeper's
 
 - **What happened:** `wrangler whoami` showed an OAuth login for another Google account (`63acf966…`), while `wrangler.jsonc` pins the THE RULE keeper and referee to `ec31758c…` (the founder's `royalecardarena` account). A deploy would have failed or, without the pinned `account_id`, landed in the wrong account. A new Cron trigger also took about seven minutes to fire its first invocation.

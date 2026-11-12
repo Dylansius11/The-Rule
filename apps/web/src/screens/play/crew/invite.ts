@@ -1,10 +1,14 @@
+import type { DeploymentChoice } from '@/config/env';
 import type { Team } from '@/game/types';
 
 const U32_MAX = 0xffff_ffff;
 
-/** A link that opens the crew desk with the team id filled in. It grants nothing: the captain still invites accounts. */
-export const inviteLink = (origin: string, teamId: number): string =>
-  `${origin}/play/team/crew?join=${teamId}`;
+/**
+ * A link that opens the crew desk with the team id filled in and the deployment the id belongs to, since the
+ * same id means a different team in Demo and in the real game. It grants nothing: the captain still invites accounts.
+ */
+export const inviteLink = (origin: string, teamId: number, deployment: DeploymentChoice): string =>
+  `${origin}/play/team/crew?join=${teamId}&deployment=${deployment}`;
 
 /** The team id in `?join=`, only when it is a plain u32. */
 export function joinIdFromSearch(search: string): number | null {

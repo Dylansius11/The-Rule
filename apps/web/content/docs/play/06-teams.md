@@ -5,7 +5,7 @@ summary: Share a vault, a line and an attempt budget with up to five members.
 
 ## Assemble the roster
 
-A funded player creates a team, the captain invites accounts, and invitees join. A team has at most five members. The captain's crew desk shows the team id with an invite link (`/play/team/crew?join=<id>`). The link only fills in the team id and shows who is on the team: it admits nobody, because the captain must also invite the account name, and the desk tells an uninvited visitor which name to send. The first funded participation snapshots the roster and locks it through the round; a fully refunded provisional first play can release an otherwise unused snapshot.
+A funded player creates a team, the captain invites accounts, and invitees join. A team has at most five members. The captain's crew desk shows the team id with an invite link (`/play/team/crew?join=<id>&deployment=demo|main`). The link opens the Demo or real game it was made on, so the id means the same team for the friend, fills in the team id and shows who is on the team: it admits nobody, because the captain must also invite the account name, and the desk tells an uninvited visitor which name to send. The first funded participation snapshots the roster and locks it through the round; a fully refunded provisional first play can release an otherwise unused snapshot.
 
 ## One team, one line
 

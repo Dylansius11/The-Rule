@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { toUiError } from '@/chain/errors';
+import { active } from '@/config/env';
 import { useParams, useTeam, useTeamActions, useWallet } from '@/game';
 import { TEAM_NAME_HINT, validTeamName } from '@/game/team-name';
 import { ActionSlip } from '@/ui/ActionSlip';
@@ -76,7 +77,10 @@ export function NoTeam() {
                 Reading team {id}…
               </p>
             ) : team.data === null ? (
-              <p className="font-extrabold">No team #{id} exists on this deployment.</p>
+              <p className="font-extrabold">
+                No team #{id} exists on {active.kind === 'demo' ? 'Demo Mode' : 'the real game'}. If the
+                captain is on the other one, use the Live / Demo switch under the header.
+              </p>
             ) : team.data ? (
               <>
                 <p className="mono text-[12px] font-bold uppercase tracking-widest">

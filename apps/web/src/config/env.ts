@@ -80,8 +80,29 @@ export type DeploymentChoice = 'main' | 'demo';
 
 const CHOICE_KEY = 'the-rule:deployment';
 
+/** The `deployment` query value of a shared link, only when it is exactly `main` or `demo`. */
+export function choiceFromSearch(search: string): DeploymentChoice | null {
+  const value = new URLSearchParams(search).get('deployment');
+  return value === 'main' || value === 'demo' ? value : null;
+}
+
+/**
+ * A shared link names the deployment its ids belong to, so a friend's browser, which may remember the other
+ * one, opens the right game. The link wins once: it is saved as the choice and removed from the address bar,
+ * so the Live / Demo switch is not overridden on the next load.
+ */
 function readChoice(): DeploymentChoice {
   try {
+    if (typeof location !== 'undefined') {
+      const linked = choiceFromSearch(location.search);
+      if (linked) {
+        localStorage.setItem(CHOICE_KEY, linked);
+        const url = new URL(location.href);
+        url.searchParams.delete('deployment');
+        history.replaceState(history.state, '', url);
+        return linked;
+      }
+    }
     return typeof localStorage !== 'undefined' && localStorage.getItem(CHOICE_KEY) === 'demo'
       ? 'demo'
       : 'main';

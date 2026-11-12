@@ -4,7 +4,7 @@ import { roomPath } from '@/app/paths';
 import { useSound } from '@/audio';
 import { useLog, useParams, useRound, useWallet } from '@/game';
 import type { ReplayState } from '@/game/types';
-import { REPLAY_LIMIT } from '@/config/env';
+import { active, REPLAY_LIMIT } from '@/config/env';
 import { Art } from '@/art/Art';
 import { Blot, type BlotState } from '@/mascot/Blot';
 import { useTypewriter } from '@/motion/hooks';
@@ -29,6 +29,7 @@ import { useRoundClock } from '@/screens/shared/useRoundClock';
 import { useRoom } from './room';
 import { Check, type CheckTone } from './verify/Check';
 import { Payouts } from './verify/Payouts';
+import { verifyCommand } from './verify/command';
 import { WinnerBanner } from './verify/WinnerBanner';
 
 function replaySummary(state: ReplayState): string {
@@ -92,7 +93,7 @@ export function VerifyTab() {
       : state.kind === 'error'
         ? 'no'
         : 'pending';
-  const verifyCmd = `make verify ROUND=${modeName(mode).toLowerCase()}/${sel.roundId ?? 0}`;
+  const verifyCmd = verifyCommand(mode === 0 ? 'solo' : 'team', sel.roundId ?? 0, active.game);
 
   const matchTone: CheckTone = !opened
     ? 'wait'

@@ -35,7 +35,7 @@
         "KEEPER_ACCOUNT": "keeper.therule.testnet",
         "KEEPER_MODES": "0,1",
         "FIRST_ROUND_ID": "338",
-        "LAST_ROUND_ID": "342",
+        "LAST_ROUND_ID": "345",
         "MAINTAIN_SEASONS": "false",
         "HEARTBEAT": "off"
       }

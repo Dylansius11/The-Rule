@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
+import { useSound } from '@/audio';
 import { modeOf, rememberMode, roomPath, slugOf, type RoomTab } from '@/app/paths';
 import { formatNear } from '@/chain/format';
 import { useLatestRound } from '@/game';
@@ -25,6 +26,7 @@ export function RoomLayout() {
   const { pathname } = useLocation();
   const [search] = useSearchParams();
   const navigate = useNavigate();
+  const { play } = useSound();
   const tab = tabOf(pathname);
   const round = latest.data ?? null;
   const keep = search.get('round');
@@ -56,6 +58,7 @@ export function RoomLayout() {
                   to={roomPath(mode, t.tab, withRound ? Number(keep) : null)}
                   end={t.tab === 'stamp'}
                   className="room-tab"
+                  onClick={() => play('nav')}
                 >
                   {t.label}
                 </NavLink>

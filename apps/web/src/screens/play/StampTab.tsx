@@ -48,17 +48,20 @@ export function StampTab() {
           art="stickers/stamping"
           artWidth={120}
         />
-        <p className="mt-4 max-w-[62ch] text-[16px] font-semibold">
-          Every paid play uses one <Term term="attempt" /> and adds a row to the public <Term term="ledger" />
-          . Each unique play also counts as one <Term term="contributor share" /> of the final pot.
-        </p>
-        <div className="mt-6">
-          <RoundStrip
-            mode={mode}
-            round={round}
-            loading={q.isLoading}
-            acceptRate={log.complete ? pct(yes, log.rows.length) : '…'}
-          />
+        <div className="mt-4 xl:flex xl:items-start xl:justify-between xl:gap-12">
+          <p className="max-w-[62ch] text-[16px] font-semibold">
+            Every paid play uses one <Term term="attempt" /> and adds a row to the public{' '}
+            <Term term="ledger" />. Each unique play also counts as one <Term term="contributor share" /> of
+            the final pot.
+          </p>
+          <div className="mt-6 xl:mt-0 xl:min-w-0 xl:flex-1 xl:[&_dl]:justify-end">
+            <RoundStrip
+              mode={mode}
+              round={round}
+              loading={q.isLoading}
+              acceptRate={log.complete ? pct(yes, log.rows.length) : '…'}
+            />
+          </div>
         </div>
       </div>
 
@@ -86,26 +89,37 @@ export function StampTab() {
             <ErrorCard error={toUiError(q.error)} onRetry={() => void q.refetch()} />
           </div>
         ) : q.isLoading ? (
-          <div className="wrap flex flex-col items-center text-center" aria-busy="true">
+          <div
+            className="wrap flex min-h-[820px] flex-col items-center text-center md:min-h-[600px]"
+            aria-busy="true"
+          >
             <Art name="scenes/desk" width={200} eager />
             <p className="display text-[40px]">Asking the chain…</p>
           </div>
         ) : needsTeam ? (
           <TeamSetup />
-        ) : round && playing ? (
-          <PlayDesk mode={mode} round={round} />
         ) : (
-          <div className="wrap">
-            <NoRoundOpen mode={mode} round={round} />
+          <div className="wrap grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(380px,31%)] xl:gap-x-10">
+            <div className="min-w-0 xl:col-start-1 xl:row-start-1">
+              {round && playing ? (
+                <PlayDesk mode={mode} round={round} />
+              ) : (
+                <NoRoundOpen mode={mode} round={round} />
+              )}
+            </div>
+            <MiniLog mode={mode} round={round} log={log} />
+            <CostPayout
+              mode={mode}
+              round={round}
+              className="w-full max-w-[920px] xl:col-start-1 xl:row-start-2"
+            />
           </div>
         )}
-        <div className="wrap mt-8">
-          <CostPayout mode={mode} round={round} className="mx-auto max-w-[920px]" />
-        </div>
-      </Band>
-
-      <Band tone="paper" id="ledger" label="Newest plays" seed={3} amp={10} className="pb-24 pt-24 md:pb-28">
-        <MiniLog mode={mode} round={round} log={log} />
+        {q.isError || q.isLoading || needsTeam ? (
+          <div className="wrap mt-8">
+            <CostPayout mode={mode} round={round} className="mx-auto max-w-[920px]" />
+          </div>
+        ) : null}
       </Band>
     </>
   );

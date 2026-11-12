@@ -27,6 +27,12 @@
   margin-inline: auto;
   padding-inline: clamp(16px, 3vw, 44px);
 }
+/* Wide screens use their width: up to 1760 px, so a 1568 px window has no empty gutters and a 1920 px one keeps a margin. */
+@media (min-width: 1280px) {
+  .wrap {
+    max-width: 1760px;
+  }
+}
 
 /* ---------- ink box ---------- */
 .ink {
@@ -86,7 +92,7 @@
   gap: 0.5em;
   padding: 0.38em 0.9em 0.3em;
   min-height: 38px;
-  transition: transform 0.09s var(--ease-out);
+  transition: transform 0.16s var(--ease-spring);
 }
 .btn-face::before {
   content: '';
@@ -112,11 +118,12 @@
   filter: url(#ink-wob2);
 }
 .btn:hover:not([aria-disabled='true']) .btn-face {
-  transform: translateY(-3px) rotate(-1deg);
+  transform: translateY(-4px) rotate(-1.2deg) scale(1.03);
 }
 .btn:active:not([aria-disabled='true']) .btn-face,
 .btn[data-pressed='true'] .btn-face {
-  transform: translateY(7px);
+  transform: translateY(8px) scale(0.98);
+  transition-duration: 0.06s;
 }
 .btn[aria-disabled='true'] {
   filter: grayscale(0.7) opacity(0.75);

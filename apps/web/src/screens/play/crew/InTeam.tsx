@@ -16,8 +16,8 @@ import { CopyField, TextField, busy } from './parts';
 import { inviteAccountFromSearch, inviteLink } from './invite';
 import { depositShares, exitShare, teamMinted } from './vault';
 
-export function InTeam({ team, me }: { team: Team; me: string }) {
-  const actions = useTeamActions();
+export function InTeam({ team, me, onLeft }: { team: Team; me: string; onLeft?: () => void }) {
+  const actions = useTeamActions(onLeft);
   const [search] = useSearchParams();
   const requested = team.captain === me ? inviteAccountFromSearch(search.toString()) : null;
   const [inv, setInv] = useState(requested ?? '');
@@ -29,16 +29,19 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
   const captain = team.captain === me;
   const payouts = usePayouts(me);
   const settleFirst = payouts.items.some(item => item.kind === 'unlock');
-  const canExit = team.activeRound === null || settleFirst;
+  const canExit = !payouts.loading && payouts.error === null && (team.activeRound === null || settleFirst);
+  const depositsOpen = team.vault === team.weight;
+  const hasDeposit = team.deposits.some(x => x.account === me);
   const beforeLeave = payouts.items.filter(item => item.kind === 'unlock' || item.mode === 1);
   const share = formatNear(exitShare(team, me), 3);
-  const exitNote =
-    team.activeRound === null
-      ? `Leaving returns about ${share} NEAR, your share of the vault, to your game credit and removes you from the team. Withdraw credit to your wallet on the Account page.`
-      : settleFirst
-        ? `Round ${team.activeRound} has ended, so leaving first unlocks the team and claims your finished team rounds, then returns about ${share} NEAR, your share of the vault, to your game credit.`
-        : payouts.loading
-          ? `Checking round ${team.activeRound}…`
+  const exitNote = payouts.error
+    ? 'Could not read your finished rounds, so leaving is paused. Reload the page and try again.'
+    : payouts.loading
+      ? 'Checking your finished rounds before it is safe to leave…'
+      : team.activeRound === null
+        ? `Leaving returns about ${share} NEAR, your share of the vault, to your game credit and removes you from the team. Withdraw credit to your wallet on the Account page.`
+        : settleFirst
+          ? `Round ${team.activeRound} has ended, so leaving first unlocks the team and claims your finished team rounds, then returns about ${share} NEAR, your share of the vault, to your game credit.`
           : `The team is locked to round ${team.activeRound} until it ends. Leaving and withdrawing open after that.`;
   const log = useLog(1, round.data?.roundId);
   const minted = teamMinted(log.rows, team.teamId, me);
@@ -162,10 +165,11 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
           <div className="mt-3 flex flex-wrap gap-3">
             <Button
               variant="red"
-              disabled={d.amount === null}
+              disabled={d.amount === null || !depositsOpen || !canExit}
               busy={busy(actions.deposit.state)}
               onClick={() =>
-                d.amount !== null && actions.deposit.run({ teamId: team.teamId, amount: d.amount })
+                d.amount !== null &&
+                actions.deposit.run({ teamId: team.teamId, amount: d.amount, unlockFirst: settleFirst })
               }
             >
               Deposit
@@ -173,14 +177,26 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
             <Button
               variant="paper"
               busy={busy(actions.withdraw.state)}
-              disabled={!canExit}
+              disabled={!canExit || !hasDeposit}
               onClick={() => actions.withdraw.run({ teamId: team.teamId, unlockFirst: settleFirst })}
             >
               Withdraw my share
             </Button>
           </div>
+          {!depositsOpen ? (
+            <p className="mt-2 text-[14px] font-bold">
+              Deposits are closed while the vault ({formatNear(team.vault, 3)} NEAR) is below what was put in
+              ({formatNear(team.weight, 3)} NEAR), because plays spent some. They reopen once every depositor
+              has withdrawn their share; then everyone can deposit again.
+            </p>
+          ) : null}
+          {!hasDeposit && team.deposits.length > 0 ? (
+            <p className="mt-2 text-[14px] font-bold">You have no deposit in this vault to withdraw.</p>
+          ) : null}
           {team.activeRound !== null && !settleFirst ? (
-            <p className="mt-2 text-[14px] font-bold">Withdrawals open between rounds.</p>
+            <p className="mt-2 text-[14px] font-bold">
+              Deposits and withdrawals open once round {team.activeRound} has ended and the team is unlocked.
+            </p>
           ) : null}
           <div className="mt-3 grid gap-3">
             <ActionSlip
@@ -271,11 +287,13 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
               onChange={setInv}
               placeholder="friend.testnet"
               hint={
-                requested !== null && inv === requested
-                  ? 'Filled in from a join request. Check the name, then press Send invite.'
-                  : captain
-                    ? 'Only the captain can invite. Max team size applies.'
-                    : 'Only the captain can invite.'
+                team.activeRound !== null
+                  ? `The team is locked to round ${team.activeRound}. Invites open once it is unlocked.`
+                  : requested !== null && inv === requested
+                    ? 'Filled in from a join request. Check the name, then press Send invite.'
+                    : captain
+                      ? 'Only the captain can invite. Max team size applies.'
+                      : 'Only the captain can invite.'
               }
             />
             <div>

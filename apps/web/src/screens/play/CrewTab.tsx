@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { roomPath } from '@/app/paths';
 import { toUiError } from '@/chain/errors';
@@ -7,6 +8,7 @@ import { Button } from '@/ui/Button';
 import { EmptyState } from '@/ui/EmptyState';
 import { ErrorCard } from '@/ui/ErrorCard';
 import { HashText } from '@/ui/HashText';
+import { InkBox } from '@/ui/InkBox';
 import { PageHead } from '@/screens/shared/PageHead';
 import { InTeam } from './crew/InTeam';
 import { NoTeam } from './crew/NoTeam';
@@ -24,6 +26,7 @@ export function CrewTab() {
   const [search] = useSearchParams();
   const linkId = joinIdFromSearch(search.toString());
   const team = useTeam(teamId);
+  const [left, setLeft] = useState(false);
 
   return (
     <div className="wrap pb-20 pt-7 md:pt-10">
@@ -80,11 +83,24 @@ export function CrewTab() {
           <>
             {linkId !== null && linkId !== teamId ? <JoinCard teamId={linkId} prominent /> : null}
             <ClaimAll />
-            <InTeam team={team.data} me={accountId} />
+            <InTeam team={team.data} me={accountId} onLeft={() => setLeft(true)} />
             <HashText value={accountId} kind="account" full label="account" />
           </>
         ) : (
-          <NoTeam />
+          <>
+            {left ? (
+              <InkBox className="p-4" fill="var(--color-lime)" tilt={-0.4}>
+                <p className="font-extrabold" role="status">
+                  You left the team. Your share of the vault is now game credit.{' '}
+                  <Link to="/account" className="underline decoration-2">
+                    Withdraw it to your wallet on the Account page
+                  </Link>
+                  .
+                </p>
+              </InkBox>
+            ) : null}
+            <NoTeam />
+          </>
         )}
         {wallet.status === 'connected' ? (
           <details>

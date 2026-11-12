@@ -10,6 +10,7 @@ import type { LogRow, Mode, PlayInput, PlayState } from './types';
 import { buildPlayContext, detectRefund, findPlayRow, parsePlayAck, type PlayAck } from './play-helpers';
 import { playReducer } from './play-state';
 import { isTerminalPhase } from './payouts';
+import { unlockTeam } from './unlock';
 
 const FOLLOW_POLL_MS = 3000;
 
@@ -156,11 +157,9 @@ export function usePlay(mode: Mode, roundId: number) {
           const locked = await views.getRound(1, team.activeRound);
           if (signal.aborted) return;
           if (locked && isTerminalPhase(locked.phase)) {
-            const unlocked = await calls.settleTeam(team.teamId);
-            const unlockStatus = unlocked.status;
-            if (typeof unlockStatus === 'object' && 'Failure' in unlockStatus) {
-              throw new Error(JSON.stringify(unlockStatus.Failure));
-            }
+            dispatch({ type: 'sign' });
+            transactionStarted = true;
+            await unlockTeam(team.teamId);
             team = await views.getTeam(team.teamId);
             if (signal.aborted) return;
           }

@@ -17,7 +17,8 @@ export function KeeperWait({ round, className = '' }: { round: Round; className?
   if (what === null || clock.deadlineMs === null) return null;
   return (
     <p className={`text-[14px] font-semibold ${className}`} role="status">
-      Waiting for the keeper to {what}. This normally takes under a minute.
+      Waiting for the keeper to {what}. It usually lands within a minute or two. If this stays for much
+      longer, the keeper is not running; the step can still be sent by hand outside this page.
     </p>
   );
 }

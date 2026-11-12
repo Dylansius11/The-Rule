@@ -9,6 +9,7 @@ import { active } from '@/config/env';
 import { sendCall } from '@/chain/wallet';
 import { TEAM_NAME_HINT, validTeamName } from './team-name';
 import type { PayoutItem } from './payouts';
+import { unlockTeam } from './unlock';
 import { commitHash, encodeRuleHex } from '@/verify';
 import type { ActionState, CanonicalRule, Mode, SavedGuess } from './types';
 
@@ -30,7 +31,7 @@ function checked(result: Outcome): { hash: string | null; value: unknown } {
   return { hash: result.transaction?.hash ?? null, value };
 }
 
-function useAction<A>(fn: (arg: A) => Promise<Outcome>) {
+function useAction<A>(fn: (arg: A) => Promise<Outcome>, onDone?: () => void) {
   const [state, setState] = useState<ActionState>({ kind: 'idle' });
   const query = useQueryClient();
 
@@ -40,6 +41,7 @@ function useAction<A>(fn: (arg: A) => Promise<Outcome>) {
       .then(async result => {
         const { hash, value } = checked(result);
         setState({ kind: 'pending', txHash: hash });
+        onDone?.();
         await query.invalidateQueries();
         setState({ kind: 'done', txHash: hash, value });
       })
@@ -81,8 +83,7 @@ export function useClaimAll() {
     void (async () => {
       let last: string | null = null;
       for (const [index, item] of items.entries()) {
-        const result = checked(await sendPayout(item));
-        last = result.hash;
+        last = (await runPayout(item)) ?? last;
         setProgress({ done: index + 1, total: items.length });
       }
       setState({ kind: 'pending', txHash: last });
@@ -99,14 +100,21 @@ export function useClaimAll() {
   return { state, progress, run, reset };
 }
 
-function sendPayout(item: PayoutItem): Promise<Outcome> {
-  if (item.kind === 'unlock') return calls.settleTeam(item.teamId);
-  return item.mode === 1 && item.teamId !== null
-    ? calls.claimTeam(1, item.roundId, item.teamId)
-    : calls.claim(item.mode, item.roundId);
+/** One planned step. An unlock treats "already unlocked" as done; it has no transaction of its own to report. */
+async function runPayout(item: PayoutItem): Promise<string | null> {
+  if (item.kind === 'unlock') {
+    await unlockTeam(item.teamId);
+    return null;
+  }
+  const sent =
+    item.mode === 1 && item.teamId !== null
+      ? calls.claimTeam(1, item.roundId, item.teamId)
+      : calls.claim(item.mode, item.roundId);
+  return checked(await sent).hash;
 }
 
-export function useTeamActions() {
+/** `onLeft` fires once a leave is confirmed, before the screen swaps to the no-team desk and drops its own slip. */
+export function useTeamActions(onLeft?: () => void) {
   return {
     create: useAction<string>(async name => {
       if (!validTeamName(name)) throw new Error(TEAM_NAME_HINT);
@@ -115,13 +123,16 @@ export function useTeamActions() {
     invite: useAction(calls.invite),
     join: useAction(calls.joinTeam),
     leave: useAction<readonly PayoutItem[]>(async before => {
-      for (const item of before) checked(await sendPayout(item));
+      for (const item of before) await runPayout(item);
       return calls.leaveTeam();
-    }),
+    }, onLeft),
     remove: useAction(calls.removeMember),
-    deposit: useAction<{ teamId: number; amount: bigint }>(arg => calls.teamDeposit(arg.teamId, arg.amount)),
+    deposit: useAction<{ teamId: number; amount: bigint; unlockFirst: boolean }>(async arg => {
+      if (arg.unlockFirst) await unlockTeam(arg.teamId);
+      return calls.teamDeposit(arg.teamId, arg.amount);
+    }),
     withdraw: useAction<{ teamId: number; unlockFirst: boolean }>(async arg => {
-      if (arg.unlockFirst) checked(await calls.settleTeam(arg.teamId));
+      if (arg.unlockFirst) await unlockTeam(arg.teamId);
       return calls.teamWithdraw(arg.teamId);
     }),
     settle: useAction(calls.settleTeam),

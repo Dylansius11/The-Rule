@@ -1,7 +1,8 @@
 import { Link } from 'react-router';
 import { toUiError } from '@/chain/errors';
 import { active } from '@/config/env';
-import { useParams, usePlayer, useTeam, useTeamActions, useWallet } from '@/game';
+import { isTerminalPhase } from '@/game/payouts';
+import { useParams, usePlayer, useRound, useTeam, useTeamActions, useWallet } from '@/game';
 import { useConnect } from '@/layout/useConnect';
 import { ActionSlip } from '@/ui/ActionSlip';
 import { Button } from '@/ui/Button';
@@ -21,6 +22,9 @@ const MESSAGE: Record<JoinStatus, string> = {
   'no-player': 'Add some game credit first. It also pays for your plays.',
 };
 
+const LOCKED_ENDED =
+  "This team's round has ended, but the team stays locked until someone unlocks it. Anyone can, and it costs only gas.";
+
 /**
  * The guided join: read the team, connect, check every condition the contract checks, then one button. Used by the
  * invite link and by a typed team id. A team id is read from the chain, so it needs no wallet to preview.
@@ -31,7 +35,9 @@ export function JoinCard({ teamId, prominent = false }: { teamId: number; promin
   const params = useParams();
   const team = useTeam(teamId);
   const player = usePlayer(accountId);
-  const { join } = useTeamActions();
+  const { join, settle } = useTeamActions();
+  const lockedRound = useRound(1, team.data?.activeRound ?? null);
+  const lockedEnded = lockedRound.data ? isTerminalPhase(lockedRound.data.phase) : false;
   const connected = wallet.status === 'connected' && !!accountId;
 
   const status: JoinStatus | null =
@@ -98,13 +104,19 @@ export function JoinCard({ teamId, prominent = false }: { teamId: number; promin
           ) : (
             <div className="mt-4 grid gap-3">
               <p className="font-extrabold" role="status">
-                {MESSAGE[status]}
+                {status === 'locked' && lockedEnded ? LOCKED_ENDED : MESSAGE[status]}
               </p>
               {status === 'invited' ? (
                 <div>
                   <Button variant="grape" size="lg" busy={busy(join.state)} onClick={() => join.run(teamId)}>
                     Enter the team
                   </Button>
+                  {team.data.vault !== team.data.weight ? (
+                    <p className="mt-2 text-[14px] font-semibold">
+                      Plays have spent part of this vault, so new deposits stay closed until every depositor
+                      has withdrawn their share. You can still join and play from the vault.
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
               {status === 'no-player' || (status === 'not-invited' && !player.data) ? (
@@ -124,6 +136,18 @@ export function JoinCard({ teamId, prominent = false }: { teamId: number; promin
                     It opens the captain&apos;s team desk with {accountId} already typed in, so they only
                     press Invite. Then come back to this page.
                   </p>
+                </div>
+              ) : null}
+              {status === 'locked' && lockedEnded ? (
+                <div>
+                  <Button variant="red" busy={busy(settle.state)} onClick={() => settle.run(teamId)}>
+                    Unlock this team
+                  </Button>
+                  <ActionSlip
+                    state={settle.state}
+                    onReset={settle.reset}
+                    doneText="Unlock sent. When the chain shows it, this card checks your invitation again."
+                  />
                 </div>
               ) : null}
               <ActionSlip

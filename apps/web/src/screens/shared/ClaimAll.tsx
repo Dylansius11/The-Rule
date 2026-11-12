@@ -23,14 +23,15 @@ export function ClaimAll({ className = '' }: { className?: string }) {
   const tried = useRef<string | null>(null);
 
   // Unlocking only returns the team's own stakes to its vault and moves no money out, so with a session key
-  // it is sent without asking. Each round is tried once per page, so a failure is shown, not retried in a loop.
+  // it is sent without asking. Each round is tried once per page, so a failure is shown, not retried in a
+  // loop, and a later round unlocks again after an earlier one finished.
   useEffect(() => {
-    if (!unlock || !silent || send.state.kind !== 'idle') return;
+    if (!unlock || !silent || working) return;
     const key = `${unlock.teamId}:${unlock.roundId}`;
     if (tried.current === key) return;
     tried.current = key;
     send.run([unlock]);
-  }, [unlock, silent, send]);
+  }, [unlock, silent, working, send]);
 
   // Keep the bar while it is reporting, even after the plan empties because the chain caught up.
   if (!accountId || (payouts.items.length === 0 && send.state.kind === 'idle')) return null;

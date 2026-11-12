@@ -55,7 +55,10 @@ export function Roster({ team, me }: { team: Team; me: string }) {
         <p className="mono mt-3 text-[13px] font-bold">Invited, not yet joined: {team.invites.join(', ')}</p>
       ) : null}
       {team.activeRound !== null ? (
-        <p className="mt-3 font-bold">The roster is locked until round {team.activeRound} ends.</p>
+        <p className="mt-3 font-bold">
+          The roster is locked to round {team.activeRound}. It opens once that round has ended and the team is
+          unlocked (Claim all does it).
+        </p>
       ) : null}
       <div className="mt-3">
         <ActionSlip

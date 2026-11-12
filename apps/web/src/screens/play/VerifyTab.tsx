@@ -24,7 +24,7 @@ import { downloadLog } from '@/screens/shared/exportLog';
 import { modeName, outcomeLabel, phaseLabel } from '@/screens/shared/round';
 import { useRoundSelection } from '@/screens/shared/useRoundSelection';
 import { RoundHistoryNotice } from '@/screens/shared/RoundHistoryNotice';
-import { SettleRound } from '@/screens/shared/SettleRound';
+import { KeeperWait } from '@/screens/shared/KeeperWait';
 import { useRoundClock } from '@/screens/shared/useRoundClock';
 import { useRoom } from './room';
 import { Check, type CheckTone } from './verify/Check';
@@ -188,7 +188,7 @@ export function VerifyTab() {
               <> No opened {modeName(mode)} law was found in the bounded lookup window.</>
             )}
           </EmptyState>
-          <SettleRound round={round} className="mx-auto mt-5 max-w-[62ch] text-center" />
+          <KeeperWait round={round} className="mx-auto mt-5 max-w-[62ch] text-center" />
           {sel.revealed && sel.revealed.roundId !== round.roundId ? (
             <div className="mt-5 text-center">
               <Button to={roomPath(mode, 'verify', sel.revealed.roundId)} variant="red">

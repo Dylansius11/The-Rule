@@ -30,7 +30,7 @@ Read the headlines before work. Record actual surprises from this project only, 
 
 - **What happened:** Demo Solo 334 ended its reveal window at 07:49:33 UTC and was still `Reveal` at 08:09 with `rule: null`, so Verify said "Still sealed". Nothing was broken on chain: `finalize` is permissionless and nobody had sent it. D42 leaves the keeper stopped for Demo, and the web had no way to send `advance` or `finalize`.
 - **Root cause:** the UI treated the keeper as the only lifecycle actor and described an overdue round as an ordinary wait.
-- **Rule:** an overdue deadline says what is missing, and after a 90 s keeper grace the page offers the permissionless `advance`/`finalize` through the player's wallet (gas only, zero deposit, not on the session-key list). Locally tested only; the button is not yet exercised on testnet.
+- **Rule:** an overdue deadline says what is missing, the page says what is being waited for. A first version offered the permissionless `advance`/`finalize` through the player's wallet after a 90 s keeper grace; the founder removed it the same day, so the page now only says "Waiting for the keeper" and the calls stay a manual lead or founder action. Locally tested only.
 
 ### 2026-11-12: the Stamp button waited on the send path while the ledger already held the verdict
 

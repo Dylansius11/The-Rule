@@ -12,8 +12,6 @@ export const commitGuess = (mode: Mode, hash: string) => game('commit_guess', { 
 export const revealGuess = (mode: Mode, commitSeq: number, guess: string, salt: string) =>
   game('reveal_guess', { mode, commit_seq: commitSeq, guess, salt });
 export const claim = (mode: Mode, roundId: number) => game('claim', { mode, round_id: roundId });
-export const advance = (mode: Mode, roundId: number) => game('advance', { mode, round_id: roundId });
-export const finalize = (mode: Mode, roundId: number) => game('finalize', { mode, round_id: roundId });
 export const claimTeam = (mode: Mode, roundId: number, teamId: number) =>
   game('claim_team', { mode, round_id: roundId, team_id: teamId });
 export const createTeam = (name: string) => game('create_team', { name });

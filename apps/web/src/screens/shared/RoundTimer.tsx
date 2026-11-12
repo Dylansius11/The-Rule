@@ -2,7 +2,7 @@ import type { Round } from '@/game/types';
 import { Tag } from '@/ui/Tag';
 import { clockText, formatCountdown } from './clock';
 import { isActive, phaseLabel } from './round';
-import { SettleRound } from './SettleRound';
+import { KeeperWait } from './KeeperWait';
 import { useRoundClock } from './useRoundClock';
 
 const URGENT_MS = 60_000;
@@ -51,7 +51,7 @@ export function RoundTimer({ round, className = '' }: { round: Round; className?
         </p>
       ) : null}
       {clock.stage === 'plays-closed' || clock.stage === 'reveal-ended' ? (
-        <SettleRound round={round} className="mt-2" />
+        <KeeperWait round={round} className="mt-2" />
       ) : null}
     </div>
   );

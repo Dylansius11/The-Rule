@@ -114,10 +114,16 @@ export function useTeamActions() {
     }),
     invite: useAction(calls.invite),
     join: useAction(calls.joinTeam),
-    leave: useAction<void>(() => calls.leaveTeam()),
+    leave: useAction<readonly PayoutItem[]>(async before => {
+      for (const item of before) checked(await sendPayout(item));
+      return calls.leaveTeam();
+    }),
     remove: useAction(calls.removeMember),
     deposit: useAction<{ teamId: number; amount: bigint }>(arg => calls.teamDeposit(arg.teamId, arg.amount)),
-    withdraw: useAction(calls.teamWithdraw),
+    withdraw: useAction<{ teamId: number; unlockFirst: boolean }>(async arg => {
+      if (arg.unlockFirst) checked(await calls.settleTeam(arg.teamId));
+      return calls.teamWithdraw(arg.teamId);
+    }),
     settle: useAction(calls.settleTeam),
   };
 }

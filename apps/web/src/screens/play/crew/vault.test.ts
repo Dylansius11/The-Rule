@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { depositShares, showCaptainBadge, teamMinted } from './vault';
+import { depositShares, exitShare, showCaptainBadge, teamMinted } from './vault';
 
 const NEAR = 10n ** 24n;
 
@@ -49,5 +49,26 @@ describe('teamMinted', () => {
 
   it('is zero without rows', () => {
     expect(teamMinted([], 1, 'me.testnet')).toEqual({ total: 0n, mine: 0n });
+  });
+});
+
+describe('exitShare', () => {
+  const team = {
+    vault: 1_908_560_000_000_000_000_000_000n,
+    weight: 3n * NEAR,
+    deposits: [
+      { account: 'a.testnet', weight: 2n * NEAR },
+      { account: 'b.testnet', weight: NEAR },
+    ],
+  };
+
+  it('returns the depositor cut of the vault, rounded down', () => {
+    expect(exitShare(team, 'a.testnet')).toBe(1_272_373_333_333_333_333_333_333n);
+    expect(exitShare(team, 'b.testnet')).toBe(636_186_666_666_666_666_666_666n);
+  });
+
+  it('is zero for a member who put nothing in and for an empty vault weight', () => {
+    expect(exitShare(team, 'c.testnet')).toBe(0n);
+    expect(exitShare({ ...team, weight: 0n, deposits: [] }, 'a.testnet')).toBe(0n);
   });
 });

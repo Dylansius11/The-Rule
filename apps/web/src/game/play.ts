@@ -9,6 +9,7 @@ import * as views from '@/chain/views';
 import type { LogRow, Mode, PlayInput, PlayState } from './types';
 import { buildPlayContext, detectRefund, findPlayRow, parsePlayAck, type PlayAck } from './play-helpers';
 import { playReducer } from './play-state';
+import { isTerminalPhase } from './payouts';
 
 const FOLLOW_POLL_MS = 3000;
 
@@ -147,8 +148,23 @@ export function usePlay(mode: Mode, roundId: number) {
           dispatch({ type: 'known', row: known });
           return;
         }
-        const team = mode === 1 && player?.teamId != null ? await views.getTeam(player.teamId) : null;
+        let team = mode === 1 && player?.teamId != null ? await views.getTeam(player.teamId) : null;
         if (signal.aborted) return;
+        // The contract refuses a Team play (E30) while the team is still locked to an ended round. Unlocking
+        // is permissionless and only returns the team's own stakes to its vault, so the play does it first.
+        if (team?.activeRound != null && team.activeRound !== roundId) {
+          const locked = await views.getRound(1, team.activeRound);
+          if (signal.aborted) return;
+          if (locked && isTerminalPhase(locked.phase)) {
+            const unlocked = await calls.settleTeam(team.teamId);
+            const unlockStatus = unlocked.status;
+            if (typeof unlockStatus === 'object' && 'Failure' in unlockStatus) {
+              throw new Error(JSON.stringify(unlockStatus.Failure));
+            }
+            team = await views.getTeam(team.teamId);
+            if (signal.aborted) return;
+          }
+        }
         const balance = mode === 0 ? player?.credit : team?.vault;
         dispatch({ type: 'sign' });
         transactionStarted = true;

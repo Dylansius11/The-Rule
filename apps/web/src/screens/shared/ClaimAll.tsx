@@ -1,4 +1,6 @@
+import { useEffect, useRef } from 'react';
 import { formatNear } from '@/chain/format';
+import { useSessionKey } from '@/chain/session/useSessionKey';
 import { useClaimAll, usePayouts, useWallet } from '@/game';
 import { modeName } from '@/screens/shared/round';
 import { ActionSlip } from '@/ui/ActionSlip';
@@ -15,6 +17,20 @@ export function ClaimAll({ className = '' }: { className?: string }) {
   const payouts = usePayouts(accountId);
   const send = useClaimAll();
   const working = send.state.kind === 'signing' || send.state.kind === 'pending';
+  const session = useSessionKey();
+  const silent = session.status === 'active' || session.status === 'low';
+  const unlock = payouts.items.find(item => item.kind === 'unlock');
+  const tried = useRef<string | null>(null);
+
+  // Unlocking only returns the team's own stakes to its vault and moves no money out, so with a session key
+  // it is sent without asking. Each round is tried once per page, so a failure is shown, not retried in a loop.
+  useEffect(() => {
+    if (!unlock || !silent || send.state.kind !== 'idle') return;
+    const key = `${unlock.teamId}:${unlock.roundId}`;
+    if (tried.current === key) return;
+    tried.current = key;
+    send.run([unlock]);
+  }, [unlock, silent, send]);
 
   // Keep the bar while it is reporting, even after the plan empties because the chain caught up.
   if (!accountId || (payouts.items.length === 0 && send.state.kind === 'idle')) return null;

@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router';
 import { roomPath } from '@/app/paths';
 import { formatNear, formatRule } from '@/chain/format';
 import { active } from '@/config/env';
-import { useEntity, useLatestRound, useLog, useTeamActions } from '@/game';
+import { useEntity, useLatestRound, useLog, usePayouts, useTeamActions } from '@/game';
 import type { Team } from '@/game/types';
 import { ActionSlip } from '@/ui/ActionSlip';
 import { Amount } from '@/ui/Amount';
@@ -14,7 +14,7 @@ import { isActive, phaseLabel, pad3 } from '@/screens/shared/round';
 import { Roster } from './Roster';
 import { CopyField, TextField, busy } from './parts';
 import { inviteAccountFromSearch, inviteLink } from './invite';
-import { depositShares, teamMinted } from './vault';
+import { depositShares, exitShare, teamMinted } from './vault';
 
 export function InTeam({ team, me }: { team: Team; me: string }) {
   const actions = useTeamActions();
@@ -27,6 +27,19 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
   const entity = useEntity(1, round.data?.roundId ?? null, me);
   const live = round.data && isActive(round.data) ? round.data : null;
   const captain = team.captain === me;
+  const payouts = usePayouts(me);
+  const settleFirst = payouts.items.some(item => item.kind === 'unlock');
+  const canExit = team.activeRound === null || settleFirst;
+  const beforeLeave = payouts.items.filter(item => item.kind === 'unlock' || item.mode === 1);
+  const share = formatNear(exitShare(team, me), 3);
+  const exitNote =
+    team.activeRound === null
+      ? `Leaving returns about ${share} NEAR, your share of the vault, to your game credit and removes you from the team. Withdraw credit to your wallet on the Account page.`
+      : settleFirst
+        ? `Round ${team.activeRound} has ended, so leaving first unlocks the team and claims your finished team rounds, then returns about ${share} NEAR, your share of the vault, to your game credit.`
+        : payouts.loading
+          ? `Checking round ${team.activeRound}…`
+          : `The team is locked to round ${team.activeRound} until it ends. Leaving and withdrawing open after that.`;
   const log = useLog(1, round.data?.roundId);
   const minted = teamMinted(log.rows, team.teamId, me);
 
@@ -97,6 +110,31 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
 
       <Roster team={team} me={me} />
 
+      <InkBox
+        className="flex flex-wrap items-center justify-between gap-4 p-4"
+        fill="#fff"
+        tilt={0.2}
+        aria-label="Leave the team"
+      >
+        <div className="min-w-0 max-w-[60ch]">
+          <h3 className="display text-[28px] leading-none">Leave the team</h3>
+          <p className="mt-1 text-[14px] font-semibold">{exitNote}</p>
+        </div>
+        <Button
+          variant="red"
+          disabled={!canExit}
+          busy={busy(actions.leave.state)}
+          onClick={() => actions.leave.run(beforeLeave)}
+        >
+          Leave team
+        </Button>
+      </InkBox>
+      <ActionSlip
+        state={actions.leave.state}
+        onReset={actions.leave.reset}
+        doneText="Left the team. Your share is in your game credit; withdraw it to your wallet from the Account page."
+      />
+
       <div className="grid gap-6 md:grid-cols-2">
         <InkBox className="p-5" fill="#fff" tilt={0.6}>
           <h3 className="display text-[34px] leading-none">Vault</h3>
@@ -135,13 +173,13 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
             <Button
               variant="paper"
               busy={busy(actions.withdraw.state)}
-              disabled={team.activeRound !== null}
-              onClick={() => actions.withdraw.run(team.teamId)}
+              disabled={!canExit}
+              onClick={() => actions.withdraw.run({ teamId: team.teamId, unlockFirst: settleFirst })}
             >
               Withdraw my share
             </Button>
           </div>
-          {team.activeRound !== null ? (
+          {team.activeRound !== null && !settleFirst ? (
             <p className="mt-2 text-[14px] font-bold">Withdrawals open between rounds.</p>
           ) : null}
           <div className="mt-3 grid gap-3">
@@ -255,25 +293,6 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
               state={actions.invite.state}
               onReset={actions.invite.reset}
               doneText="Invite sent. They can now join from your invite link or with this team id."
-            />
-            <div>
-              <Button
-                variant="paper"
-                size="sm"
-                disabled={team.activeRound !== null}
-                busy={busy(actions.leave.state)}
-                onClick={() => actions.leave.run()}
-              >
-                Leave team
-              </Button>
-              <p className="mt-1 text-[14px] font-semibold">
-                After leaving you can still claim and settle past rounds with the original team id.
-              </p>
-            </div>
-            <ActionSlip
-              state={actions.leave.state}
-              onReset={actions.leave.reset}
-              doneText="Leave sent. This page updates when the chain shows it."
             />
           </div>
         </InkBox>

@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-12: the Stamp button waited on the send path while the ledger already held the verdict
+
+- **What happened:** on the Demo Stamp tab the button and Blot stayed on "Signing with your session key" while the Ledger already listed the play as YES. On-chain, the 517 play was included at 07:45:24 UTC and its verdict callback landed 6.6 s later (receipt timeline from `demo-game` and `outlayer.testnet`), but the screenshot was taken about 33 s after inclusion. The page leaves `signing` only when `sendWithKey` returns, which also waits for the root receipt to be final.
+- **Root cause:** the UI state followed one source (the send path) when the chain already had the answer. The exact stall was not reproduced. What is verified: `near-api-js` retries every failing node 12 times with 500 ms growing by 1.5 before `FailoverRpcProvider` tries the next node (`lib/index.js`, `REQUEST_RETRY_*`), and the session signer used those defaults. [I] A slow or erroring public RPC would then hold the state for minutes.
+- **Rule:** a result the player is waiting for is read from the ledger as well as from the transaction path, and a recorded row wins over a late send error. Session-key RPC providers fail over after about a second, not two minutes. Locally tested only (reducer tests, typecheck); the timing stall is not reproduced.
+
 ### 2026-11-11: a verifier must be run against a live deployment before the ceremony trusts it
 
 - **What happened:** the first ceremony `verify` compared the live game's `get_params` to the planned init params for equality. A read-only call against `demo-game.therule.testnet` showed it returns three extra fields (`demo`, `user_referee_request_limit`, `max_pending_referee_requests`), so the check would have refused the real key deletion. The same smoke showed `drpc` answers 403 to Python's default user agent.

@@ -30,8 +30,10 @@ function accountFor(accountId: string, key: StoredKey): Promise<NearAccount> {
   if (!entry) {
     entry = (async () => {
       const near = await loadNear();
+      // near-api-js retries a failing node 12 times with growing waits (about two minutes) before the next
+      // node is tried, which can leave the UI in "signing" that long. Fail over after about a second.
       const provider = new near.FailoverRpcProvider(
-        config.rpcUrls.map(url => new near.JsonRpcProvider({ url })),
+        config.rpcUrls.map(url => new near.JsonRpcProvider({ url }, { retries: 2, wait: 300, backoff: 2 })),
       );
       return new near.Account(accountId, provider, createSigner(near, key));
     })();

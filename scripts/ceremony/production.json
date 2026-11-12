@@ -1,0 +1,148 @@
+{
+  "deploy_config": {
+    "network": "testnet",
+    "deployment_kind": "production",
+    "game_account": "game.therule.testnet",
+    "token_account": "token.therule.testnet",
+    "game_wasm": "scratch/freeze/out/game.wasm",
+    "token_wasm": "scratch/freeze/out/token.wasm",
+    "referee_wasm": "scratch/freeze/out/referee.wasm",
+    "referee_sha256": "003d5844d2960534f05558294b8a0d66ead2754d711af76f96cdf9f7277cda9d",
+    "referee_build_log": "scratch/freeze/referee-1.log",
+    "token_cap": "1000000000000000000000000000",
+    "token_metadata": {
+      "spec": "ft-1.0.0",
+      "name": "THE RULE",
+      "symbol": "RULE",
+      "decimals": 18
+    },
+    "demo": false,
+    "init_gas": 100000000000000,
+    "token_storage_deposit": "1250000000000000000000",
+    "registration_payer": "therule.testnet",
+    "registration_gas": 30000000000000,
+    "token_operation_funding": "2560000000000000000000000",
+    "operation_funding_payer": "therule.testnet",
+    "operation_funding_gas": 30000000000000,
+    "params": {
+      "play_fee": "10000000000000000000000",
+      "fee_split_bps": [
+        8000,
+        1500,
+        500
+      ],
+      "storage_charge_per_play": "20480000000000000000000",
+      "storage_charge_account": "5120000000000000000000",
+      "storage_charge_team": "20480000000000000000000",
+      "stake_bps": [
+        100,
+        200
+      ],
+      "stake_min": "100000000000000000000000",
+      "wrong_return_bps": 5000,
+      "solved_split_bps": [
+        4000,
+        4000,
+        1000,
+        1000
+      ],
+      "unsolved_split_bps": [
+        4000,
+        5000,
+        1000
+      ],
+      "genesis_ns": 1794517200000000000,
+      "round_period_ns": 86400000000000,
+      "mode_offset_ns": [
+        0,
+        43200000000000
+      ],
+      "investigation_max_ns": 82800000000000,
+      "reveal_window_ns": 1800000000000,
+      "begin_timeout_ns": 3600000000000,
+      "open_timeout_ns": 21600000000000,
+      "min_reveal_delay_blocks": 2,
+      "base_attempts": [
+        25,
+        50
+      ],
+      "lock_tiers": [
+        {
+          "amount": "1000000000000000000000",
+          "extra_attempts": 25
+        },
+        {
+          "amount": "5000000000000000000000",
+          "extra_attempts": 50
+        },
+        {
+          "amount": "20000000000000000000000",
+          "extra_attempts": 100
+        }
+      ],
+      "attempt_cap": [
+        125,
+        250
+      ],
+      "share_cap": [
+        25,
+        50
+      ],
+      "round_allowance": "500000000000000000000000",
+      "mint_base": "100000000000000000000",
+      "max_team_size": 5,
+      "referee": {
+        "outlayer": "outlayer.testnet",
+        "urls": [
+          "https://40f9ced8.the-rule-referee.pages.dev/003d5844d2960534f05558294b8a0d66ead2754d711af76f96cdf9f7277cda9d.wasm",
+          "https://test.fastfs.io/therule.testnet/outlayer.testnet/003d5844d2960534f05558294b8a0d66ead2754d711af76f96cdf9f7277cda9d.wasm"
+        ],
+        "hash": "003d5844d2960534f05558294b8a0d66ead2754d711af76f96cdf9f7277cda9d",
+        "build_target": "wasm32-wasip2"
+      },
+      "resource_limits": {
+        "begin": {
+          "instructions": 1000000000,
+          "memory_mb": 128,
+          "execution_seconds": 10
+        },
+        "verdict": {
+          "instructions": 1000000000,
+          "memory_mb": 128,
+          "execution_seconds": 5
+        },
+        "guess": {
+          "instructions": 1000000000,
+          "memory_mb": 128,
+          "execution_seconds": 30
+        },
+        "open": {
+          "instructions": 1000000000,
+          "memory_mb": 128,
+          "execution_seconds": 10
+        }
+      },
+      "outlayer_deposit": {
+        "begin": "2400120000000000000000",
+        "verdict": "1800120000000000000000",
+        "guess": "4800120000000000000000",
+        "open": "2400120000000000000000"
+      },
+      "gas_outlayer": 100000000000000,
+      "gas_callback": 60000000000000,
+      "gas_mint": 10000000000000,
+      "token": "token.therule.testnet",
+      "platform": "platform.therule.testnet",
+      "chain_id": "testnet"
+    }
+  },
+  "rpc_urls": [
+    "https://near-testnet.drpc.org",
+    "https://test.rpc.fastnear.com"
+  ],
+  "min_balance_yocto": {
+    "game": "7000000000000000000000000",
+    "token": "3000000000000000000000000",
+    "payer": "6000000000000000000000000"
+  }
+}

@@ -9,7 +9,7 @@ summary: Practical answers about plays, guesses, funds and the testnet build.
 A settled duplicate of the same full play context returns its known verdict without a fee or new ledger row.
 
 ### Is the same number and word always a duplicate?
-No. The minute digit and your previous YES context also matter.
+No. The minute digit and your previous YES context also matter. The stamp desk says so when the pair was already stamped this round: a repeat in a new context is a new paid play, while a repeat in the same context is free and adds nothing to the pot, the shares or RULE.
 
 ### Why 25 attempts?
 The Solo base budget is 25 per round, a fixed game parameter. Team starts at 50; eligible RULE locks add attempts subject to caps.

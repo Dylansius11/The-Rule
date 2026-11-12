@@ -4,7 +4,7 @@ import { roomPath } from '@/app/paths';
 import { useSound, type SoundName } from '@/audio';
 import { Art } from '@/art/Art';
 import { formatNear } from '@/chain/format';
-import { useEntity, usePlay, usePlayer, useParams, useTeam, useWords } from '@/game';
+import { useEntity, useLog, usePlay, usePlayer, useParams, useTeam, useWords } from '@/game';
 import type { Mode, PlayState, Round } from '@/game/types';
 import { useConnect } from '@/layout/useConnect';
 import { Blot, type BlotState } from '@/mascot/Blot';
@@ -16,6 +16,7 @@ import { Button } from '@/ui/Button';
 import { Amount } from '@/ui/Amount';
 import { InkBox } from '@/ui/InkBox';
 import { ReelNumber } from '@/ui/Reel';
+import { StatSticker } from '@/ui/Sticker';
 import { PlaySlip } from '@/ui/Slip';
 import { SpeechBubble } from '@/ui/SpeechBubble';
 import { timeAgo } from '@/chain/format';
@@ -23,6 +24,8 @@ import { modeName, pad3 } from '@/screens/shared/round';
 import { ClaimAll } from '@/screens/shared/ClaimAll';
 import { RoundTimer } from '@/screens/shared/RoundTimer';
 import { WordPicker } from './WordPicker';
+import { teamMinted } from './crew/vault';
+import { sameFace } from './sameFace';
 
 const BLOT: Record<PlayState['kind'], BlotState> = {
   idle: 'idle',
@@ -71,9 +74,15 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
   const team = useTeam(mode === 1 ? (player.data?.teamId ?? null) : null);
   const play = usePlay(mode, round.roundId);
   const now = useNow(15_000);
+  const log = useLog(mode, round.roundId);
+  const mintedMine =
+    wallet.accountId && player.data?.teamId != null
+      ? teamMinted(log.rows, player.data.teamId, wallet.accountId).mine
+      : 0n;
 
   const [number, setNumber] = useState(417);
   const [word, setWord] = useState<string | null>(null);
+  const repeats = sameFace(log.rows, number, word);
   const [pressed, setPressed] = useState(false);
   const desk = useRef<HTMLDivElement>(null);
   const reduced = useReduced();
@@ -183,15 +192,17 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
               Your team plays as one: this play is paid from the team vault and uses the team&apos;s single
               line.
             </p>
-            <p className="mono mt-1 flex flex-wrap gap-x-4 text-[14px] font-bold">
-              <span>
-                Team vault{' '}
-                {team.data ? <Amount kind="near" value={team.data.vault} digits={3} /> : 'not in a team'}
-              </span>
-              <span>
-                Round pot <Amount kind="near" value={round.pot} digits={3} />
-              </span>
-            </p>
+            <dl className="mt-3 grid grid-cols-3 gap-3">
+              <StatSticker label="Team vault" tone="sun" tilt={-1.5} mono className="!min-w-0">
+                {team.data ? <Amount kind="near" value={team.data.vault} digits={3} /> : 'no team'}
+              </StatSticker>
+              <StatSticker label="Round pot" tone="paper" tilt={1} mono className="!min-w-0">
+                <Amount kind="near" value={round.pot} digits={3} />
+              </StatSticker>
+              <StatSticker label="Your RULE" tone="lime" tilt={-1} mono className="!min-w-0">
+                <Amount kind="rule" value={mintedMine} />
+              </StatSticker>
+            </dl>
           </>
         ) : null}
 
@@ -250,6 +261,18 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
               : ''}
           {left !== null ? ` · attempts left ${left} of ${entity.data?.limit}` : ''}
         </p>
+        {repeats.length > 0 ? (
+          <p
+            className="mb-4 rounded-2xl border-[3px] border-ink bg-sun px-3 py-2 text-[14px] font-bold"
+            role="status"
+          >
+            {pad3(number)} · {word} was already stamped{' '}
+            {repeats.length === 1 ? 'once' : `${repeats.length} times`} this round (last at minute digit{' '}
+            {repeats[repeats.length - 1]?.minuteDigit}: {repeats[repeats.length - 1]?.verdict ? 'YES' : 'NO'}
+            ). The law can read the minute digit and your previous play, so a repeat in a different context is
+            a new paid play. A different pair tells you more.
+          </p>
+        ) : null}
 
         {wallet.status === 'connected' ? (
           <Button

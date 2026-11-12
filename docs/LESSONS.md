@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-12: two Team plays of the same number and word both counted, and the page gave no reason
+
+- **What happened:** the founder saw Team rows 0 and 2 of Demo round 345 both showing 417 and black, both YES, both minting RULE, and expected the second to be refused. The log shows minute digit 4 on the first and 8 on the second, and the second carried the previous play 427 hydra.
+- **Root cause:** the contract keys a play on the number, the word, the minute digit and the player's previous play and gap, because a rule may read the minute or the previous play. Only the exact same key is free (`PlayAck::Known`: no fee, pot, share or RULE). The page never said that a same-looking pair in a new context is a new paid probe.
+- **Rule:** no contract change. The stamp desk lists earlier plays of the same pair and states that a repeat in a different context is a new paid play. Locally tested only (a unit test for the match); not exercised with a wallet.
+
 ### 2026-11-12: a team that played one round could not play the next until someone unlocked it
 
 - **What happened:** the founder's Team #1 stamped in round 340 and got "THE TEAM IS LOCKED E30" in round 341. Live chain state: `get_team(1).active_round = 340` with round 340 already Settled; the team's only way out was `settle_team`, a button hidden in the Crew tab under "After the round".

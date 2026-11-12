@@ -36,7 +36,7 @@ export function ClaimAll({ className = '' }: { className?: string }) {
   if (!accountId || (payouts.items.length === 0 && send.state.kind === 'idle')) return null;
 
   return (
-    <InkBox className={`p-4 md:p-5 ${className}`} fill="var(--color-sun)" tilt={-0.3}>
+    <InkBox className={`p-4 md:p-5 ${className}`} fill="var(--color-lime)" tilt={-0.3}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="display text-[30px] leading-none">Ready to collect</h3>

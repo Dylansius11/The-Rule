@@ -2,6 +2,12 @@
 
 Read the headlines before work. Record actual surprises from this project only, newest first. Each entry is `### YYYY-MM-DD: headline`, followed by bullets: what happened, the root cause with evidence, and the rule going forward. Update it in the same commit as the related behavior change.
 
+### 2026-11-12: the machine's default wrangler login pointed at a different Cloudflare account than the keeper's
+
+- **What happened:** `wrangler whoami` showed an OAuth login for another Google account (`63acf966…`), while `wrangler.jsonc` pins the THE RULE keeper and referee to `ec31758c…` (the founder's `royalecardarena` account). A deploy would have failed or, without the pinned `account_id`, landed in the wrong account. A new Cron trigger also took about seven minutes to fire its first invocation.
+- **Root cause:** wrangler keeps one global login in the user's config directory, shared by every project on the machine.
+- **Rule:** run wrangler for this repo with `XDG_CONFIG_HOME` set to the gitignored `scratch/wrangler-home` and confirm `whoami` shows account `ec31758c…` before any deploy; the other project's login is left untouched. After deploying a Cron Worker, allow several minutes before the first slot it must serve.
+
 ### 2026-11-12: a warning phrased as an instruction read like a block on committing
 
 - **What happened:** the founder believed Seal & commit was blocked when the free ledger check disagreed. The screenshot shows the real cause: Solo 334 was in `Reveal`, so the button was disabled by "Commits are closed". The check never touched `disabled`, and the contract cannot check a sealed hash against the ledger. The red "Go back to change it" text made a warning read like a gate.

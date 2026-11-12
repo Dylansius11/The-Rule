@@ -2,7 +2,7 @@ import { Account, JsonRpcProvider, actions, baseEncode, type Signer } from 'near
 import { decide, uint, type Decision, type Mode, type NextSlot, type Params, type Round } from './game.ts';
 import { createNativeSigner } from './signer.ts';
 
-export interface Config { NEAR_RPC_URL: string; GAME_ACCOUNT: string; KEEPER_ACCOUNT?: string; KEEPER_PRIVATE_KEY?: string; HEALTHCHECK_PING_URL?: string; NEAR_NETWORK?: 'testnet' | 'sandbox'; MAINTAIN_SEASONS?: string; KEEPER_MODES?: string; FIRST_ROUND_ID?: string; LAST_ROUND_ID?: string }
+export interface Config { NEAR_RPC_URL: string; GAME_ACCOUNT: string; KEEPER_ACCOUNT?: string; KEEPER_PRIVATE_KEY?: string; HEALTHCHECK_PING_URL?: string; HEARTBEAT?: string; NEAR_NETWORK?: 'testnet' | 'sandbox'; MAINTAIN_SEASONS?: string; KEEPER_MODES?: string; FIRST_ROUND_ID?: string; LAST_ROUND_ID?: string }
 type Log = (message: string) => void;
 type Snapshot = { params: Params; rounds: Round[]; slots: [NextSlot, NextSlot]; now: bigint; hash: string };
 
@@ -117,7 +117,10 @@ export async function run(config: Config, dryRun = false, log: Log = console.log
     if (config.MAINTAIN_SEASONS !== undefined && config.MAINTAIN_SEASONS !== 'true' && config.MAINTAIN_SEASONS !== 'false') throw new Error('Invalid season configuration');
     if (network === 'sandbox' && !['127.0.0.1', '[::1]', 'localhost'].includes(url.hostname)) throw new Error('Sandbox must use loopback');
     if (network === 'testnet' && !config.GAME_ACCOUNT.endsWith('.testnet')) throw new Error('Invalid testnet game');
-    if (!dryRun && (!config.HEALTHCHECK_PING_URL || !config.KEEPER_ACCOUNT || !config.KEEPER_PRIVATE_KEY || !validAccount(config.KEEPER_ACCOUNT) || (network === 'testnet' && !config.KEEPER_ACCOUNT.endsWith('.testnet')))) throw new Error('Missing configuration');
+    // The heartbeat is required unless the deployment explicitly opts out (the Demo keeper has no monitor).
+    if (config.HEARTBEAT !== undefined && config.HEARTBEAT !== 'off') throw new Error('Invalid heartbeat configuration');
+    const heartbeat = config.HEARTBEAT !== 'off';
+    if (!dryRun && ((heartbeat && !config.HEALTHCHECK_PING_URL) || !config.KEEPER_ACCOUNT || !config.KEEPER_PRIVATE_KEY || !validAccount(config.KEEPER_ACCOUNT) || (network === 'testnet' && !config.KEEPER_ACCOUNT.endsWith('.testnet')))) throw new Error('Missing configuration');
     const status = object(await rpc('status', {}));
     const sandboxChain = typeof status.chain_id === 'string' &&
       (['localnet', 'sandbox'].includes(status.chain_id) || /^test-chain-[A-Za-z0-9]+$/.test(status.chain_id));
@@ -211,6 +214,7 @@ export async function run(config: Config, dryRun = false, log: Log = console.log
       if (final.revision !== checked.revision || final.indexed < checked.indexed) unhealthy = true;
     }
     if (unhealthy) { log('keeper waiting; no heartbeat'); return; }
+    if (!heartbeat) return;
     stage = 'heartbeat';
     const ping = await transport(config.HEALTHCHECK_PING_URL!);
     if (!ping.ok) throw new Error('Heartbeat failed');

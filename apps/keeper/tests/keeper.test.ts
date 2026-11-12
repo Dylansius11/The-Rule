@@ -88,6 +88,18 @@ describe('keeper execution', () => {
     const missing = { ...h.config, HEALTHCHECK_PING_URL: undefined };
     await expect(run(missing, false, () => {}, h.transport)).rejects.toThrow();
   });
+  it('runs without a heartbeat only when HEARTBEAT is explicitly off, and rejects any other value', async () => {
+    const h = harness({ outcome: 'success', after: [{ ...round, phase: 'Reveal' }] });
+    const off = { ...h.config, HEALTHCHECK_PING_URL: undefined, HEARTBEAT: 'off' };
+    await run(off, false, () => {}, h.transport);
+    expect(h.calls.filter(c => c.method === 'send_tx')).toHaveLength(1);
+    expect(h.calls.some(c => c.method === 'ping')).toBe(false);
+    for (const value of ['on', 'false', '', 'OFF']) {
+      const bad = harness();
+      await expect(run({ ...bad.config, HEARTBEAT: value }, false, () => {}, bad.transport)).rejects.toThrow();
+      expect(bad.calls.some(c => c.method === 'send_tx')).toBe(false);
+    }
+  });
   it('requires sandbox chain identity and a loopback endpoint', async () => {
     for (const chain of ['localnet', 'sandbox', 'test-chain-ilxKU']) {
       const h = harness({ chain, rounds: [{ ...round, investigation_end_ns: 121 }] });

@@ -111,7 +111,9 @@ export function StampTab() {
             <CostPayout
               mode={mode}
               round={round}
-              className="w-full max-w-[920px] xl:col-start-1 xl:row-start-2"
+              className={`w-full xl:col-start-1 xl:row-start-2 ${
+                round && playing ? 'max-w-[920px]' : 'mx-auto max-w-[760px]'
+              }`}
             />
           </div>
         )}

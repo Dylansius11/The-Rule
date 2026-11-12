@@ -13,6 +13,7 @@ import { Doodle } from '@/ui/Doodle';
 import { useNow } from '@/motion/hooks';
 import { useReduced } from '@/motion/prefs';
 import { Button } from '@/ui/Button';
+import { Amount } from '@/ui/Amount';
 import { InkBox } from '@/ui/InkBox';
 import { ReelNumber } from '@/ui/Reel';
 import { PlaySlip } from '@/ui/Slip';
@@ -177,10 +178,21 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
         </div>
         <RoundTimer round={round} className="mb-3 mt-1" />
         {mode === 1 ? (
-          <p className="mt-1 text-[15px] font-bold">
-            Your team plays as one: this play is paid from the team vault and uses the team&apos;s single
-            line.
-          </p>
+          <>
+            <p className="mt-1 text-[15px] font-bold">
+              Your team plays as one: this play is paid from the team vault and uses the team&apos;s single
+              line.
+            </p>
+            <p className="mono mt-1 flex flex-wrap gap-x-4 text-[14px] font-bold">
+              <span>
+                Team vault{' '}
+                {team.data ? <Amount kind="near" value={team.data.vault} digits={3} /> : 'not in a team'}
+              </span>
+              <span>
+                Round pot <Amount kind="near" value={round.pot} digits={3} />
+              </span>
+            </p>
+          </>
         ) : null}
 
         <div className="hand mt-3 flex items-baseline gap-3 text-[26px]">

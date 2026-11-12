@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router';
+import { WinModal } from '@/screens/shared/WinModal';
 import { ErrorCard } from '@/ui/ErrorCard';
 import { AppFooter } from './AppFooter';
 import { AppHeader } from './AppHeader';
@@ -23,6 +24,7 @@ export function AppShell() {
       </main>
       <AppFooter />
       <TabBar />
+      <WinModal />
     </div>
   );
 }

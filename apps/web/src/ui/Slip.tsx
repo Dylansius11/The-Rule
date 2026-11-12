@@ -138,7 +138,8 @@ export function PlaySlip({
               {pad(state.input.number)} · {state.input.word}
             </b>
             <span className="mono text-[14px] font-bold">
-              YES, logged <Amount kind="rule" value={state.row.minted} className="!text-[14px]" /> for you
+              YES, logged <Amount kind="rule" value={state.row.minted} rise className="!text-[14px]" /> for
+              you
             </span>
           </div>
           {state.txHash ? <HashText value={state.txHash} kind="tx" label="transaction hash" /> : null}

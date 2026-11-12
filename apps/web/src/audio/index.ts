@@ -31,7 +31,12 @@ export type SoundName =
   | 'mint'
   | 'blot'
   | 'jump'
-  | 'success';
+  | 'success'
+  | 'nav'
+  | 'sign'
+  | 'stamp-roll'
+  | 'win'
+  | 'correct';
 
 type SoundControls = {
   play: (name: SoundName) => void;
@@ -66,7 +71,20 @@ const GAINS: Record<SoundName, number> = {
   blot: 0.6,
   jump: 0.65,
   success: 0.65,
+  nav: 0.5,
+  sign: 0.6,
+  'stamp-roll': 0.6,
+  win: 0.8,
+  correct: 0.75,
 };
+/**
+ * Sounds whose own file may not exist yet play an older cue instead, so a missing `stamp-roll.mp3` leaves the
+ * pending cue in place rather than silence. Names without an entry stay silent until their file ships.
+ */
+const FALLBACK: Partial<Record<SoundName, SoundName>> = { 'stamp-roll': 'pending' };
+
+/** The file is not there (404, or the host's single-page fallback answered with HTML): expected, not an error. */
+class MissingSound extends Error {}
 const MAX_VOICES = 6;
 const SoundContext = createContext<SoundControls | null>(null);
 
@@ -97,12 +115,13 @@ export function SoundProvider({ children }: { children: ReactNode }) {
       const file = `/sfx/${name}.mp3`;
       buffer = fetch(file)
         .then(response => {
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          if (!response.ok || response.headers.get('content-type')?.startsWith('text/html'))
+            throw new MissingSound();
           return response.arrayBuffer();
         })
         .then(bytes => context.decodeAudioData(bytes))
-        .catch(() => {
-          console.error(`Unable to load or decode sound: ${file}`);
+        .catch(error => {
+          if (!(error instanceof MissingSound)) console.error(`Unable to load or decode sound: ${file}`);
           return null;
         });
       buffers.current.set(name, buffer);
@@ -173,7 +192,10 @@ export function SoundProvider({ children }: { children: ReactNode }) {
       if (!canPlay(lastPlayed.current.get(name), now) || voices.current >= MAX_VOICES) return;
       lastPlayed.current.set(name, now);
       voices.current++;
-      const buffer = load(context, name);
+      const fallback = FALLBACK[name];
+      const buffer = load(context, name).then(own =>
+        own === null && fallback ? load(context, fallback) : own,
+      );
       void buffer.then(async decoded => {
         if (context.state === 'suspended') await resumed.current;
         if (

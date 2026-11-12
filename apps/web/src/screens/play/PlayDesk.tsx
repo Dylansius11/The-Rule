@@ -9,6 +9,7 @@ import type { Mode, PlayState, Round } from '@/game/types';
 import { playCost } from '@/game/cost';
 import { useConnect } from '@/layout/useConnect';
 import { Blot, type BlotState } from '@/mascot/Blot';
+import { Confetti } from '@/mascot/Confetti';
 import { Drip } from '@/mascot/Drip';
 import { Doodle } from '@/ui/Doodle';
 import { useNow } from '@/motion/hooks';
@@ -16,6 +17,7 @@ import { useReduced } from '@/motion/prefs';
 import { Button } from '@/ui/Button';
 import { Amount } from '@/ui/Amount';
 import { InkBox } from '@/ui/InkBox';
+import { InkSplash } from '@/ui/InkSplash';
 import { ReelNumber } from '@/ui/Reel';
 import { StatSticker } from '@/ui/Sticker';
 import { PlaySlip } from '@/ui/Slip';
@@ -108,7 +110,8 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
     if (lastKind.current === stateKind) return;
     lastKind.current = stateKind;
     const cue: Partial<Record<PlayState['kind'], SoundName>> = {
-      pending: 'pending',
+      signing: 'sign',
+      pending: 'stamp-roll',
       accepted: 'yes',
       rejected: 'no',
       known: 'duplicate',
@@ -139,10 +142,15 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
     setPressed(true);
     if (!reduced)
       desk.current?.animate(
-        [{ transform: 'translateY(0)' }, { transform: 'translateY(5px)' }, { transform: 'translateY(0)' }],
-        { duration: 220, easing: 'cubic-bezier(.2,.8,.2,1)' },
+        [
+          { transform: 'translateY(0) rotate(0)' },
+          { transform: 'translateY(10px) rotate(-0.35deg)', offset: 0.28 },
+          { transform: 'translateY(-4px) rotate(0.2deg)', offset: 0.62 },
+          { transform: 'translateY(0) rotate(0)' },
+        ],
+        { duration: 340, easing: 'cubic-bezier(.2,.8,.2,1)' },
       );
-    setTimeout(() => setPressed(false), 140);
+    setTimeout(() => setPressed(false), 300);
     play.stamp({ number, word });
   }
 
@@ -152,6 +160,10 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
   const pulse = 'row' in play.state ? play.state.row.seq : play.state.kind;
   const burst = play.state.kind === 'accepted' ? play.state.row.seq : null;
   const slipError = play.state.kind === 'error' ? play.state.error : null;
+  const splash =
+    play.state.kind === 'accepted' || play.state.kind === 'rejected'
+      ? { verdict: play.state.kind === 'accepted', fire: play.state.row.seq }
+      : null;
 
   const slip = (
     <PlaySlip
@@ -162,7 +174,7 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
   );
 
   return (
-    <div ref={desk} className="wrap grid items-start gap-6 md:grid-cols-[0.9fr_1.1fr] md:gap-11">
+    <div ref={desk} className="grid items-start gap-6 md:grid-cols-[0.9fr_1.1fr] md:gap-9 xl:gap-10">
       <ClaimAll className="md:col-span-2" />
       <InkBox
         className="relative px-5 pb-6 pt-7 text-center md:order-1 md:px-6"
@@ -180,6 +192,8 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
 
       <InkBox className="relative p-5 md:order-2 md:p-8" tilt={0.8}>
         <Drip pose="peek" width={104} className="pointer-events-none absolute -top-[46px] right-8 z-10" />
+        {splash ? <InkSplash verdict={splash.verdict} fire={splash.fire} /> : null}
+        <Confetti fire={splash?.verdict ? splash.fire : null} />
         <div className="mb-2 flex items-baseline justify-between gap-3">
           <h2 className="display text-[clamp(40px,6vw,52px)]">Make a play</h2>
           <span className="mono rounded-full bg-ink px-2.5 py-1 text-[14px] font-bold text-sun">
@@ -213,6 +227,9 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
             <Doodle name="doodles/hand" size={26} rot={-10} />{' '}
             <small className="mono text-[12px] font-bold">tap the triangles</small>
           </span>
+          <small className="mono hidden text-[12px] font-bold opacity-70 md:inline">
+            click a digit and type 516, or use ▲ ▼
+          </small>
         </div>
         <div className="flex flex-wrap items-center gap-4">
           <ReelNumber value={number} onChange={setNumber} disabled={inFlight} />

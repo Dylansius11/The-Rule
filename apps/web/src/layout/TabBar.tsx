@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router';
 import { DOCS_PATH, roomPath, useNavMode } from '@/app/paths';
+import { useSound } from '@/audio';
 import { Button } from '@/ui/Button';
 import { Dialog } from '@/ui/Dialog';
 import { useDeploymentChoice } from './demo';
@@ -18,6 +19,7 @@ export function TabBar() {
   const { show } = useGuide();
   const { choose, dialog } = useDeploymentChoice();
   const wallet = useWallet();
+  const { play } = useSound();
 
   useEffect(() => setMoreOpen(false), [pathname]);
 
@@ -34,7 +36,13 @@ export function TabBar() {
         style={{ paddingBottom: 'env(safe-area-inset-bottom)', minHeight: 'var(--tabbar-h)' }}
       >
         {ROOM_TABS.map(t => (
-          <NavLink key={t.tab} to={roomPath(mode, t.tab)} end={t.tab === 'stamp'} className="tab-link">
+          <NavLink
+            key={t.tab}
+            to={roomPath(mode, t.tab)}
+            end={t.tab === 'stamp'}
+            className="tab-link"
+            onClick={() => play('nav')}
+          >
             {t.icon}
             {t.label}
           </NavLink>

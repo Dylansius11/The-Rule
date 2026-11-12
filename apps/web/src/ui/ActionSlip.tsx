@@ -21,6 +21,7 @@ export function ActionSlip({ state, doneText, onReset, signingText }: ActionSlip
   const copy = useSigningCopy();
   const kind = state.kind;
   useEffect(() => {
+    if (kind === 'signing') play('sign');
     if (kind === 'done') play('success');
     if (kind === 'error') play('error');
   }, [kind, play]);

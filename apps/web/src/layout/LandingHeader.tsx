@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import { DOCS_PATH } from '@/app/paths';
+import { useSound } from '@/audio';
 import { Button } from '@/ui/Button';
 import { Brand } from './Brand';
 import { StickyHeader } from './StickyHeader';
@@ -12,16 +13,17 @@ const ANCHORS = [
 
 /** The landing header: logo, three anchors into the page and the way in. No wallet here. */
 export function LandingHeader() {
+  const { play } = useSound();
   return (
     <StickyHeader>
       <Brand />
       <nav className="ml-auto hidden items-center gap-5 lg:flex lg:gap-7" aria-label="On this page">
         {ANCHORS.map(a => (
-          <a key={a.href} href={a.href} className="nav-link">
+          <a key={a.href} href={a.href} className="nav-link" onClick={() => play('nav')}>
             {a.label}
           </a>
         ))}
-        <Link to={DOCS_PATH} className="nav-link">
+        <Link to={DOCS_PATH} className="nav-link" onClick={() => play('nav')}>
           Docs
         </Link>
       </nav>

@@ -38,7 +38,7 @@ describe('previous and next', () => {
   const all = flatten(index);
 
   it('flattens in reading order', () => {
-    expect(all).toHaveLength(23);
+    expect(all).toHaveLength(25);
     expect(all[0]!.section).toBe('play');
   });
 

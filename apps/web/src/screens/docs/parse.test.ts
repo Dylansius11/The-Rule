@@ -162,8 +162,8 @@ describe('links', () => {
 describe('the real docs content', () => {
   const { pages } = loadContent();
 
-  it('finds all 23 pages', () => {
-    expect(pages).toHaveLength(23);
+  it('finds all 25 pages', () => {
+    expect(pages).toHaveLength(25);
   });
 
   it.each(pages.map(p => [`${p.entry.section}/${p.entry.slug}`, p] as const))(

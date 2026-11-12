@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { roomPath } from '@/app/paths';
-import { formatNear } from '@/chain/format';
+import { formatNear, formatRule } from '@/chain/format';
 import { active } from '@/config/env';
-import { useEntity, useLatestRound, useTeamActions } from '@/game';
+import { useEntity, useLatestRound, useLog, useTeamActions } from '@/game';
 import type { Team } from '@/game/types';
 import { ActionSlip } from '@/ui/ActionSlip';
+import { Amount } from '@/ui/Amount';
 import { AmountField, readNear } from '@/ui/AmountField';
 import { Button } from '@/ui/Button';
 import { InkBox } from '@/ui/InkBox';
@@ -13,6 +14,7 @@ import { isActive, phaseLabel, pad3 } from '@/screens/shared/round';
 import { Roster } from './Roster';
 import { CopyField, TextField, busy } from './parts';
 import { inviteLink } from './invite';
+import { depositShares, teamMinted } from './vault';
 
 export function InTeam({ team, me }: { team: Team; me: string }) {
   const actions = useTeamActions();
@@ -23,6 +25,8 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
   const entity = useEntity(1, round.data?.roundId ?? null, me);
   const live = round.data && isActive(round.data) ? round.data : null;
   const captain = team.captain === me;
+  const log = useLog(1, round.data?.roundId);
+  const minted = teamMinted(log.rows, team.teamId, me);
 
   return (
     <div className="grid gap-6">
@@ -36,7 +40,44 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
           <h2 className="display text-[44px] leading-none">{team.name}</h2>
         </div>
         <div className="mono text-[14px] font-bold">
-          vault <b>{formatNear(team.vault, 3)} NEAR</b>
+          {team.members.length} {team.members.length === 1 ? 'member' : 'members'}
+        </div>
+      </InkBox>
+
+      <InkBox className="grid gap-3 p-4 sm:grid-cols-3" fill="var(--color-paper)" tilt={-0.2}>
+        <div>
+          <div className="mono text-[12px] font-bold uppercase tracking-widest">In the vault</div>
+          <div className="text-[22px]">
+            <Amount kind="near" value={team.vault} digits={3} />
+          </div>
+          <p className="text-[13px] font-semibold">
+            {team.activeRound !== null
+              ? `Round ${team.activeRound} is using part of it until it settles.`
+              : team.weight > 0n
+                ? `${formatNear(team.weight, 3)} NEAR put in by the crew.`
+                : 'Nothing deposited yet.'}
+          </p>
+        </div>
+        <div>
+          <div className="mono text-[12px] font-bold uppercase tracking-widest">Round pot</div>
+          <div className="text-[22px]">
+            <Amount kind="near" value={round.data?.pot ?? 0n} digits={3} />
+          </div>
+          <p className="text-[13px] font-semibold">
+            {round.data
+              ? `Team round ${round.data.roundId}, shared by the whole team.`
+              : 'No team round yet.'}
+          </p>
+        </div>
+        <div>
+          <div className="mono text-[12px] font-bold uppercase tracking-widest">RULE earned</div>
+          <div className="text-[22px]">
+            <Amount kind="rule" value={minted.mine} />
+          </div>
+          <p className="text-[13px] font-semibold">
+            You, this round
+            {team.members.length > 1 ? `. The team minted ${formatRule(minted.total)} RULE.` : '.'}
+          </p>
         </div>
       </InkBox>
 
@@ -104,23 +145,27 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
             />
           </div>
           <table className="data-table mt-4">
-            <caption className="sr-only">Depositor weights</caption>
+            <caption className="sr-only">Deposits by member</caption>
             <thead>
               <tr>
-                <th scope="col">Depositor</th>
-                <th scope="col">Weight</th>
+                <th scope="col">Member</th>
+                <th scope="col">Put in</th>
+                <th scope="col">Share of vault</th>
               </tr>
             </thead>
             <tbody>
               {team.deposits.length === 0 ? (
                 <tr>
-                  <td colSpan={2}>No deposits yet.</td>
+                  <td colSpan={3}>No deposits yet.</td>
                 </tr>
               ) : (
-                team.deposits.map(x => (
+                depositShares(team).map(x => (
                   <tr key={x.account}>
                     <td className="break-all">{x.account}</td>
-                    <td>{x.weight.toString()}</td>
+                    <td>
+                      <Amount kind="near" value={x.amount} digits={3} />
+                    </td>
+                    <td>{x.percent}%</td>
                   </tr>
                 ))
               )}

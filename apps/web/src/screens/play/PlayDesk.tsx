@@ -6,6 +6,7 @@ import { Art } from '@/art/Art';
 import { formatNear } from '@/chain/format';
 import { useEntity, useLog, usePlay, usePlayer, useParams, useTeam, useWords } from '@/game';
 import type { Mode, PlayState, Round } from '@/game/types';
+import { playCost } from '@/game/cost';
 import { useConnect } from '@/layout/useConnect';
 import { Blot, type BlotState } from '@/mascot/Blot';
 import { Drip } from '@/mascot/Drip';
@@ -92,7 +93,7 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
     if (word === null && list.length) setWord(list[Math.floor(list.length / 9)] ?? list[0] ?? null);
   }, [list, word]);
 
-  const fee = params.data?.playFee ?? null;
+  const price = params.data ? playCost(params.data).total : null;
   const balance = mode === 0 ? player.data?.credit : team.data?.vault;
   const left = entity.data ? entity.data.limit - entity.data.attempts : null;
   const inFlight = BUSY.includes(play.state.kind);
@@ -124,14 +125,14 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
     if (waiting && !inFlight)
       reason = { text: 'A play is already waiting for the sealed program. One at a time.' };
     else if (left !== null && left <= 0) reason = { text: 'No attempts left in this round for your line.' };
-    else if (fee !== null && balance !== undefined && balance < fee)
+    else if (price !== null && balance !== undefined && balance < price)
       reason = {
-        text: `Not enough ${mode === 0 ? 'game credit' : 'team vault'} for the ${formatNear(fee)} NEAR fee.`,
+        text: `Not enough ${mode === 0 ? 'game credit' : 'team vault'} for one play: ${formatNear(price)} NEAR (the ${formatNear(params.data?.playFee ?? 0n)} NEAR fee plus ${formatNear(params.data?.storagePerPlay ?? 0n)} NEAR storage).`,
         to: mode === 0 ? '/account' : roomPath(1, 'crew'),
         cta: mode === 0 ? 'Add credit' : 'Open the crew desk',
       };
   }
-  const canStamp = wallet.status === 'connected' && !reason && !inFlight && word !== null && fee !== null;
+  const canStamp = wallet.status === 'connected' && !reason && !inFlight && word !== null && price !== null;
 
   function stamp() {
     if (!canStamp || word === null) return;
@@ -269,8 +270,8 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
             {pad3(number)} · {word} was already stamped{' '}
             {repeats.length === 1 ? 'once' : `${repeats.length} times`} this round (last at minute digit{' '}
             {repeats[repeats.length - 1]?.minuteDigit}: {repeats[repeats.length - 1]?.verdict ? 'YES' : 'NO'}
-            ). The law can read the minute digit and your previous play, so a repeat in a different context is
-            a new paid play. A different pair tells you more.
+            ). The law can read the minute digit, your previous play and how long ago it was, so a repeat in a
+            different context is a new paid play. A different pair tells you more.
           </p>
         ) : null}
 
@@ -286,8 +287,8 @@ export function PlayDesk({ mode, round }: { mode: Mode; round: Round }) {
             sound="stamp"
           >
             {inFlight ? 'Stamping…' : 'STAMP!'}
-            {fee !== null && !inFlight ? (
-              <span className="mono text-[16px] font-bold tracking-wide">{formatNear(fee)} NEAR</span>
+            {price !== null && !inFlight ? (
+              <span className="mono text-[16px] font-bold tracking-wide">{formatNear(price)} NEAR</span>
             ) : null}
           </Button>
         ) : (

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { roomPath } from '@/app/paths';
 import { formatNear, formatRule } from '@/chain/format';
 import { active } from '@/config/env';
@@ -13,12 +13,14 @@ import { InkBox } from '@/ui/InkBox';
 import { isActive, phaseLabel, pad3 } from '@/screens/shared/round';
 import { Roster } from './Roster';
 import { CopyField, TextField, busy } from './parts';
-import { inviteLink } from './invite';
+import { inviteAccountFromSearch, inviteLink } from './invite';
 import { depositShares, teamMinted } from './vault';
 
 export function InTeam({ team, me }: { team: Team; me: string }) {
   const actions = useTeamActions();
-  const [inv, setInv] = useState('');
+  const [search] = useSearchParams();
+  const requested = team.captain === me ? inviteAccountFromSearch(search.toString()) : null;
+  const [inv, setInv] = useState(requested ?? '');
   const [dep, setDep] = useState('');
   const d = readNear(dep);
   const round = useLatestRound(1);
@@ -102,6 +104,16 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
             Team plays and stakes are paid from the vault. Each deposit is recorded by depositor. Unused
             principal comes back pro rata between rounds; round rewards are split equally.
           </p>
+          {!team.deposits.some(x => x.account === me) ? (
+            <p
+              className="mb-3 rounded-2xl border-[3px] border-ink bg-sun px-3 py-2 font-extrabold"
+              role="status"
+            >
+              {team.members.length > 1
+                ? 'You are in the crew. Put your share in the vault so the team can play.'
+                : 'Put some NEAR in the vault so your team can play.'}
+            </p>
+          ) : null}
           <AmountField
             label="Deposit to vault"
             value={dep}
@@ -221,9 +233,11 @@ export function InTeam({ team, me }: { team: Team; me: string }) {
               onChange={setInv}
               placeholder="friend.testnet"
               hint={
-                captain
-                  ? 'Only the captain can invite. Max team size applies.'
-                  : 'Only the captain can invite.'
+                requested !== null && inv === requested
+                  ? 'Filled in from a join request. Check the name, then press Send invite.'
+                  : captain
+                    ? 'Only the captain can invite. Max team size applies.'
+                    : 'Only the captain can invite.'
               }
             />
             <div>
